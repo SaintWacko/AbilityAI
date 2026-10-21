@@ -170,11 +170,22 @@ namespace AbilityAI
 
         static void Prefix(Command_Ability __instance, Vector2 topLeft, float maxWidth)
         {
+            if (Event.current.type != EventType.MouseDown) return;
+            RightClick(__instance, new Rect(topLeft.x, topLeft.y, __instance.GetWidth(maxWidth), 75f));
+        }
+
+        static void Postfix(Command_Ability __instance, Vector2 topLeft)
+        {
+            if (Event.current.type != EventType.Repaint) return;
+            Badge(__instance, topLeft);
+        }
+
+        internal static void RightClick(Command_Ability command, Rect rect)
+        {
             Event ev = Event.current;
             if (ev.type != EventType.MouseDown || ev.button != 1) return;
-            Ability ability = __instance.Ability;
+            Ability ability = command.Ability;
             if (ability == null || !AbilityAIAutocast.Offers(ability)) return;
-            var rect = new Rect(topLeft.x, topLeft.y, __instance.GetWidth(maxWidth), 75f);
             if (!Mouse.IsOver(rect)) return;
             // Used here, vanilla's button never sees the press: no cast on an enabled gizmo, no "disabled" message
             // on one that is cooling down
@@ -182,10 +193,9 @@ namespace AbilityAI
             AbilityAIAutocast.OpenMenu(ability);
         }
 
-        static void Postfix(Command_Ability __instance, Vector2 topLeft, float maxWidth)
+        internal static void Badge(Command_Ability command, Vector2 topLeft)
         {
-            if (Event.current.type != EventType.Repaint) return;
-            Ability ability = __instance.Ability;
+            Ability ability = command.Ability;
             if (ability?.pawn == null || !AbilityAISettings.Enabled || !AbilityAISettings.PlayerAutocast) return;
             if (!AbilityAIAutocast.HasAny(ability.pawn)) return;
             var mode = AbilityAIAutocast.ModeFor(ability.pawn, ability.def);
@@ -200,6 +210,26 @@ namespace AbilityAI
             Widgets.Label(new Rect(r.x + 2f, r.y, size.x, size.y), text);
             GUI.color = Color.white;
             Text.Font = GameFont.Small;
+        }
+    }
+
+    /// <summary>The same for ability gizmos drawn shrunk (a pawn with more abilities than fit in one row): the gizmo
+    /// grid calls Command.GizmoOnGUIShrunk, which goes straight to GizmoOnGUIInt and never reaches
+    /// Command_Ability.GizmoOnGUI. Runs for every shrunk command; anything not an ability gizmo leaves at one type
+    /// check.</summary>
+    [HarmonyPatch(typeof(Command), nameof(Command.GizmoOnGUIShrunk))]
+    internal static class Patch_Command_ShrunkAutocast
+    {
+        static void Prefix(Command __instance, Vector2 topLeft, float size)
+        {
+            if (Event.current.type != EventType.MouseDown || !(__instance is Command_Ability command)) return;
+            Patch_CommandAbility_Autocast.RightClick(command, new Rect(topLeft.x, topLeft.y, size, size));
+        }
+
+        static void Postfix(Command __instance, Vector2 topLeft)
+        {
+            if (Event.current.type != EventType.Repaint || !(__instance is Command_Ability command)) return;
+            Patch_CommandAbility_Autocast.Badge(command, topLeft);
         }
     }
 }

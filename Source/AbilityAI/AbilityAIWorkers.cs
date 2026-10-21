@@ -9,9 +9,10 @@ using Verse.AI;
 // shared between pawns and must keep no per-pawn state. A host mod's own comp states its area, hediff and stun
 // through AbilityAIInfo (AbilityAIInfo.cs).
 //
-// Cost: a worker only runs for a pawn that is not a colonist, holds an ability with an extension, that ability is
-// ready (CanCast, reserve, gap) and a host hook claims it, at most once per 30 ticks per pawn and then not again for
-// the global gap after a cast. Each worker notes its own cost below; k = hostile pawns on the map.
+// Cost: a worker only runs for a pawn that holds an ability with an extension, that ability is ready (CanCast,
+// reserve, gap) and a host hook claims it (or, for the player's pawns, the player set it to autocast; undrafted ones
+// only try workers where WorksUndrafted is true), at most once per 30 ticks per pawn and then not again for the
+// global gap after a cast. Each worker notes its own cost below; k = hostile pawns on the map.
 namespace AbilityAI
 {
     public abstract class AbilityAIWorker
@@ -218,7 +219,7 @@ namespace AbilityAI
             return job.exitMapOnArrival && ctx.InCombat;
         }
 
-        /// <summary>The nearest enemy within 1.5 tiles that is fighting the pawn in melee.</summary>
+        /// <summary>The caster was hurt in melee in the last 10 seconds by someone still standing next to it.</summary>
         public static bool InMelee(AbilityAIContext ctx) => InMelee(ctx, ctx.pawn);
 
         /// <summary>Hurt in melee in the last 10 seconds by someone still standing next to it.</summary>

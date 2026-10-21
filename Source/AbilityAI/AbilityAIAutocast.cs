@@ -177,7 +177,7 @@ namespace AbilityAI
         static void Postfix(Command_Ability __instance, Vector2 topLeft, float maxWidth)
         {
             if (Event.current.type != EventType.Repaint) return;
-            Badge(__instance, new Rect(topLeft.x, topLeft.y, __instance.GetWidth(maxWidth), 75f));
+            Badge(__instance, new Rect(topLeft.x, topLeft.y, __instance.GetWidth(maxWidth), 75f), false);
         }
 
         internal static void RightClick(Command_Ability command, Rect rect)
@@ -193,21 +193,25 @@ namespace AbilityAI
             AbilityAIAutocast.OpenMenu(ability);
         }
 
-        internal static void Badge(Command_Ability command, Rect button)
+        internal static void Badge(Command_Ability command, Rect button, bool shrunk)
         {
             Ability ability = command.Ability;
             if (ability?.pawn == null || !AbilityAISettings.Enabled || !AbilityAISettings.PlayerAutocast) return;
             if (!AbilityAIAutocast.HasAny(ability.pawn)) return;
             var mode = AbilityAIAutocast.ModeFor(ability.pawn, ability.def);
             if (mode == AbilityAIAutocastMode.Off) return;
-            // Bottom left: vanilla puts the hotkey top left, charges top right and the cooldown in the middle
+            // Left edge. Vanilla puts charges top right and the cooldown at the top centre; full size, the hotkey is
+            // top left and the label along the bottom, so the badge goes top left under the hotkey line. Shrunk there
+            // is no label, so bottom left, clear of the hotkey.
             string text = mode == AbilityAIAutocastMode.Full ? "AAI_Badge_Full".Translate() : "AAI_Badge_Stationary".Translate();
             Text.Font = GameFont.Tiny;
             Vector2 size = Text.CalcSize(text);
-            var r = new Rect(button.x + 3f, button.yMax - size.y - 2f, size.x + 4f, size.y);
+            float y = shrunk ? button.yMax - size.y - 1f : button.y + 2f + (command.hotKey != null ? Text.LineHeight : 0f);
+            // A long translation stays inside the button rather than spilling onto the next gizmo
+            var r = new Rect(button.x + 3f, y, Mathf.Min(size.x + 4f, button.width - 6f), size.y);
             GUI.DrawTexture(r, TexUI.GrayTextBG);
             GUI.color = BadgeColor;
-            Widgets.Label(new Rect(r.x + 2f, r.y, size.x, size.y), text);
+            Widgets.Label(new Rect(r.x + 2f, r.y, r.width - 2f, size.y), text);
             GUI.color = Color.white;
             Text.Font = GameFont.Small;
         }
@@ -229,7 +233,7 @@ namespace AbilityAI
         static void Postfix(Command __instance, Vector2 topLeft, float size)
         {
             if (Event.current.type != EventType.Repaint || !(__instance is Command_Ability command)) return;
-            Patch_CommandAbility_Autocast.Badge(command, new Rect(topLeft.x, topLeft.y, size, size));
+            Patch_CommandAbility_Autocast.Badge(command, new Rect(topLeft.x, topLeft.y, size, size), true);
         }
     }
 }

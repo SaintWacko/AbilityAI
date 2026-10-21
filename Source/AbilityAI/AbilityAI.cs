@@ -535,7 +535,7 @@ namespace AbilityAI
         // Steps on the way back after a Full walk that were interrupted (shot at: the drafted think tree stops the
         // pawn where it is) before giving up on going home
         private const int MaxReturnTries = 2;
-        // How far from its old spot a pawn returning to cover may stand
+        // How far from where it cast a pawn looking for new cover may go
         private const float CoverSearchRadius = 6f;
 
         private struct Candidate
@@ -969,13 +969,16 @@ namespace AbilityAI
             return back;
         }
 
-        // The walk to the spot the pawn left, or with ReturnToCover a covered spot near it that it can shoot from.
-        // Null when it is already there or can't get there. Not player-forced, so a new player order replaces it
-        // (and CheckHome sees the forced job and forgets the walk).
+        // The walk to the spot the pawn left, or with ReturnToCover a covered spot it can shoot from, found around
+        // where it is after the cast (falling back to the old spot when there is none). The cover spot is chosen once,
+        // at the first walk back: a retry after the pawn was stopped heads for the same cell rather than searching
+        // again from wherever it was stopped. Null when it is already there or can't get there. Not player-forced, so
+        // a new player order replaces it (and CheckHome sees the forced job and forgets the walk).
         private static Job MakeReturnJob(Pawn pawn, PawnState state)
         {
             IntVec3 cell = state.home;
-            if (AbilityAISettings.ReturnToCover && TryFindCoverCell(pawn, state.home, out IntVec3 cover)) cell = cover;
+            if (state.returnCell.IsValid) cell = state.returnCell;
+            else if (AbilityAISettings.ReturnToCover && TryFindCoverCell(pawn, out IntVec3 cover)) cell = cover;
             if (cell == pawn.Position || !pawn.CanReach(cell, PathEndMode.OnCell, Danger.Deadly)) return null;
             Job job = JobMaker.MakeJob(JobDefOf.Goto, cell);
             job.locomotionUrgency = LocomotionUrgency.Jog;
@@ -984,9 +987,10 @@ namespace AbilityAI
             return job;
         }
 
-        // Vanilla's cast-position search with the pawn's own weapon against the hostile nearest the old spot, wanting
-        // cover from it, within CoverSearchRadius of that spot. Once per walk back.
-        private static bool TryFindCoverCell(Pawn pawn, IntVec3 home, out IntVec3 cell)
+        // Vanilla's cast-position search with the pawn's own weapon against the hostile nearest the pawn, wanting
+        // cover from it, within CoverSearchRadius of where the pawn stands now (where it cast). Its current cell is a
+        // candidate too, so a pawn that cast from good cover stays. Once per walk back.
+        private static bool TryFindCoverCell(Pawn pawn, out IntVec3 cell)
         {
             cell = IntVec3.Invalid;
             var targets = pawn.Map.attackTargetsCache.GetPotentialTargetsFor(pawn);
@@ -995,7 +999,7 @@ namespace AbilityAI
             for (int i = 0; i < targets.Count; i++)
             {
                 if (!(targets[i].Thing is Pawn p) || p.Downed || targets[i].ThreatDisabled(pawn)) continue;
-                float d = (p.Position - home).LengthHorizontalSquared;
+                float d = (p.Position - pawn.Position).LengthHorizontalSquared;
                 if (d < best) { best = d; enemy = p; }
             }
             if (enemy == null) return false;
@@ -1007,9 +1011,7 @@ namespace AbilityAI
                 target = enemy,
                 verb = verb,
                 maxRangeFromTarget = verb.EffectiveRange,
-                maxRangeFromCaster = (pawn.Position - home).LengthHorizontal + CoverSearchRadius,
-                locus = home,
-                maxRangeFromLocus = CoverSearchRadius,
+                maxRangeFromCaster = CoverSearchRadius,
                 wantCoverFromTarget = true,
             };
             return CastPositionFinder.TryFindCastPosition(req, out cell);
@@ -1220,7 +1222,11 @@ namespace AbilityAI
             list.Gap();
             list.CheckboxLabeled("AAI_PlayerAutocast".Translate(), ref PlayerAutocast, "AAI_PlayerAutocast_Tip".Translate());
             list.CheckboxLabeled("  " + "AAI_UndraftedAutocast".Translate(), ref UndraftedAutocast, "AAI_UndraftedAutocast_Tip".Translate());
-            list.CheckboxLabeled("  " + "AAI_ReturnToCover".Translate(), ref ReturnToCover, "AAI_ReturnToCover_Tip".Translate());
+            list.Label("  " + "AAI_ReturnTo".Translate(), -1f, "AAI_ReturnTo_Tip".Translate());
+            if (list.RadioButton("AAI_ReturnTo_Original".Translate(), !ReturnToCover, 24f, "AAI_ReturnTo_Original_Tip".Translate()))
+                ReturnToCover = false;
+            if (list.RadioButton("AAI_ReturnTo_Cover".Translate(), ReturnToCover, 24f, "AAI_ReturnTo_Cover_Tip".Translate()))
+                ReturnToCover = true;
             list.CheckboxLabeled("AAI_BreakCasting".Translate(), ref BreakCasting, "AAI_BreakCasting_Tip".Translate());
             list.Gap();
             list.Label("AAI_MinGap".Translate(MinGapSeconds.ToString("0.#")));

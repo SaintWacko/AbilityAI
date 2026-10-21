@@ -174,10 +174,10 @@ namespace AbilityAI
             RightClick(__instance, new Rect(topLeft.x, topLeft.y, __instance.GetWidth(maxWidth), 75f));
         }
 
-        static void Postfix(Command_Ability __instance, Vector2 topLeft)
+        static void Postfix(Command_Ability __instance, Vector2 topLeft, float maxWidth)
         {
             if (Event.current.type != EventType.Repaint) return;
-            Badge(__instance, topLeft);
+            Badge(__instance, new Rect(topLeft.x, topLeft.y, __instance.GetWidth(maxWidth), 75f));
         }
 
         internal static void RightClick(Command_Ability command, Rect rect)
@@ -193,18 +193,18 @@ namespace AbilityAI
             AbilityAIAutocast.OpenMenu(ability);
         }
 
-        internal static void Badge(Command_Ability command, Vector2 topLeft)
+        internal static void Badge(Command_Ability command, Rect button)
         {
             Ability ability = command.Ability;
             if (ability?.pawn == null || !AbilityAISettings.Enabled || !AbilityAISettings.PlayerAutocast) return;
             if (!AbilityAIAutocast.HasAny(ability.pawn)) return;
             var mode = AbilityAIAutocast.ModeFor(ability.pawn, ability.def);
             if (mode == AbilityAIAutocastMode.Off) return;
-            // Top left: vanilla puts charges top right and the cooldown in the middle
+            // Bottom left: vanilla puts the hotkey top left, charges top right and the cooldown in the middle
             string text = mode == AbilityAIAutocastMode.Full ? "AAI_Badge_Full".Translate() : "AAI_Badge_Stationary".Translate();
             Text.Font = GameFont.Tiny;
             Vector2 size = Text.CalcSize(text);
-            var r = new Rect(topLeft.x + 3f, topLeft.y + 2f, size.x + 4f, size.y);
+            var r = new Rect(button.x + 3f, button.yMax - size.y - 2f, size.x + 4f, size.y);
             GUI.DrawTexture(r, TexUI.GrayTextBG);
             GUI.color = BadgeColor;
             Widgets.Label(new Rect(r.x + 2f, r.y, size.x, size.y), text);
@@ -226,10 +226,10 @@ namespace AbilityAI
             Patch_CommandAbility_Autocast.RightClick(command, new Rect(topLeft.x, topLeft.y, size, size));
         }
 
-        static void Postfix(Command __instance, Vector2 topLeft)
+        static void Postfix(Command __instance, Vector2 topLeft, float size)
         {
             if (Event.current.type != EventType.Repaint || !(__instance is Command_Ability command)) return;
-            Patch_CommandAbility_Autocast.Badge(command, topLeft);
+            Patch_CommandAbility_Autocast.Badge(command, new Rect(topLeft.x, topLeft.y, size, size));
         }
     }
 }

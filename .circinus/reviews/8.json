@@ -1,0 +1,118 @@
+{
+  "version": 1,
+  "buildId": 8,
+  "buildIdNote": null,
+  "reviewedAt": "2026-10-21T22:07:00.950Z",
+  "conversationId": "01a16032-25b8-718f-b241-4df68cee547d",
+  "focus": "Entad's three requests: OthersStandDown in the AICanTargetNow stand-down (player pawns always stand down), hook vetoes gating Offers/OpenMenu/badge, menu title from the gizmo label. Also re-check the badge placement from build 7.",
+  "diffSource": "since the oldest restore point still kept (2026-10-21T20:45:34Z); older ones were pruned, so the chat's first changes may be missing",
+  "parsed": true,
+  "problem": null,
+  "stoppedBecause": null,
+  "counts": {
+    "must": 0,
+    "should": 2,
+    "note": 4
+  },
+  "findings": [
+    {
+      "severity": "should",
+      "title": "Player-pawn stand-down blocks vanilla in a mental break even when the driver will never cast for that pawn",
+      "detail": "OthersStandDown returns HasWorker for every player pawn. With BreakCasting off (the default), ControlOf returns Control.None for a pawn in a mental state (AbilityAI.cs:568), so the driver never casts for it. Vanilla is still told no, so a berserk colonist's aiCanUse fallback ability (the host pattern the file header describes) is cast by nobody. This is not what happens without this mod. With BreakCasting on, the same is true for abilities no hook claims while Unclaimed is off. One change: in the player branch, return Handles(pawn, ability) instead of HasWorker when pawn.InMentalState, so vanilla keeps its break behaviour unless this mod actually takes the pawn over.",
+      "evidence": {
+        "kind": "index",
+        "ref": "Source/AbilityAI/AbilityAI.cs:657"
+      }
+    },
+    {
+      "severity": "should",
+      "title": "Right-click on one pawn's ungrouped ability gizmo sets the mode for every selected pawn",
+      "detail": "parms.multipleSelected is true exactly when several pawns' Command_Ability gizmos for the same def are drawn as separate buttons (ShowPawnDetailsWith); vanilla only merges them into one button when def.groupAbility is set (GroupsWith). OpenMenu (AbilityAIAutocast.cs:144-145) still collects every selected pawn with the ability, so right-clicking the button labelled 'Ability (B)' changes A and C too, while the '(current)' marker and the badge show only B's mode. Change OpenMenu to gather the other selected pawns only when clicked.def.groupAbility is true. Then the title rule at :196 is backwards: when multipleSelected is true the per-pawn LabelCap is accurate and the def label is not.",
+      "evidence": {
+        "kind": "index",
+        "ref": "Verse/GizmoGridDrawer.cs:279-290 (multipleSelected from ShowPawnDetailsWith); RimWorld/Command_Ability.cs:144 (GroupsWith requires def.groupAbility); Source/AbilityAI/AbilityAIAutocast.cs:144"
+      }
+    },
+    {
+      "severity": "note",
+      "title": "Doc comment on the stand-down patch says vanilla keeps unclaimed abilities, which no longer holds for player pawns",
+      "detail": "The comment at AbilityAIMod.cs:80 lists 'an unclaimed ability with Unclaimed off' as a case where vanilla keeps its own behaviour. Since the player branch was added to OthersStandDown, that holds only for non-player pawns. Player pawns in a lord (AbilityAI.cs:571, Control.None) or in a break with BreakCasting off are also stood down without the driver taking over. Reword it so a host author reading it doesn't count on the fallback.",
+      "evidence": {
+        "kind": "index",
+        "ref": "Source/AbilityAIMod.cs:80"
+      }
+    },
+    {
+      "severity": "note",
+      "title": "RightClick runs every hook's Vote before checking the mouse is over the button",
+      "detail": "On every right-click MouseDown anywhere on screen (map orders included), each visible ability gizmo calls Offers, which runs HasWorker and every AbilityAIHooks vote, and only then checks Mouse.IsOver. Moving the Mouse.IsOver(rect) check (line 190) above the Offers call (line 189) makes this one rect test for every gizmo the cursor isn't over.",
+      "evidence": {
+        "kind": "index",
+        "ref": "Source/AbilityAI/AbilityAIAutocast.cs:189"
+      }
+    },
+    {
+      "severity": "note",
+      "title": "Load restores modes through the static Instance rather than this component",
+      "detail": "PostLoadInit calls the static SetMode, which resolves Instance (instance.world == Find.World) or falls back to Find.World?.GetComponent. If that ever names another component or null, the loaded modes are dropped or written elsewhere without any message. Writing into this.modes directly in the PostLoadInit loop removes the dependency.",
+      "evidence": {
+        "kind": "index",
+        "ref": "Source/AbilityAI/AbilityAIAutocast.cs:109"
+      }
+    },
+    {
+      "severity": "note",
+      "title": "Badge runs the veto hooks on every repaint for each gizmo with a mode set",
+      "detail": "Badge calls AbilityAIHooks.NotVetoed on each Repaint for every ability button whose pawn has a non-Off mode. That is correct for Entad's request, but its frame cost is whatever the hooks cost. Worth knowing if a hook is slow; no change needed now.",
+      "evidence": {
+        "kind": "index",
+        "ref": "Source/AbilityAI/AbilityAIAutocast.cs:207"
+      }
+    }
+  ],
+  "checked": [
+    "verify_patches: all 6 targets resolve, including Pawn_JobTracker.DetermineNextConstantThinkTreeJob (AbilityAI.cs:993) and Ability.AICanTargetNow (AbilityAIMod.cs:87)",
+    "Both of this file pair's patches are postfixes that never skip the original; the corpus has no other patcher of either target (brief: 0 of 55 trees), so there is no precedent to follow",
+    "Ability.AICanTargetNow is virtual but no vanilla Ability subclass overrides it, so the postfix covers every vanilla caller (JobGiver_AIAbilityFight:80, Pawn_AbilityTracker.AICastableAbilities:147, us…",
+    "The stand-down postfix does nothing when vanilla already answered false and only does the extension lookup when it answered true; HasWorker is a modExtensions loop",
+    "OthersStandDown honours Enabled and PlayerAutocast, handing player pawns back to vanilla when either is off, as its doc says; prisoners are excluded",
+    "Hook veto plumbing: AbilityAIHooks.Allowed/NotVetoed catch exceptions from hooks and log each once, and any veto wins over a claim",
+    "DetermineNextConstantThinkTreeJob postfix: acts only on an invalid result, uses the constant tree root as SourceNode (no missing think node on load), and its own try/catch logs once",
+    "CheckForJobOverride discard path (minPriority 9.1 is used only by JobDriver_Reading) cannot coincide with the AttackStatic resume enqueue, so no orphan job is left in the queue",
+    "AbilityAIStartup patches each class separately and logs an error on failure (lint patch-success-always); the Mod constructor touches no DefOf (lint defof-in-mod-ctor); no prefixes in these files (lin…",
+    "AbilityAISettings.Reset and ExposeData cover the same fields with matching defaults; MinGapSeconds is clamped after load",
+    "all four [HarmonyPatch] targets bind (verify_patches: Command_Ability.GizmoOnGUI prefix/postfix, Command.GizmoOnGUIShrunk prefix/postfix)",
+    "both prefixes return void, so vanilla always runs (prefix-returns-void)",
+    "corpus: no mod with readable source patches Command_Ability or these two methods, so no ordering or skip conflict was found",
+    "full-size and shrunk paths don't double-fire: Command_Ability.GizmoOnGUI goes through base.GizmoOnGUI to GizmoOnGUIInt, never through GizmoOnGUIShrunk",
+    "full-size badge position (x+3, y+3+LineHeight) is clear of the hotkey (x+5,y+3), cooldown countdown (centre top), TopRightLabel (top right) and bottom label (yMax-num+12)",
+    "shrunk badge (bottom left) is clear of the shrunk hotkey (x+3,y+0); shrunk draws no label or TopRightLabel",
+    "Badge restores GUI.color to white and Text.Font to Small, matching what GizmoOnGUIInt leaves; Text.Anchor left at UpperLeft",
+    "Badge draws after the original, so it sits on top of the cooldown FillableBar",
+    "hook vetoes gate Offers, OpenMenu (via Offers) and Badge (NotVetoed in AbilityAI.cs:82 catches hook exceptions with ErrorOnce)",
+    "menu title uses the gizmo's LabelCap when not multi-selected, otherwise def.LabelCap",
+    "every AAI_Mode_* and AAI_Badge_* key used exists in Languages/English/Keyed/AbilityAI.xml",
+    "save data: Scribe_References/Scribe_Defs entries, discarded pawns skipped on save, null-safe on load of older saves"
+  ],
+  "unreviewed": [],
+  "outOfScope": [
+    "Source/AbilityAI/AbilityAIWorkers.cs",
+    "Source/AbilityAI/AbilityAIWorkersTargeted.cs",
+    "Source/AbilityAIInfo.cs",
+    "About/About.xml",
+    "Languages/English/Keyed/AbilityAI.xml",
+    "LoadFolders.xml",
+    "Patches/AbilityAI_Royalty.xml",
+    "1.6/Source/AbilityAI.csproj",
+    "1.7/Source/AbilityAI.csproj",
+    "Source/AbilityAI.Build.csproj"
+  ],
+  "reviewed": [
+    "Source/AbilityAI/AbilityAI.cs",
+    "Source/AbilityAI/AbilityAIAutocast.cs",
+    "Source/AbilityAIMod.cs"
+  ],
+  "parts": 2,
+  "buildCommit": "fb484fab2e5165018e79134d14f339d2c5395e3f",
+  "partial": false
+}

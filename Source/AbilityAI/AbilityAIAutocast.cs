@@ -134,16 +134,17 @@ namespace AbilityAI
             return AbilityAIDriver.HasWorker(ability.def, p.drafter == null) && AbilityAIHooks.NotVetoed(p, ability);
         }
 
-        // Every selected pawn of the player's with this ability: a grouped gizmo (several pawns selected) draws one
-        // button for all of them
+        // A def with groupAbility draws one button for every selected pawn that has it, so the menu sets the mode for
+        // all of them. Otherwise each pawn has its own button ("Ability (Name)" when several are selected) and the
+        // menu is for that pawn alone.
         // title: the gizmo's own label, so a mod that relabels ability gizmos keeps its name in the menu
         internal static void OpenMenu(Ability clicked, string title)
         {
             AbilityDef def = clicked.def;
-            var pawns = new List<Pawn>();
-            foreach (object o in Find.Selector.SelectedObjectsListForReading)
-                if (o is Pawn p && p.abilities?.GetAbility(def) is Ability a && Offers(a)) pawns.Add(p);
-            if (!pawns.Contains(clicked.pawn)) pawns.Add(clicked.pawn);
+            var pawns = new List<Pawn> { clicked.pawn };
+            if (def.groupAbility)
+                foreach (object o in Find.Selector.SelectedObjectsListForReading)
+                    if (o is Pawn p && p != clicked.pawn && p.abilities?.GetAbility(def) is Ability a && Offers(a)) pawns.Add(p);
             AbilityAIAutocastMode current = ModeFor(clicked.pawn, def);
 
             var options = new List<FloatMenuOption>();
@@ -185,15 +186,17 @@ namespace AbilityAI
         {
             Event ev = Event.current;
             if (ev.type != EventType.MouseDown || ev.button != 1) return;
+            // The rect first: every visible gizmo sees every right-click, and Offers asks the hooks
+            if (!Mouse.IsOver(rect)) return;
             Ability ability = command.Ability;
             if (ability == null || !AbilityAIAutocast.Offers(ability)) return;
-            if (!Mouse.IsOver(rect)) return;
             // Used here, vanilla's button never sees the press: no cast on an enabled gizmo, no "disabled" message
             // on one that is cooling down
             ev.Use();
-            // With several pawns selected vanilla's label is "Ability (Name)" for one of them, but the menu sets the
-            // mode for all of them: the def's label then
-            AbilityAIAutocast.OpenMenu(ability, multipleSelected ? null : (string)command.LabelCap);
+            // A grouped button is labelled "Ability (Name)" for one of the pawns while the menu sets the mode for
+            // all of them: the def's label then. An ungrouped one names its own pawn, which is right.
+            bool grouped = multipleSelected && ability.def.groupAbility;
+            AbilityAIAutocast.OpenMenu(ability, grouped ? null : (string)command.LabelCap);
         }
 
         internal static void Badge(Command_Ability command, Rect button, bool shrunk)

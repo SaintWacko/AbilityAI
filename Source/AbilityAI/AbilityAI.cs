@@ -652,12 +652,14 @@ namespace AbilityAI
         /// leave this pawn and ability alone: whenever Handles is true, and for the player's own pawns (not prisoners)
         /// whenever the ability has a working extension at all, whatever its autocast mode or the hooks' votes. The
         /// player's pawns then only cast an ability this mod has rules for when the player set it to autocast; turning
-        /// off Enabled or PlayerAutocast hands them back to vanilla. Our driver never asks this, so a player pawn in a
-        /// break with BreakCasting on still casts through it.</summary>
+        /// off Enabled or PlayerAutocast hands them back to vanilla. A pawn in a mental break is out of the player's
+        /// hands, so for it only Handles counts: vanilla keeps the break unless BreakCasting has this mod take it
+        /// over. Our driver never asks this, so it never stands itself down.</summary>
         public static bool OthersStandDown(Pawn pawn, Ability ability)
         {
             if (!AbilityAISettings.Enabled || pawn == null || ability?.def == null) return false;
-            if (AbilityAISettings.PlayerAutocast && pawn.Faction != null && pawn.Faction.IsPlayer && !pawn.IsPrisoner)
+            if (AbilityAISettings.PlayerAutocast && pawn.Faction != null && pawn.Faction.IsPlayer && !pawn.IsPrisoner
+                && !pawn.InMentalState)
                 return HasWorker(ability.def, false);
             return Handles(pawn, ability);
         }

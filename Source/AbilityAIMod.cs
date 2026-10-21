@@ -77,8 +77,11 @@ namespace AbilityAI
     /// AI does run for colony mechs and tame animals, and the player's choice in the autocast menu should be the only
     /// way those cast (AbilityAIDriver.OthersStandDown).
     ///
-    /// Otherwise (an NPC whose kind is switched off in the settings, an unclaimed ability with Unclaimed off) vanilla
-    /// keeps its own behaviour.
+    /// That includes a player pawn the driver isn't casting for right now (mode Off, undrafted with a combat-only
+    /// ability, in a lord), so a host can't count on its aiCanUse fallback for the player's pawns while this mod and
+    /// its player autocast are on. A player pawn in a mental break, and NPCs, stand vanilla down only where this mod
+    /// decides (Handles): an NPC whose kind is switched off in the settings, or an unclaimed ability with Unclaimed
+    /// off, keeps vanilla's behaviour.
     ///
     /// Cost: one bool read on every call, and only calls vanilla answered true (abilities with aiCanUse that are
     /// ready) go on to the extension lookup and the hooks' vote. Our own driver never calls this method, so it

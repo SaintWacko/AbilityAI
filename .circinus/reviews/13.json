@@ -1,0 +1,52 @@
+{
+  "version": 1,
+  "buildId": 13,
+  "buildIdNote": null,
+  "reviewedAt": "2026-10-21T22:54:05.766Z",
+  "conversationId": "01a1609c-f742-718f-b241-4e56775b2e83",
+  "focus": "Small follow-ups since build 12: CheckHome Spawned guard, gizmo cache clear from the world component ctor, Full downgraded to Stationary for undraftable pawns in group menus, tooltip text",
+  "diffSource": "since build 12 (2026-10-21T22:48:59Z), the last reviewed build, from the build log",
+  "parsed": true,
+  "problem": null,
+  "stoppedBecause": null,
+  "counts": {
+    "must": 0,
+    "should": 0,
+    "note": 1
+  },
+  "findings": [
+    {
+      "severity": "note",
+      "title": "Choosing \"Full (current)\" on an undraftable pawn's menu now quietly switches it to Stationary",
+      "detail": "The comment at line 239-240 says a Full mode set earlier stays and shows as current even when Full is no longer offered. With the new downgrade in the click handler, if the clicked pawn has drafter == null and an old Full mode, picking that 'current' entry stores Stationary, not Full. Behaviour is the same, since Full acts as Stationary for that pawn. But the menu said 'current', so the player would expect no change, and the badge will change from the Full text to the Stationary text. Either skip the clicked pawn when m == current, or accept it and update the comment.",
+      "evidence": {
+        "kind": "index",
+        "ref": "Source/AbilityAI/AbilityAIAutocast.cs:252"
+      }
+    }
+  ],
+  "checked": [
+    "CheckHome !pawn.Spawned guard: ClearHome (AbilityAI.cs:1037) only resets PawnState fields, so it is safe for an unspawned pawn, and the guard runs before jobs.jobQueue is read",
+    "Gizmo_PsycastLimits.ClearCache from the AbilityAIAutocast(World) constructor: the class is [StaticConstructorOnStartup], so shared and the textures already exist; every field that holds a pawn (cache…",
+    "Group-menu Full->Stationary downgrade uses the same drafter==null test as Offers (AbilityAIAutocast.cs:219) and the full flag (line 241)",
+    "AAI_Animals_Tip matches Offers: an undraftable player pawn is only offered autocast when UndraftedAutocast is on",
+    "AAI_PlayerAutocast_Tip 'see below': the AAI_ReturnToCover checkbox is drawn after it in the settings list (AbilityAI.cs:1221-1223)",
+    "every [HarmonyPatch] target binds (verify_patches: 7 of 7 resolved); no patch declaration changed in this diff",
+    "pyxis_mod_errors: not checked, because no Pyxis token is configured"
+  ],
+  "unreviewed": [],
+  "outOfScope": [],
+  "reviewed": [
+    "Source/AbilityAI/AbilityAI.cs",
+    "Source/AbilityAI/AbilityAIAutocast.cs",
+    "Source/AbilityAI/AbilityAIPsycastLimits.cs",
+    "Languages/English/Keyed/AbilityAI.xml",
+    "1.6/Assemblies/AbilityAI.dll",
+    "1.6/Assemblies/AbilityAI.pdb",
+    "1.7/Assemblies/AbilityAI.dll",
+    "1.7/Assemblies/AbilityAI.pdb"
+  ],
+  "parts": 1,
+  "buildCommit": "b605952f632759eae0cb6fb12d55d550d00790e5",
+  "partial": false
+}

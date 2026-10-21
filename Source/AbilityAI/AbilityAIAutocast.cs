@@ -237,7 +237,8 @@ namespace AbilityAI
 
             var options = new List<FloatMenuOption>();
             // Full only adds the walk into range: drafted pawns, abilities set up with an approachDistance. Elsewhere
-            // it would act as Stationary, so it isn't offered (a Full set earlier stays, and shows as current).
+            // it would act as Stationary, so it isn't offered (a Full set earlier stays, and shows as current; picking
+            // it again on a pawn that can't be drafted stores Stationary, which is what it was doing anyway).
             bool full = clicked.pawn.drafter != null && CanApproach(def);
             foreach (AbilityAIAutocastMode mode in Modes)
             {

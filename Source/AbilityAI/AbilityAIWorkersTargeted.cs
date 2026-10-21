@@ -198,7 +198,8 @@ namespace AbilityAI
         private bool InTrouble(AbilityAIContext ctx, Pawn p, float health)
         {
             if (AbilityAIUtility.InMelee(ctx, p)) return true;
-            if (ctx.AimedAtCount(p) + (ctx.RecentlyShot(p) ? 1 : 0) >= ext.minThreats) return true;
+            // minThreats 0 would count every ally in range as in trouble: treat it as "threats don't count"
+            if (ext.minThreats > 0 && ctx.AimedAtCount(p) + (ctx.RecentlyShot(p) ? 1 : 0) >= ext.minThreats) return true;
             if (health >= ext.healthThreshold) return false;
             var enemies = ctx.Enemies;
             for (int i = 0; i < enemies.Count; i++)

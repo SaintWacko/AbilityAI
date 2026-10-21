@@ -605,18 +605,29 @@ namespace AbilityAI
         /// <summary>Whether this mod is the one that decides when this pawn casts this ability: the AI is on, the
         /// ability has a working extension, the settings cover the pawn and a hook (or Unclaimed, or the player's
         /// autocast mode) lets it through. Independent of the moment: an ability on cooldown or held back by
-        /// reserveCharges is still ours. Public so a host's own fallback AI can step aside for the same abilities.</summary>
+        /// reserveCharges is still ours. Public so a host's own fallback AI can step aside for the same abilities.
+        /// The player's pawns only while drafted: undrafted, the driver never casts for them (CanActNowPlayer), so
+        /// whatever vanilla or the host would do is left alone.</summary>
         public static bool Handles(Pawn pawn, Ability ability)
         {
             if (!AbilityAISettings.Enabled || pawn == null || ability?.def == null) return false;
-            var ext = ability.def.GetModExtension<AbilityAIExtension>();
-            if (ext?.Worker == null) return false;
+            if (!HasWorker(ability.def)) return false;
             switch (ControlOf(pawn))
             {
                 case Control.NPC: return AbilityAIHooks.Allowed(pawn, ability);
-                case Control.Player: return PlayerAllowed(pawn, ability);
+                case Control.Player: return pawn.Drafted && PlayerAllowed(pawn, ability);
                 default: return false;
             }
+        }
+
+        // Any of its extensions, as TryGiveJob tries them all
+        private static bool HasWorker(AbilityDef def)
+        {
+            var exts = def.modExtensions;
+            if (exts == null) return false;
+            for (int i = 0; i < exts.Count; i++)
+                if (exts[i] is AbilityAIExtension ext && ext.Worker != null) return true;
+            return false;
         }
 
         /// <summary>Every vanilla check a player's cast would pass, minus aiCanUse (see the file header), plus each

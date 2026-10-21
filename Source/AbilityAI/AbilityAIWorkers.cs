@@ -112,6 +112,10 @@ namespace AbilityAI
         }
         private static readonly Dictionary<AbilityDef, Effects> effects = new Dictionary<AbilityDef, Effects>();
 
+        /// <summary>Forget what was read from the comps: AbilityAIInfo.Register calls it, since a new reader can
+        /// change the answer.</summary>
+        internal static void ClearEffectsCache() => effects.Clear();
+
         private static Effects EffectsOf(AbilityDef def)
         {
             if (effects.TryGetValue(def, out var e)) return e;

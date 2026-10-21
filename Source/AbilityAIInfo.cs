@@ -18,7 +18,7 @@ namespace AbilityAI
     ///
     /// Register from a Mod constructor or a [StaticConstructorOnStartup] class: before play, at any rate. The answer
     /// for each comp properties object is worked out once and cached (they are per def, so the cache is bounded);
-    /// registering clears it.
+    /// registering clears it, and the workers' per-AbilityDef effects cache with it.
     /// </summary>
     public static class AbilityAIInfo
     {
@@ -45,6 +45,7 @@ namespace AbilityAI
                 return new Reader { AIRadius = radius(t), AIHediff = hediff?.Invoke(t), AIStuns = stuns != null && stuns(t) };
             };
             cache.Clear();
+            AbilityAIUtility.ClearEffectsCache();
         }
 
         /// <summary>The info for this comp: its own IAbilityAIInfo, else a registered reader's answer, else null.</summary>

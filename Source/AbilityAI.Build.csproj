@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Build entry point only: compiles nothing and ships nothing (its own output stays in Source/bin, which is never
+    published). Circinus's build looks for a .csproj in Source/; the real projects are 1.6/Source and 1.7/Source,
+    and both compile the shared .cs files in this folder. Referencing them here builds both.
+
+    It has to be the only project file directly in Source/, or `dotnet build` there stops and asks which one to build.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net472</TargetFramework>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <AssemblyName>AbilityAI.Build</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\1.6\Source\AbilityAI.csproj">
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+    </ProjectReference>
+    <ProjectReference Include="..\1.7\Source\AbilityAI.csproj">
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+    </ProjectReference>
+  </ItemGroup>
+</Project>

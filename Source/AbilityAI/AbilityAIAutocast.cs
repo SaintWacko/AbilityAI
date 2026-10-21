@@ -1,0 +1,205 @@
+using System.Collections.Generic;
+using HarmonyLib;
+using RimWorld;
+using RimWorld.Planet;
+using UnityEngine;
+using Verse;
+
+// Player autocast: the player sets, per pawn and per ability, whether the ability AI may cast it for them.
+//
+// Modes are set from a right-click menu on the ability's gizmo. Vanilla's Command turns a right-click into "open the
+// float menu", and Command_Ability passes that on, but a disabled gizmo (an ability on cooldown) swallows the click
+// and posts "disabled" instead, which made VEF's autocast toggle unusable while an ability recharged. So the click is
+// caught here before vanilla's button sees it, on any Command_Ability (Command_Psycast doesn't override GizmoOnGUI).
+//
+// Only abilities with an AbilityAIExtension get the menu: the extension is what tells the AI how to use them.
+namespace AbilityAI
+{
+    public enum AbilityAIAutocastMode
+    {
+        /// <summary>The player casts it (default).</summary>
+        Off,
+        /// <summary>Cast when the rules say so, but never move to do it.</summary>
+        Stationary,
+        /// <summary>Also walk into range, then go back.</summary>
+        Full,
+    }
+
+    /// <summary>The player's autocast choices, saved with the world. Keyed by pawn and AbilityDef rather than by the
+    /// Ability object, so a mode survives the ability being removed and granted again (taking gear off and back on).</summary>
+    public class AbilityAIAutocast : WorldComponent
+    {
+        private class Entry : IExposable
+        {
+            public Pawn pawn;
+            public AbilityDef def;
+            public AbilityAIAutocastMode mode;
+
+            public void ExposeData()
+            {
+                Scribe_References.Look(ref pawn, "pawn");
+                Scribe_Defs.Look(ref def, "def");
+                Scribe_Values.Look(ref mode, "mode");
+            }
+        }
+
+        private static AbilityAIAutocast instance;
+        // Only pawns with at least one mode set are in here, so "does this pawn autocast anything" is one lookup
+        private readonly Dictionary<Pawn, Dictionary<AbilityDef, AbilityAIAutocastMode>> modes = new Dictionary<Pawn, Dictionary<AbilityDef, AbilityAIAutocastMode>>();
+        private List<Entry> saved;
+
+        public AbilityAIAutocast(World world) : base(world)
+        {
+            instance = this;
+        }
+
+        private static AbilityAIAutocast Instance => instance != null && instance.world == Find.World ? instance : null;
+
+        public static bool HasAny(Pawn pawn)
+        {
+            var inst = Instance;
+            return inst != null && inst.modes.ContainsKey(pawn);
+        }
+
+        public static AbilityAIAutocastMode ModeFor(Pawn pawn, AbilityDef def)
+        {
+            var inst = Instance;
+            if (inst == null || !inst.modes.TryGetValue(pawn, out var byDef)) return AbilityAIAutocastMode.Off;
+            return byDef.TryGetValue(def, out var m) ? m : AbilityAIAutocastMode.Off;
+        }
+
+        public static void SetMode(Pawn pawn, AbilityDef def, AbilityAIAutocastMode mode)
+        {
+            var inst = Instance ?? Find.World?.GetComponent<AbilityAIAutocast>();
+            if (inst == null || pawn == null || def == null) return;
+            if (mode == AbilityAIAutocastMode.Off)
+            {
+                if (inst.modes.TryGetValue(pawn, out var byDef))
+                {
+                    byDef.Remove(def);
+                    if (byDef.Count == 0) inst.modes.Remove(pawn);
+                }
+                return;
+            }
+            if (!inst.modes.TryGetValue(pawn, out var d)) inst.modes[pawn] = d = new Dictionary<AbilityDef, AbilityAIAutocastMode>();
+            d[def] = mode;
+        }
+
+        public override void ExposeData()
+        {
+            base.ExposeData();
+            if (Scribe.mode == LoadSaveMode.Saving)
+            {
+                saved = new List<Entry>();
+                foreach (var kv in modes)
+                {
+                    // A discarded pawn is gone for good; a dead one may still be resurrected
+                    if (kv.Key == null || kv.Key.Discarded) continue;
+                    foreach (var m in kv.Value)
+                        if (m.Key != null && m.Value != AbilityAIAutocastMode.Off)
+                            saved.Add(new Entry { pawn = kv.Key, def = m.Key, mode = m.Value });
+                }
+            }
+            Scribe_Collections.Look(ref saved, "abilityAutocast", LookMode.Deep);
+            if (Scribe.mode == LoadSaveMode.PostLoadInit)
+            {
+                modes.Clear();
+                if (saved != null)
+                    foreach (var e in saved)
+                        if (e?.pawn != null && e.def != null) SetMode(e.pawn, e.def, e.mode);
+            }
+            if (Scribe.mode == LoadSaveMode.Saving || Scribe.mode == LoadSaveMode.PostLoadInit) saved = null;
+        }
+
+        internal static string Label(AbilityAIAutocastMode mode)
+        {
+            switch (mode)
+            {
+                case AbilityAIAutocastMode.Stationary: return "AAI_Mode_Stationary".Translate();
+                case AbilityAIAutocastMode.Full: return "AAI_Mode_Full".Translate();
+                default: return "AAI_Mode_Off".Translate();
+            }
+        }
+
+        /// <summary>Whether this gizmo gets the autocast menu: the player's own pawn and an ability the AI knows how
+        /// to use.</summary>
+        internal static bool Offers(Ability ability)
+        {
+            if (!AbilityAISettings.Enabled || !AbilityAISettings.PlayerAutocast) return false;
+            Pawn p = ability?.pawn;
+            if (p == null || p.Faction == null || !p.Faction.IsPlayer || p.IsPrisoner) return false;
+            // Player pawns only autocast while drafted until the undrafted rules exist, and animals have no drafter:
+            // don't offer them a mode that would never fire
+            if (p.drafter == null) return false;
+            return ability.def.GetModExtension<AbilityAIExtension>() != null;
+        }
+
+        // Every selected pawn of the player's with this ability: a grouped gizmo (several pawns selected) draws one
+        // button for all of them
+        internal static void OpenMenu(Ability clicked)
+        {
+            AbilityDef def = clicked.def;
+            var pawns = new List<Pawn>();
+            foreach (object o in Find.Selector.SelectedObjectsListForReading)
+                if (o is Pawn p && p.abilities?.GetAbility(def) != null && p.Faction != null && p.Faction.IsPlayer && p.drafter != null) pawns.Add(p);
+            if (!pawns.Contains(clicked.pawn)) pawns.Add(clicked.pawn);
+            AbilityAIAutocastMode current = ModeFor(clicked.pawn, def);
+
+            var options = new List<FloatMenuOption>();
+            // Full joins this list once the player pawns' walk into range exists (until then it would act as Stationary)
+            foreach (AbilityAIAutocastMode mode in new[] { AbilityAIAutocastMode.Off, AbilityAIAutocastMode.Stationary })
+            {
+                string label = Label(mode);
+                if (mode == current) label = "AAI_Mode_Current".Translate(label);
+                AbilityAIAutocastMode m = mode;
+                options.Add(new FloatMenuOption(label, () =>
+                {
+                    for (int i = 0; i < pawns.Count; i++) SetMode(pawns[i], def, m);
+                }));
+            }
+            Find.WindowStack.Add(new FloatMenu(options, "AAI_Mode_Title".Translate(def.LabelCap)));
+        }
+    }
+
+    /// <summary>The right-click menu and the mode badge on ability gizmos. Runs every frame per ability gizmo shown:
+    /// one event-type check, and for abilities with an AI extension one or two dictionary lookups.</summary>
+    [HarmonyPatch(typeof(Command_Ability), nameof(Command_Ability.GizmoOnGUI))]
+    internal static class Patch_CommandAbility_Autocast
+    {
+        private static readonly Color BadgeColor = new Color(0.55f, 0.85f, 1f);
+
+        static void Prefix(Command_Ability __instance, Vector2 topLeft, float maxWidth)
+        {
+            Event ev = Event.current;
+            if (ev.type != EventType.MouseDown || ev.button != 1) return;
+            Ability ability = __instance.Ability;
+            if (ability == null || !AbilityAIAutocast.Offers(ability)) return;
+            var rect = new Rect(topLeft.x, topLeft.y, __instance.GetWidth(maxWidth), 75f);
+            if (!Mouse.IsOver(rect)) return;
+            // Used here, vanilla's button never sees the press: no cast on an enabled gizmo, no "disabled" message
+            // on one that is cooling down
+            ev.Use();
+            AbilityAIAutocast.OpenMenu(ability);
+        }
+
+        static void Postfix(Command_Ability __instance, Vector2 topLeft, float maxWidth)
+        {
+            if (Event.current.type != EventType.Repaint) return;
+            Ability ability = __instance.Ability;
+            if (ability?.pawn == null || !AbilityAISettings.Enabled || !AbilityAISettings.PlayerAutocast) return;
+            if (!AbilityAIAutocast.HasAny(ability.pawn)) return;
+            var mode = AbilityAIAutocast.ModeFor(ability.pawn, ability.def);
+            if (mode == AbilityAIAutocastMode.Off) return;
+            // Top left: vanilla puts charges top right and the cooldown in the middle
+            string text = mode == AbilityAIAutocastMode.Full ? "AAI_Badge_Full".Translate() : "AAI_Badge_Stationary".Translate();
+            Text.Font = GameFont.Tiny;
+            Vector2 size = Text.CalcSize(text);
+            var r = new Rect(topLeft.x + 3f, topLeft.y + 2f, size.x + 4f, size.y);
+            GUI.DrawTexture(r, TexUI.GrayTextBG);
+            GUI.color = BadgeColor;
+            Widgets.Label(new Rect(r.x + 2f, r.y, size.x, size.y), text);
+            GUI.color = Color.white;
+            Text.Font = GameFont.Small;
+        }
+    }
+}

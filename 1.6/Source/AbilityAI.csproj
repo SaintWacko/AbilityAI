@@ -1,0 +1,63 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <!--
+        RimWorld 1.6 build. The C# is shared: every version compiles the same files from the mod's top-level Source/
+        folder, with RW16 / RW17 defined for the places where the game versions differ. Output goes to 1.6/Assemblies,
+        which LoadFolders.xml loads only on 1.6.
+
+        Host mods (Entad Framework, Bastle Framework) reference the AbilityAI.dll this writes from their own compat
+        assemblies, so the assembly name and the public API in Source/ are a contract: rename nothing casually.
+    -->
+    <PropertyGroup>
+        <OutputType>Library</OutputType>
+        <!-- RimWorld runs on Unity's Mono with the .NET Framework 4.7.2 surface -->
+        <TargetFramework>net472</TargetFramework>
+        <RootNamespace>AbilityAI</RootNamespace>
+        <AssemblyName>AbilityAI</AssemblyName>
+        <LangVersion>latest</LangVersion>
+        <Deterministic>true</Deterministic>
+        <OutputPath>..\Assemblies\</OutputPath>
+        <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+        <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+        <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+        <DefineConstants>$(DefineConstants);RW16</DefineConstants>
+        <!-- Kept at 1.0.0.0: host compat assemblies bind to this AssemblyVersion, and Mono's loader in RimWorld
+             resolves by name anyway, but a bump here should be a deliberate API break. -->
+        <Version>1.0.0</Version>
+        <AssemblyVersion>1.0.0.0</AssemblyVersion>
+        <FileVersion>1.0.0.0</FileVersion>
+        <Product>Ability AI</Product>
+        <Authors>SaintWacko</Authors>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+        <Optimize>true</Optimize>
+        <DebugType>none</DebugType>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
+        <Optimize>false</Optimize>
+        <DebugType>portable</DebugType>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <!-- Explicit folders, not **: obj/ under Source holds generated files. -->
+        <Compile Include="..\..\Source\*.cs" />
+        <Compile Include="..\..\Source\AbilityAI\*.cs" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <!-- Reference assemblies for RimWorld + Unity, so the project builds on any machine without a game install.
+             Pinned: a floating version can pull a prerelease ref assembly on restore. -->
+        <PackageReference Include="Krafs.Rimworld.Ref" Version="1.6.4871">
+            <PrivateAssets>all</PrivateAssets>
+            <ExcludeAssets>runtime</ExcludeAssets>
+        </PackageReference>
+        <!-- Pinned to an exact version so builds are reproducible. Compile-only: the Harmony mod (brrainz.harmony)
+             supplies the runtime DLL, so it is never copied to Assemblies/. Shipping our own 0Harmony.dll is what
+             breaks other mods. -->
+        <PackageReference Include="Lib.Harmony" Version="2.4.1">
+            <PrivateAssets>all</PrivateAssets>
+            <ExcludeAssets>runtime</ExcludeAssets>
+        </PackageReference>
+    </ItemGroup>
+</Project>

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ModMetaData>
+  <name>Ability AI</name>
+  <packageId>saintwacko.AbilityAI</packageId>
+  <author>saintwacko</author>
+  <description>Lets raiders, visitors, animals and mechanoids decide when and where to use their abilities, and lets you set your own pawns' abilities to autocast from a right-click on the ability button. Abilities opt in through a mod extension; Royalty's combat psycasts are set up when Royalty is active.</description>
+  <supportedVersions>
+    <li>1.6</li>
+    <li>1.7</li>
+  </supportedVersions>
+  <modVersion>1.0.0</modVersion>
+  <modDependencies>
+    <li>
+      <packageId>brrainz.harmony</packageId>
+      <displayName>Harmony</displayName>
+      <steamWorkshopUrl>steam://url/CommunityFilePage/2009463077</steamWorkshopUrl>
+      <downloadUrl>https://github.com/pardeike/HarmonyRimWorld/releases/latest</downloadUrl>
+    </li>
+  </modDependencies>
+  <loadAfter>
+    <li>brrainz.harmony</li>
+  </loadAfter>
+  <!-- Hosts load after this mod (their own loadAfter), so their compat patches see our types. Nothing here names
+       them: the hosts are optional to us and we are optional to them. -->
+</ModMetaData>

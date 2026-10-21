@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ability AI's settings, autocast menu and badge. AAI_ prefix: these keys are global across every loaded mod. -->
+<LanguageData>
+  <AAI_Enabled>Ability AI</AAI_Enabled>
+  <AAI_Enabled_Tip>Raiders, visitors, animals and mechs decide for themselves when to use abilities that are set up for this mod, and your own pawns use the abilities you set to autocast. Off: nobody does, and abilities fall back to whatever casting vanilla or their own mod gives them.</AAI_Enabled_Tip>
+  <AAI_Who>Who uses them:</AAI_Who>
+  <AAI_Hostiles>Hostile pawns</AAI_Hostiles>
+  <AAI_Hostiles_Tip>Raiders and anyone else hostile to your colony.</AAI_Hostiles_Tip>
+  <AAI_NonHostiles>Friendly and neutral pawns</AAI_NonHostiles>
+  <AAI_NonHostiles_Tip>Visitors, traders, caravan guards and allied soldiers.</AAI_NonHostiles_Tip>
+  <AAI_Animals>Animals</AAI_Animals>
+  <AAI_Animals_Tip>Wild animals and other factions' animals. Yours don't use abilities by themselves for now, unless another mod lets you draft them.</AAI_Animals_Tip>
+  <AAI_Mechs>Mechanoids</AAI_Mechs>
+  <AAI_Mechs_Tip>Other factions' mechanoids. Yours use the abilities you set to autocast.</AAI_Mechs_Tip>
+  <AAI_Who_Desc>Your own colonists, slaves, ghouls and mechs only use abilities you set to autocast. Prisoners never use any.</AAI_Who_Desc>
+  <AAI_Unclaimed>Also use abilities no mod claims</AAI_Unclaimed>
+  <AAI_Unclaimed_Tip>Mods built on Ability AI (such as Entad Framework and Bastle Framework) claim the abilities their own gear and traits give. With this on, a pawn also uses any other ability that is set up for this mod, such as a raider psycaster's own psycasts (most combat psycasts from Royalty are). Off: only claimed abilities.</AAI_Unclaimed_Tip>
+  <AAI_VanillaStandDown>Replace vanilla's casting for abilities this mod handles</AAI_VanillaStandDown>
+  <AAI_VanillaStandDown_Tip>Some abilities also have vanilla's simple casting turned on, so they still get used when this mod is missing. With this on, vanilla's casting stays out of the way of any ability Ability AI is deciding for, so the two never both use it. Off: both may cast it.</AAI_VanillaStandDown_Tip>
+  <AAI_Approach>Walk into range to use an ability</AAI_Approach>
+  <AAI_Approach_Tip>A ranged pawn in a fight walks a few tiles closer when a target for one of its abilities is just out of range or out of sight, uses it, and then fights as usual. Only for abilities set up for it, such as flashbang and battle cry. Never while badly hurt, fleeing or held in melee.</AAI_Approach_Tip>
+  <AAI_PlayerAutocast>Autocast for your pawns</AAI_PlayerAutocast>
+  <AAI_PlayerAutocast_Tip>Right-click an ability button to choose whether your pawn uses it by itself. Only for abilities the AI knows how to use, and for now only while the pawn is drafted: it casts while it stands in position or shoots, never in the middle of a move you ordered.</AAI_PlayerAutocast_Tip>
+  <AAI_BreakCasting>Your pawns use abilities during mental breaks</AAI_BreakCasting>
+  <AAI_BreakCasting_Tip>A pawn of yours in a mental break (a colonist, or an animal gone manhunter) is out of your control, so your autocast choices don't apply. With this on, a pawn in an aggressive break uses its abilities the way a raider would, treating your other pawns as enemies, and a panicking one may use movement abilities to flee. Off: your pawns in a break use no abilities.</AAI_BreakCasting_Tip>
+  <AAI_Mode_Title>Autocast {0}</AAI_Mode_Title>
+  <AAI_Mode_Off>Don't autocast</AAI_Mode_Off>
+  <AAI_Mode_Stationary>Autocast in place</AAI_Mode_Stationary>
+  <AAI_Mode_Full>Autocast, may move</AAI_Mode_Full>
+  <AAI_Mode_Current>{0} (current)</AAI_Mode_Current>
+  <AAI_Badge_Stationary>auto</AAI_Badge_Stationary>
+  <AAI_Badge_Full>auto+</AAI_Badge_Full>
+  <AAI_MinGap>Least time between one pawn's casts: {0} s</AAI_MinGap>
+  <AAI_MinGap_Desc>Stops a pawn with several abilities from using them all in the same moment. Each ability's own cooldown and charges still apply.</AAI_MinGap_Desc>
+  <AAI_DebugLog>Log ability AI decisions (dev mode)</AAI_DebugLog>
+  <AAI_DebugLog_Tip>Writes a line to the log each time a pawn decides to cast something, naming the rule it used.</AAI_DebugLog_Tip>
+  <AAI_Reset>Reset to defaults</AAI_Reset>
+</LanguageData>

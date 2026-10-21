@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<loadFolders>
+  <!-- Patches and Languages are shared from the root. Each version loads only its own Assemblies: the 1.6 and 1.7
+       DLLs are compiled against different game assemblies. -->
+  <v1.6>
+    <li>/</li>
+    <li>1.6</li>
+  </v1.6>
+  <v1.7>
+    <li>/</li>
+    <li>1.7</li>
+  </v1.7>
+</loadFolders>

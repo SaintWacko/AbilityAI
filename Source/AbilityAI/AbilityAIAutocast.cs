@@ -134,9 +134,9 @@ namespace AbilityAI
             return AbilityAIDriver.HasWorker(ability.def, p.drafter == null) && AbilityAIHooks.NotVetoed(p, ability);
         }
 
-        // A def with groupAbility draws one button for every selected pawn that has it, so the menu sets the mode for
-        // all of them. Otherwise each pawn has its own button ("Ability (Name)" when several are selected) and the
-        // menu is for that pawn alone.
+        // A def with groupAbility draws one button for every selected pawn whose gizmo is shown (drafted, or the def
+        // shows it undrafted), so the menu sets the mode for all of those. Otherwise each pawn has its own button
+        // ("Ability (Name)" when several are selected) and the menu is for that pawn alone.
         // title: the gizmo's own label, so a mod that relabels ability gizmos keeps its name in the menu
         internal static void OpenMenu(Ability clicked, string title)
         {
@@ -144,7 +144,8 @@ namespace AbilityAI
             var pawns = new List<Pawn> { clicked.pawn };
             if (def.groupAbility)
                 foreach (object o in Find.Selector.SelectedObjectsListForReading)
-                    if (o is Pawn p && p != clicked.pawn && p.abilities?.GetAbility(def) is Ability a && Offers(a)) pawns.Add(p);
+                    if (o is Pawn p && p != clicked.pawn && (p.Drafted || def.displayGizmoWhileUndrafted)
+                        && p.abilities?.GetAbility(def) is Ability a && Offers(a)) pawns.Add(p);
             AbilityAIAutocastMode current = ModeFor(clicked.pawn, def);
 
             var options = new List<FloatMenuOption>();
@@ -170,10 +171,10 @@ namespace AbilityAI
     {
         private static readonly Color BadgeColor = new Color(0.55f, 0.85f, 1f);
 
-        static void Prefix(Command_Ability __instance, Vector2 topLeft, float maxWidth, GizmoRenderParms parms)
+        static void Prefix(Command_Ability __instance, Vector2 topLeft, float maxWidth)
         {
             if (Event.current.type != EventType.MouseDown) return;
-            RightClick(__instance, new Rect(topLeft.x, topLeft.y, __instance.GetWidth(maxWidth), 75f), parms.multipleSelected);
+            RightClick(__instance, new Rect(topLeft.x, topLeft.y, __instance.GetWidth(maxWidth), 75f));
         }
 
         static void Postfix(Command_Ability __instance, Vector2 topLeft, float maxWidth)
@@ -182,7 +183,7 @@ namespace AbilityAI
             Badge(__instance, new Rect(topLeft.x, topLeft.y, __instance.GetWidth(maxWidth), 75f), false);
         }
 
-        internal static void RightClick(Command_Ability command, Rect rect, bool multipleSelected)
+        internal static void RightClick(Command_Ability command, Rect rect)
         {
             Event ev = Event.current;
             if (ev.type != EventType.MouseDown || ev.button != 1) return;
@@ -193,10 +194,9 @@ namespace AbilityAI
             // Used here, vanilla's button never sees the press: no cast on an enabled gizmo, no "disabled" message
             // on one that is cooling down
             ev.Use();
-            // A grouped button is labelled "Ability (Name)" for one of the pawns while the menu sets the mode for
-            // all of them: the def's label then. An ungrouped one names its own pawn, which is right.
-            bool grouped = multipleSelected && ability.def.groupAbility;
-            AbilityAIAutocast.OpenMenu(ability, grouped ? null : (string)command.LabelCap);
+            // A grouped button (one for several pawns) keeps the plain label; an ungrouped one with several pawns
+            // selected names its own pawn, which is the one the menu is for
+            AbilityAIAutocast.OpenMenu(ability, command.LabelCap);
         }
 
         internal static void Badge(Command_Ability command, Rect button, bool shrunk)
@@ -232,10 +232,10 @@ namespace AbilityAI
     [HarmonyPatch(typeof(Command), nameof(Command.GizmoOnGUIShrunk))]
     internal static class Patch_Command_ShrunkAutocast
     {
-        static void Prefix(Command __instance, Vector2 topLeft, float size, GizmoRenderParms parms)
+        static void Prefix(Command __instance, Vector2 topLeft, float size)
         {
             if (Event.current.type != EventType.MouseDown || !(__instance is Command_Ability command)) return;
-            Patch_CommandAbility_Autocast.RightClick(command, new Rect(topLeft.x, topLeft.y, size, size), parms.multipleSelected);
+            Patch_CommandAbility_Autocast.RightClick(command, new Rect(topLeft.x, topLeft.y, size, size));
         }
 
         static void Postfix(Command __instance, Vector2 topLeft, float size)

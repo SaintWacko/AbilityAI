@@ -1,0 +1,88 @@
+{
+  "version": 1,
+  "buildId": 16,
+  "buildIdNote": null,
+  "reviewedAt": "2026-10-21T23:05:19.198Z",
+  "conversationId": "01a1609c-f742-718f-b241-4e56775b2e83",
+  "focus": "cover validator in TryFindCoverCell (CoverUtility.CalculateOverallBlockChance argument order, closure cost) and the comment/tooltip wording",
+  "diffSource": "since build 15 (2026-10-21T23:02:36Z), the last reviewed build, from the build log",
+  "parsed": true,
+  "problem": null,
+  "stoppedBecause": null,
+  "counts": {
+    "must": 0,
+    "should": 1,
+    "note": 4
+  },
+  "findings": [
+    {
+      "severity": "should",
+      "title": "Tooltip claims the pawn stays put on any covered spot; it only stays when its own cell scores best",
+      "detail": "AAI_ReturnTo_Cover_Tip says 'It stays put if it is already on such a spot.' TryFindCastPosition only returns the caster's own cell early when its preference is >= 1.0 (CastPositionFinder.cs:152-153). With wantCoverFromTarget the preference is (0.3 + 0.55*block) times a range factor <= 1, so at most ~0.85, and the full scan always runs. A nearby cell with better cover beats the current one despite the 0.967^distance penalty. Change that sentence to something like 'It stays put if its own spot is the best cover nearby', which matches the code comment's 'a pawn that cast from good cover stays'.",
+      "evidence": {
+        "kind": "index",
+        "ref": "Source/Assembly-CSharp/Verse.AI/CastPositionFinder.cs:152"
+      }
+    },
+    {
+      "severity": "note",
+      "title": "Validator argument order matches vanilla's own cover scoring",
+      "detail": "CalculateOverallBlockChance(c, enemy.Position, pawn.Map) is (target cell, shooterLoc, map), the same order CastPositionPreference uses at :316. No change needed.",
+      "evidence": {
+        "kind": "index",
+        "ref": "Source/Assembly-CSharp/Verse.AI/CastPositionFinder.cs:316"
+      }
+    },
+    {
+      "severity": "note",
+      "title": "Validator runs before EvaluateCell's cheap range/reach checks, but the cost is bounded and negligible",
+      "detail": "req.validator is the first test in EvaluateCell (:199), so it also runs for rect corners outside the 6-tile radius and for unreachable cells. The rect is clipped to ±ceil(6), about 169 cells at 8 adjacent probes each, once per walk back, and passing cells are scored again at :316. One closure is allocated per TryFindCoverCell call. Not worth restructuring.",
+      "evidence": {
+        "kind": "index",
+        "ref": "Source/Assembly-CSharp/Verse.AI/CastPositionFinder.cs:199"
+      }
+    },
+    {
+      "severity": "note",
+      "title": "CoverSearchRadius and MakeReturnJob comments still say 'where it cast'",
+      "detail": "The TryFindCoverCell comment and the tooltip now cover the walk-out-without-a-cast path (ReturnJob, :954), but the CoverSearchRadius comment at :538 ('from where it cast') and the MakeReturnJob comment at :973 ('where it is after the cast') were not updated to match.",
+      "evidence": {
+        "kind": "index",
+        "ref": "Source/AbilityAI/AbilityAI.cs:538"
+      }
+    },
+    {
+      "severity": "note",
+      "title": "'> 0f' accepts very weak cover",
+      "detail": "TryFindAdjustedCoverInCell credits cover up to 65 degrees off-axis (x0.2) and a further x0.33 when the shooter is within 1.9 tiles, so a single diagonal tree passes the validator. This is fine as intent, but 'has cover' in the tooltip can mean a few percent of block chance.",
+      "evidence": {
+        "kind": "index",
+        "ref": "Source/Assembly-CSharp/Verse/CoverUtility.cs:48"
+      }
+    }
+  ],
+  "checked": [
+    "CoverUtility.CalculateOverallBlockChance signature vs the validator call (argument order correct, matches vanilla :316)",
+    "CastPositionRequest.validator is Func<IntVec3,bool>, and the lambda type-checks (build 16 green for 1.6 and 1.7)",
+    "CastPositionFinder.TryFindCastPosition control flow: with the validator, a pawn with no covered cell nearby makes the search return false, so MakeReturnJob falls back to state.home as the tooltip says",
+    "Closure captures enemy/pawn only after both are assigned; no out-parameter captured",
+    "MakeReturnJob callers (Source/AbilityAI/AbilityAI.cs:935, :958) match the new comment's 'walk out that ended without a cast'",
+    "Keyed AAI_ReturnTo_Cover_Tip XML is well-formed; the key is used at Source/AbilityAI/AbilityAI.cs:1232",
+    "verify_patches: all 7 Harmony targets resolve, including the DetermineNextConstantThinkTreeJob postfix (no corpus mod shares it)",
+    "Lint rules (prefix-returns-void, defof-in-mod-ctor, patch-success-always, tickerType-missing, wrong-target-framework): none touched by this diff",
+    "pyxis_mod_errors: not available (no Pyxis token configured), so community error classes were not checked"
+  ],
+  "unreviewed": [],
+  "outOfScope": [],
+  "reviewed": [
+    "Source/AbilityAI/AbilityAI.cs",
+    "Languages/English/Keyed/AbilityAI.xml",
+    "1.6/Assemblies/AbilityAI.dll",
+    "1.6/Assemblies/AbilityAI.pdb",
+    "1.7/Assemblies/AbilityAI.dll",
+    "1.7/Assemblies/AbilityAI.pdb"
+  ],
+  "parts": 1,
+  "buildCommit": "0652a7397cd9279be48012f00b43cb0191e6cd62",
+  "partial": false
+}

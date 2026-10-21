@@ -535,7 +535,8 @@ namespace AbilityAI
         // Steps on the way back after a Full walk that were interrupted (shot at: the drafted think tree stops the
         // pawn where it is) before giving up on going home
         private const int MaxReturnTries = 2;
-        // How far from where it cast a pawn looking for new cover may go
+        // How far from where it ended up (after the cast, or where a walk out without one stopped) a pawn looking for
+        // new cover may go
         private const float CoverSearchRadius = 6f;
 
         private struct Candidate
@@ -970,7 +971,7 @@ namespace AbilityAI
         }
 
         // The walk to the spot the pawn left, or with ReturnToCover a covered spot it can shoot from, found around
-        // where it is after the cast (falling back to the old spot when there is none). The cover spot is chosen once,
+        // where it is now (falling back to the old spot when there is none). The cover spot is chosen once,
         // at the first walk back: a retry after the pawn was stopped heads for the same cell rather than searching
         // again from wherever it was stopped. Null when it is already there or can't get there. Not player-forced, so
         // a new player order replaces it (and CheckHome sees the forced job and forgets the walk).

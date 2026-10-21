@@ -30,7 +30,14 @@ Step 1 (per-trait `aiThinkTree`) is not affected unless the tree's job giver als
 jump givers do). So if `BF_Leap` gets an Ability AI extension, the `BF_LeapAtTarget` tree stands down for it while
 Ability AI handles it. That is the intended outcome; just be aware of it.
 
-`AbilityAIDriver.Handles(pawn, ability)` is public if Bastle's compat code ever needs to ask directly.
+For the player's own pawns (tame bastles included) the stand-down is wider: with Ability AI's player autocast on,
+vanilla and Bastle's giver are told no for every ability that has an Ability AI extension, whatever the autocast
+mode. A tame bastle then casts such an ability only when the player set it to autocast and an Ability AI rule lets
+an undrafted animal use it. Check with the Ability AI agent what the tame-animal combat rule is before adding
+extensions to bastle abilities.
+
+`AbilityAIDriver.OthersStandDown(pawn, ability)` is public if Bastle's compat code ever needs to ask directly
+(it is what the stand-down uses; `Handles` is the narrower "Ability AI decides now").
 
 ## Steps
 

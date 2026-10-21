@@ -177,8 +177,11 @@ description so players know it is what makes NPCs use entad abilities well.
 - `AbilityAIVote` { NoOpinion, Claim, Veto }
 - `AbilityAIHooks.Register(IAbilityAIHook)`
 - `AbilityAIInfo.Register<T>(Func<T,float> radius, Func<T,HediffDef> hediff = null, Func<T,bool> stuns = null) where T : AbilityCompProperties`
-- `AbilityAIDriver.Handles(Pawn, Ability)`: whether Ability AI is the one deciding for this pawn and ability now
-  (for a host fallback AI that wants to step aside).
+- `AbilityAIDriver.Handles(Pawn, Ability)`: whether Ability AI is the one deciding for this pawn and ability now.
+- `AbilityAIDriver.OthersStandDown(Pawn, Ability)`: what the vanilla stand-down uses, and what a host fallback AI
+  should ask to step aside: Handles, plus every player-faction pawn (not prisoners) with an ability that has a
+  working extension, whatever its autocast mode or the hooks' votes (added at Entad's request).
+- The autocast menu and badge now ask the hooks: a Veto for a player pawn hides the menu and the badge.
 - `AbilityAIExtension` (DefModExtension) and the workers `AbilityAIWorker_*`: same fields and names as before, new
   namespace.
 

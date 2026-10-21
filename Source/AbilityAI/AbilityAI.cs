@@ -648,6 +648,20 @@ namespace AbilityAI
             }
         }
 
+        /// <summary>Whether every other AI (vanilla's through Ability.AICanTargetNow, or a host's own fallback) should
+        /// leave this pawn and ability alone: whenever Handles is true, and for the player's own pawns (not prisoners)
+        /// whenever the ability has a working extension at all, whatever its autocast mode or the hooks' votes. The
+        /// player's pawns then only cast an ability this mod has rules for when the player set it to autocast; turning
+        /// off Enabled or PlayerAutocast hands them back to vanilla. Our driver never asks this, so a player pawn in a
+        /// break with BreakCasting on still casts through it.</summary>
+        public static bool OthersStandDown(Pawn pawn, Ability ability)
+        {
+            if (!AbilityAISettings.Enabled || pawn == null || ability?.def == null) return false;
+            if (AbilityAISettings.PlayerAutocast && pawn.Faction != null && pawn.Faction.IsPlayer && !pawn.IsPrisoner)
+                return HasWorker(ability.def, false);
+            return Handles(pawn, ability);
+        }
+
         /// <summary>Any of its extensions has a working worker (TryGiveJob tries them all); with undraftedOnly, one
         /// that runs for the player's undrafted pawns.</summary>
         internal static bool HasWorker(AbilityDef def, bool undraftedOnly)

@@ -121,8 +121,8 @@ namespace AbilityAI
             }
         }
 
-        /// <summary>Whether this gizmo gets the autocast menu: the player's own pawn and an ability the AI knows how
-        /// to use.</summary>
+        /// <summary>Whether this gizmo gets the autocast menu: the player's own pawn, an ability the AI knows how to
+        /// use, and no hook vetoes it (an Entad trait not identified yet, an item bound to someone else).</summary>
         internal static bool Offers(Ability ability)
         {
             if (!AbilityAISettings.Enabled || !AbilityAISettings.PlayerAutocast) return false;
@@ -131,12 +131,13 @@ namespace AbilityAI
             // A pawn that can't be drafted (most animals) only ever autocasts undrafted: don't offer it a mode for an
             // ability whose workers are all combat-only, which would never fire
             if (p.drafter == null && !AbilityAISettings.UndraftedAutocast) return false;
-            return AbilityAIDriver.HasWorker(ability.def, p.drafter == null);
+            return AbilityAIDriver.HasWorker(ability.def, p.drafter == null) && AbilityAIHooks.NotVetoed(p, ability);
         }
 
         // Every selected pawn of the player's with this ability: a grouped gizmo (several pawns selected) draws one
         // button for all of them
-        internal static void OpenMenu(Ability clicked)
+        // title: the gizmo's own label, so a mod that relabels ability gizmos keeps its name in the menu
+        internal static void OpenMenu(Ability clicked, string title)
         {
             AbilityDef def = clicked.def;
             var pawns = new List<Pawn>();
@@ -157,7 +158,7 @@ namespace AbilityAI
                     for (int i = 0; i < pawns.Count; i++) SetMode(pawns[i], def, m);
                 }));
             }
-            Find.WindowStack.Add(new FloatMenu(options, "AAI_Mode_Title".Translate(def.LabelCap)));
+            Find.WindowStack.Add(new FloatMenu(options, "AAI_Mode_Title".Translate(title.NullOrEmpty() ? (string)def.LabelCap : title)));
         }
     }
 
@@ -168,10 +169,10 @@ namespace AbilityAI
     {
         private static readonly Color BadgeColor = new Color(0.55f, 0.85f, 1f);
 
-        static void Prefix(Command_Ability __instance, Vector2 topLeft, float maxWidth)
+        static void Prefix(Command_Ability __instance, Vector2 topLeft, float maxWidth, GizmoRenderParms parms)
         {
             if (Event.current.type != EventType.MouseDown) return;
-            RightClick(__instance, new Rect(topLeft.x, topLeft.y, __instance.GetWidth(maxWidth), 75f));
+            RightClick(__instance, new Rect(topLeft.x, topLeft.y, __instance.GetWidth(maxWidth), 75f), parms.multipleSelected);
         }
 
         static void Postfix(Command_Ability __instance, Vector2 topLeft, float maxWidth)
@@ -180,7 +181,7 @@ namespace AbilityAI
             Badge(__instance, new Rect(topLeft.x, topLeft.y, __instance.GetWidth(maxWidth), 75f), false);
         }
 
-        internal static void RightClick(Command_Ability command, Rect rect)
+        internal static void RightClick(Command_Ability command, Rect rect, bool multipleSelected)
         {
             Event ev = Event.current;
             if (ev.type != EventType.MouseDown || ev.button != 1) return;
@@ -190,7 +191,9 @@ namespace AbilityAI
             // Used here, vanilla's button never sees the press: no cast on an enabled gizmo, no "disabled" message
             // on one that is cooling down
             ev.Use();
-            AbilityAIAutocast.OpenMenu(ability);
+            // With several pawns selected vanilla's label is "Ability (Name)" for one of them, but the menu sets the
+            // mode for all of them: the def's label then
+            AbilityAIAutocast.OpenMenu(ability, multipleSelected ? null : (string)command.LabelCap);
         }
 
         internal static void Badge(Command_Ability command, Rect button, bool shrunk)
@@ -200,6 +203,8 @@ namespace AbilityAI
             if (!AbilityAIAutocast.HasAny(ability.pawn)) return;
             var mode = AbilityAIAutocast.ModeFor(ability.pawn, ability.def);
             if (mode == AbilityAIAutocastMode.Off) return;
+            // A mode left on an ability a hook now vetoes (an item since bound to someone else) doesn't cast: no badge
+            if (!AbilityAIHooks.NotVetoed(ability.pawn, ability)) return;
             // Left edge. Full size, vanilla's top text line holds the hotkey (left), cooldown countdown (centre) and
             // charges (right), and the label runs along the bottom, so the badge goes on the second line. Shrunk there
             // is no label or countdown, so bottom left, clear of the hotkey.
@@ -224,10 +229,10 @@ namespace AbilityAI
     [HarmonyPatch(typeof(Command), nameof(Command.GizmoOnGUIShrunk))]
     internal static class Patch_Command_ShrunkAutocast
     {
-        static void Prefix(Command __instance, Vector2 topLeft, float size)
+        static void Prefix(Command __instance, Vector2 topLeft, float size, GizmoRenderParms parms)
         {
             if (Event.current.type != EventType.MouseDown || !(__instance is Command_Ability command)) return;
-            Patch_CommandAbility_Autocast.RightClick(command, new Rect(topLeft.x, topLeft.y, size, size));
+            Patch_CommandAbility_Autocast.RightClick(command, new Rect(topLeft.x, topLeft.y, size, size), parms.multipleSelected);
         }
 
         static void Postfix(Command __instance, Vector2 topLeft, float size)

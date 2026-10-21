@@ -72,10 +72,13 @@ namespace AbilityAI
     /// Vanilla's fight AI (JobGiver_AIFightEnemy.GetAbilityJob, through Pawn_AbilityTracker.AICastableAbilities) and
     /// its non-combat cast job givers ask Ability.AICanTargetNow, which is true only for abilities with aiCanUse. A
     /// host that leaves aiCanUse on as its fallback for when this mod is missing would otherwise have both AIs cast
-    /// the same ability. When this mod is the one deciding for this pawn and ability, vanilla is told no.
+    /// the same ability. When this mod is the one deciding for this pawn and ability, vanilla is told no, and so it
+    /// is for the player's own pawns with any ability this mod has rules for, even with autocast off: vanilla's fight
+    /// AI does run for colony mechs and tame animals, and the player's choice in the autocast menu should be the only
+    /// way those cast (AbilityAIDriver.OthersStandDown).
     ///
-    /// When it isn't (the pawn's kind is switched off in the settings, the ability is unclaimed with Unclaimed off,
-    /// a player pawn with no autocast mode), vanilla keeps its own behaviour.
+    /// Otherwise (an NPC whose kind is switched off in the settings, an unclaimed ability with Unclaimed off) vanilla
+    /// keeps its own behaviour.
     ///
     /// Cost: one bool read on every call, and only calls vanilla answered true (abilities with aiCanUse that are
     /// ready) go on to the extension lookup and the hooks' vote. Our own driver never calls this method, so it
@@ -87,7 +90,7 @@ namespace AbilityAI
         static void Postfix(Ability __instance, ref bool __result)
         {
             if (!__result || !AbilityAISettings.VanillaStandDown) return;
-            if (AbilityAIDriver.Handles(__instance.pawn, __instance)) __result = false;
+            if (AbilityAIDriver.OthersStandDown(__instance.pawn, __instance)) __result = false;
         }
     }
 }

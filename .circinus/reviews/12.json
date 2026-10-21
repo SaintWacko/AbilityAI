@@ -1,0 +1,152 @@
+{
+  "version": 1,
+  "buildId": 12,
+  "buildIdNote": null,
+  "reviewedAt": "2026-10-21T22:52:54.959Z",
+  "conversationId": "01a1609c-f742-718f-b241-4e56775b2e83",
+  "focus": "Full-mode walk/return state machine in AbilityAIDriver (CheckHome, QueueAfterCast, ReturnJob, TryApproach player path), undrafted PlayerSet rules, and the psycast limits gizmo + Pawn.GetGizmos pass-through postfix",
+  "diffSource": "since the restore point taken before this chat began (2026-10-21T22:34:58Z)",
+  "parsed": true,
+  "problem": null,
+  "stoppedBecause": null,
+  "counts": {
+    "must": 0,
+    "should": 2,
+    "note": 7
+  },
+  "findings": [
+    {
+      "severity": "should",
+      "title": "AAI_Animals_Tip no longer says tame undraftable animals depend on \"Also while undrafted\"",
+      "detail": "The new text says your animals \"use the abilities you set to autocast\". An animal that can't be drafted only autocasts undrafted: Handles needs AbilityAISettings.UndraftedAutocast for a pawn that isn't drafted, and the menu refuses it outright when that setting is off (AbilityAIAutocast.cs:217). The old tooltip said this; the new one drops it. Add a clause such as \"(with 'Also while undrafted' on, unless another mod lets you draft them)\".",
+      "evidence": {
+        "kind": "index",
+        "ref": "Source/AbilityAI/AbilityAI.cs:754"
+      }
+    },
+    {
+      "severity": "should",
+      "title": "AAI_Approach_Tip suggests the Approach checkbox controls the player's own pawns",
+      "detail": "TryApproach returns early on !AbilityAISettings.Approach only for non-player pawns. The player's drafted pawns walk for \"Autocast, may move\" abilities whether this checkbox is on or off. The new last sentence, placed under this checkbox, reads as if it controls them. Change it to say the setting doesn't apply to your own pawns, which walk only for abilities set to \"Autocast, may move\".",
+      "evidence": {
+        "kind": "index",
+        "ref": "Source/AbilityAI/AbilityAI.cs:1069"
+      }
+    },
+    {
+      "severity": "note",
+      "title": "Walk-back paths skip CanActNowPlayer, including the Spawned check",
+      "detail": "TryGiveJob returns ReturnJob at the nextCastTick gate (AbilityAI.cs:849), when there are no candidates (:887) and after the candidate loop (:913), without running CanActNowPlayer. CheckHome only checks Drafted and playerForced. With ReturnToCover on, TryFindCoverCell reads pawn.Map.attackTargetsCache. A guard such as `if (!pawn.Spawned) { ClearHome(state); return; }` at the top of CheckHome would keep an unspawned pawn out of that path rather than relying on the postfix's try/catch. This is opinion: I could not show a path where a drafted pawn is unspawned.",
+      "evidence": {
+        "kind": "opinion",
+        "ref": "Source/AbilityAI/AbilityAI.cs:849"
+      }
+    },
+    {
+      "severity": "note",
+      "title": "FightsUndrafted counts every tame animal as fighting back",
+      "detail": "For pawns without a configurable hostility response (UsesConfigurableHostilityResponse is colonists and colony subhumans only), FightsUndrafted returns RaceProps.Animal. So UndraftedSetNow gives a docile animal the All set whenever ctx.InCombat, which includes being hurt in the last 10 s, unless it is on a Flee job. If that is not intended, look at the animal's own flee or defend behaviour here.",
+      "evidence": {
+        "kind": "index",
+        "ref": "Source/AbilityAI/AbilityAI.cs:704"
+      }
+    },
+    {
+      "severity": "note",
+      "title": "Static gizmo cache and shared instance keep the previous game's Pawn alive after a load",
+      "detail": "Gizmo_PsycastLimits.cachedPawn and shared.pawn are static and are only re-pointed when a pawn with psycast autocast is next selected. Loading another save leaves them holding a Pawn (and its graph) from the old Game until then. Nothing breaks, because the cache check compares by reference and the pawn changes. Clearing both in AbilityAIAutocast's constructor (where `instance` is set) would release it.",
+      "evidence": {
+        "kind": "index",
+        "ref": "Source/AbilityAI/AbilityAIPsycastLimits.cs:36-46"
+      }
+    },
+    {
+      "severity": "note",
+      "title": "Full is offered based on the clicked pawn only, then applied to every group-ability pawn",
+      "detail": "`full` checks only clicked.pawn.drafter, but the chosen mode is set for every pawn in `pawns` (groupAbility selections). A selected pawn that can't be drafted gets Full stored and behaves as Stationary. This is harmless, and the same as a Full set earlier, but the menu's claim that Full is only offered where it walks doesn't hold for mixed selections.",
+      "evidence": {
+        "kind": "index",
+        "ref": "Source/AbilityAI/AbilityAIAutocast.cs:237-247"
+      }
+    },
+    {
+      "severity": "note",
+      "title": "Limits outlive the gizmo that sets them",
+      "detail": "ShouldShow hides the gizmo once no real psycast is set to autocast, but the pawn's limits entry stays stored and saved. When a psycast is set to autocast again, the old cap and floor apply without the player having seen them since. They only affect autocast, so this is a UX point and not a bug. Opinion: say in the gizmo tip that limits persist, or drop the entry when the last psycast mode goes Off.",
+      "evidence": {
+        "kind": "index",
+        "ref": "Source/AbilityAI/AbilityAIAutocast.cs:133-142"
+      }
+    },
+    {
+      "severity": "note",
+      "title": "verify_patches' Enumerator warning does not apply to this postfix",
+      "detail": "verify_patches suggests MethodType.Enumerator for IEnumerable-returning Pawn.GetGizmos. The patch is a pass-through postfix (first parameter is IEnumerable<Gizmo>, returns IEnumerable<Gizmo>), which wraps the sequence lazily, the same approach as the 3 corpus mods. No change needed. The 'Not in the Schematic' line is bookkeeping.",
+      "evidence": {
+        "kind": "precedent",
+        "ref": "Pawn.GetGizmos"
+      }
+    },
+    {
+      "severity": "note",
+      "title": "AAI_PlayerAutocast_Tip says \"walks back to where it stood\" even when Return to cover is on",
+      "detail": "With ReturnToCover on, MakeReturnJob sends the pawn to a covered spot within 6 tiles instead. A short \"(or to nearby cover, see below)\" would keep the two tooltips consistent.",
+      "evidence": {
+        "kind": "index",
+        "ref": "Source/AbilityAI/AbilityAI.cs:978"
+      }
+    }
+  ],
+  "checked": [
+    "verify_patches: all 7 [HarmonyPatch] targets resolve, including Pawn_JobTracker.DetermineNextConstantThinkTreeJob (postfix, AbilityAI.cs:1240; no corpus mod patches it)",
+    "Constant-tree postfix only fills an invalid __result and uses the constant tree root as the source node, so jobs saved mid-cast load",
+    "QueueAfterCast queue order (EnqueueFirst resume, then EnqueueFirst back) matches DetermineNextJob: constant tree first, then the queue",
+    "Resume() gives the clone a fresh loadID; Job.Clone copies loadID and playerForced (Job.cs:348), so CheckHome forgetting the walk once the resumed attack starts is consistent with its comment",
+    "ShouldStartJobFromThinkTree (Pawn_JobTracker.cs:833) and the only nonzero-minPriority CheckForJobOverride caller (JobDriver_Reading) cannot leave a queued walk back behind a cast that never started",
+    "CheckHome retries the walk back at most MaxReturnTries times and ClearHome resets every field it adds",
+    "TryApproach player path: only drafted, only Full mode, not while home is set; CanActNowPlayer lets the pawn cast from its own approach walk by loadID",
+    "Undrafted CanActNowPlayer: Flee/FleeAndCower are casualInterruptible (Jobs_Misc.xml:510,518); AttackStatic/AttackMelee are not (Jobs_Misc.xml:160,171), so the IsFightJob exception is needed",
+    "PsycastWithinLimits heat math matches Pawn_PsychicEntropyTracker.TryAddEntropy scaling; without a target the floor uses PsyfocusCostRange.min",
+    "Handles/HasWorker(PlayerSet) change does not alter vanilla stand-down for player pawns (OthersStandDown in AbilityAIMod.cs:90 path goes through HasWorker(All) first)",
+    "AbilityAIWorkers.cs: WorksFleeing/ForFleeing are additive; Movement and Recovery overrides only; CombatAllows bypass limited to curSet == Fleeing",
+    "Context only (other reviewer's file): Pawn.GetGizmos pass-through postfix matches the corpus (fluffy.animaltab, oskarpotocki VFE core, mortis.apexmechanoids postfix it); verify_patches' MethodType.En…",
+    "pyxis_mod_errors not available: no Pyxis token configured",
+    "Patch_Pawn_PsycastLimitsGizmo binds to Pawn.GetGizmos (verify_patches: 1 of 1 resolved)",
+    "Pawn.GetGizmos approach matches the corpus: pass-through postfix like all 3 corpus mods (fluffy.animaltab Patch_InjectTrainerSettingsGizmo.cs:12); yields originals unchanged and blocks no other patch",
+    "ShouldShow's SingleSelectedThing gate matches vanilla's own psyfocus gizmo condition (Verse/Pawn.cs:3405); Order -99 places it right after PsychicEntropyGizmo's -100",
+    "Gizmo_PsycastLimits.GizmoOnGUI layout, DraggableBar use (signature Widgets.cs:3444, clamps barValue to 1, so entropy over the limit is safe) and the GizmoState.Clear return all match PsychicEntropyGi…",
+    "Text.Font/Anchor restored after Label and BarText",
+    "LimitsEntry save/load: null on old saves handled, discarded pawns filtered on save, PostLoadInit rebuild mirrors the existing Entry path, savedLimits nulled after Saving/PostLoadInit",
+    "SetLimits clamps to [0,1] and removes default entries; TryGetLimits default path agrees with AbilityAIDriver.PsycastWithinLimits (AbilityAI.cs:579-602)",
+    "Version bump in SetMode invalidates the gizmo cache; the 60-frame expiry covers abilities gained or lost",
+    "Offers' change to HasWorker(PlayerSet.All) agrees with FightsUndrafted/UndraftedReach for pawns without a drafter (AbilityAI.cs:703-711) and Handles (AbilityAI.cs:747-755)",
+    "CanApproach/Full menu gating: a Full set earlier still shows as current",
+    "pyxis_mod_errors could not run (no Pyxis token configured), so no community error classes were checked",
+    "Every new or changed key in Languages/English/Keyed/AbilityAI.xml is used in Source (AAI_Limits_* in AbilityAIPsycastLimits.cs:102-130; AAI_ReturnToCover, AAI_UndraftedAutocast, AAI_Approach, AAI_Pla…",
+    "No other language folder exists, so no translations went stale",
+    "XML is well-formed; quotes and apostrophes in element text need no escaping",
+    "AAI_ReturnToCover_Tip: the 6-tile radius matches CoverSearchRadius = 6f (AbilityAI.cs:539), and falling back to the old spot matches MakeReturnJob (AbilityAI.cs:977-979)",
+    "AAI_UndraftedAutocast_Tip: the 10 s window matches RecentTicks = 600 (AbilityAI.cs:285); the fighting-back, fleeing and safe sets match FightsUndrafted, UndraftedSetNow and InSet (AbilityAI.cs:702-73…",
+    "AAI_Limits_Heat_Tip: 'all the way right' means no cap, matching NoHeatCap = 1f (AbilityAIAutocast.cs:67); the limits apply to psycasts only (AbilityAI.cs:581-600)",
+    "AAI_Limits_Reset text matches SetLimits(NoHeatCap, NoFocusFloor) (AbilityAIPsycastLimits.cs:127)",
+    "AAI_PlayerAutocast_Tip: 'any order cancels the walk back' matches CheckHome clearing on a playerForced job (AbilityAI.cs:1022-1023)",
+    "verify_patches: all 7 patch targets resolve, including the Pawn.GetGizmos pass-through postfix (AbilityAIPsycastLimits.cs:164-171)",
+    "pyxis_mod_errors could not run: no Pyxis token is configured (add one in Settings → Integrations)"
+  ],
+  "unreviewed": [],
+  "outOfScope": [],
+  "reviewed": [
+    "Source/AbilityAI/AbilityAI.cs",
+    "Source/AbilityAI/AbilityAIAutocast.cs",
+    "Source/AbilityAI/AbilityAIPsycastLimits.cs",
+    "Source/AbilityAI/AbilityAIWorkers.cs",
+    "Languages/English/Keyed/AbilityAI.xml",
+    "1.6/Assemblies/AbilityAI.dll",
+    "1.6/Assemblies/AbilityAI.pdb",
+    "1.7/Assemblies/AbilityAI.dll",
+    "1.7/Assemblies/AbilityAI.pdb"
+  ],
+  "parts": 3,
+  "buildCommit": "644d83a3340b5479af532406ed7775427ff7cade",
+  "partial": false
+}

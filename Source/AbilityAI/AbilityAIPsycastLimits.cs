@@ -52,6 +52,13 @@ namespace AbilityAI
             Order = -99f;
         }
 
+        internal static void ClearCache()
+        {
+            cachedPawn = null;
+            cachedVersion = -1;
+            shared.pawn = null;
+        }
+
         internal static Gizmo For(Pawn pawn)
         {
             shared.pawn = pawn;

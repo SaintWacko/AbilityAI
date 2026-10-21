@@ -32,9 +32,18 @@ Ability AI handles it. That is the intended outcome; just be aware of it.
 
 For the player's own pawns (tame bastles included) the stand-down is wider: with Ability AI's player autocast on,
 vanilla and Bastle's giver are told no for every ability that has an Ability AI extension, whatever the autocast
-mode. A tame bastle then casts such an ability only when the player set it to autocast and an Ability AI rule lets
-an undrafted animal use it. Check with the Ability AI agent what the tame-animal combat rule is before adding
-extensions to bastle abilities.
+mode. A tame bastle then casts such an ability only when the player set it to autocast. The tame-animal rules
+(Ability AI build 0012 on):
+- Any time: workers that aren't combat-only (Recovery, Rescue, Calm, Firefighting, or any worker a def sets to
+  `<combat>Any</combat>`/`OutOfCombat`).
+- While fleeing: Movement and Recovery as well.
+- While fighting back (an attack job, a hostile target, or attacked or hurt in the last 10 seconds: defending itself
+  or its master, or released on an enemy): every worker, the same set a drafted colonist gets. An enemy elsewhere on
+  the map doesn't count. The attack it was making is queued to resume after the cast.
+- The autocast menu is on the ability gizmo's right-click, and there is no second route to it. An animal can't be
+  drafted, so its ability gizmo has to be visible undrafted: set `displayGizmoWhileUndrafted` on any bastle ability
+  the player should be able to set to autocast. Without it the player never sees the button, so never sees the menu.
+- "Autocast, may move" (the walk into range) is drafted only, so a tame bastle never gets it.
 
 `AbilityAIDriver.OthersStandDown(pawn, ability)` is public if Bastle's compat code ever needs to ask directly
 (it is what the stand-down uses; `Handles` is the narrower "Ability AI decides now").

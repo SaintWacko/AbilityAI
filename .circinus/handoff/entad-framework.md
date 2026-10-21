@@ -182,6 +182,14 @@ description so players know it is what makes NPCs use entad abilities well.
   should ask to step aside: Handles, plus every player-faction pawn (not prisoners) with an ability that has a
   working extension, whatever its autocast mode or the hooks' votes (added at Entad's request).
 - The autocast menu and badge now ask the hooks: a Veto for a player pawn hides the menu and the badge.
+- Player autocast modes (build 0012 on): Off, "Autocast in place" (Stationary), and "Autocast, may move" (Full,
+  offered only for abilities with an `approachDistance`: a drafted ranged pawn walks into range, casts, walks back).
+  Undrafted player pawns cast by situation: any time the non-combat workers (Recovery, Rescue, Calm,
+  Firefighting); while fleeing also Movement; while fighting back with the hostility response on Attack (attacking,
+  or hit in the last 10 seconds) every worker. `Handles` for an undrafted player pawn is true when the ability has a
+  worker the pawn could ever use undrafted, not only right now.
+- Psycast limits (heat cap, psyfocus floor, per pawn) apply to real `Psycast`s only. Entad's psycast copies are
+  plain Abilities and are not limited by them.
 - `AbilityAIExtension` (DefModExtension) and the workers `AbilityAIWorker_*`: same fields and names as before, new
   namespace.
 

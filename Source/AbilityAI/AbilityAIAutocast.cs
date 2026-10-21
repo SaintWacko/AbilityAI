@@ -80,6 +80,8 @@ namespace AbilityAI
         public AbilityAIAutocast(World world) : base(world)
         {
             instance = this;
+            // A new world: let go of the last game's pawn held by the gizmo's cache
+            Gizmo_PsycastLimits.ClearCache();
         }
 
         private static AbilityAIAutocast Instance => instance != null && instance.world == Find.World ? instance : null;
@@ -245,7 +247,9 @@ namespace AbilityAI
                 AbilityAIAutocastMode m = mode;
                 options.Add(new FloatMenuOption(label, () =>
                 {
-                    for (int i = 0; i < pawns.Count; i++) SetMode(pawns[i], def, m);
+                    // A pawn in the group that can't be drafted never walks: it gets in-place instead of Full
+                    for (int i = 0; i < pawns.Count; i++)
+                        SetMode(pawns[i], def, m == AbilityAIAutocastMode.Full && pawns[i].drafter == null ? AbilityAIAutocastMode.Stationary : m);
                 }));
             }
             Find.WindowStack.Add(new FloatMenu(options, "AAI_Mode_Title".Translate(title.NullOrEmpty() ? (string)def.LabelCap : title)));

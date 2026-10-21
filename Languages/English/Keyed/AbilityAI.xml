@@ -9,7 +9,7 @@
   <AAI_NonHostiles>Friendly and neutral pawns</AAI_NonHostiles>
   <AAI_NonHostiles_Tip>Visitors, traders, caravan guards and allied soldiers.</AAI_NonHostiles_Tip>
   <AAI_Animals>Animals</AAI_Animals>
-  <AAI_Animals_Tip>Wild animals and other factions' animals. Yours use the abilities you set to autocast.</AAI_Animals_Tip>
+  <AAI_Animals_Tip>Wild animals and other factions' animals. Yours use the abilities you set to autocast; one that can't be drafted only does so with "Also while undrafted" on.</AAI_Animals_Tip>
   <AAI_Mechs>Mechanoids</AAI_Mechs>
   <AAI_Mechs_Tip>Other factions' mechanoids. Yours use the abilities you set to autocast.</AAI_Mechs_Tip>
   <AAI_Who_Desc>Your own colonists, slaves, ghouls and mechs only use abilities you set to autocast. Prisoners never use any.</AAI_Who_Desc>
@@ -18,9 +18,9 @@
   <AAI_VanillaStandDown>Replace vanilla's casting for abilities this mod handles</AAI_VanillaStandDown>
   <AAI_VanillaStandDown_Tip>Some abilities also have vanilla's simple casting turned on, so they still get used when this mod is missing. With this on, vanilla's casting stays out of the way of any ability Ability AI is deciding for, so the two never both use it. Off: both may cast it.</AAI_VanillaStandDown_Tip>
   <AAI_Approach>Walk into range to use an ability</AAI_Approach>
-  <AAI_Approach_Tip>A ranged raider, visitor, animal or mech in a fight walks a few tiles closer when a target for one of its abilities is just out of range or out of sight, uses it, and then fights as usual. Only for abilities set up for it, such as flashbang and battle cry. Never while badly hurt, fleeing or held in melee. Your own pawns only do this for abilities you set to "Autocast, may move".</AAI_Approach_Tip>
+  <AAI_Approach_Tip>A ranged raider, visitor, animal or mech in a fight walks a few tiles closer when a target for one of its abilities is just out of range or out of sight, uses it, and then fights as usual. Only for abilities set up for it, such as flashbang and battle cry. Never while badly hurt, fleeing or held in melee. This setting doesn't cover your own pawns: they walk only for abilities you set to "Autocast, may move", whether this is on or off.</AAI_Approach_Tip>
   <AAI_PlayerAutocast>Autocast for your pawns</AAI_PlayerAutocast>
-  <AAI_PlayerAutocast_Tip>Right-click an ability button to choose whether your pawn uses it by itself. Only for abilities the AI knows how to use. Drafted, the pawn casts while it stands in position or shoots, never in the middle of a move you ordered. With "Autocast, may move" a drafted ranged pawn also walks a few tiles to get a target in range, casts, and walks back to where it stood; any order you give in the meantime cancels the walk back.</AAI_PlayerAutocast_Tip>
+  <AAI_PlayerAutocast_Tip>Right-click an ability button to choose whether your pawn uses it by itself. Only for abilities the AI knows how to use. Drafted, the pawn casts while it stands in position or shoots, never in the middle of a move you ordered. With "Autocast, may move" a drafted ranged pawn also walks a few tiles to get a target in range, casts, and walks back to where it stood (or to nearby cover, see below); any order you give in the meantime cancels the walk back.</AAI_PlayerAutocast_Tip>
   <AAI_UndraftedAutocast>Also while undrafted</AAI_UndraftedAutocast>
   <AAI_UndraftedAutocast_Tip>Lets undrafted pawns autocast too. Any time: abilities that aren't only for fighting (recovering a low need, helping a downed ally, calming an ally in a mental break, putting out fires). While fleeing: movement abilities as well. While fighting back (a colonist with its hostility response set to attack, or an animal defending itself or released on an enemy, that is attacking or was hit in the last 10 seconds): every ability. The pawn stops its current job to cast, but never while lying down, carrying something, doing a job you ordered, or doing a job that can't be interrupted (surgery, bills). An attack it was making is picked up again after the cast.</AAI_UndraftedAutocast_Tip>
   <AAI_ReturnToCover>Walk back to cover instead of the old spot</AAI_ReturnToCover>

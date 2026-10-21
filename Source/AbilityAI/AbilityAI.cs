@@ -1023,7 +1023,7 @@ namespace AbilityAI
         private static void CheckHome(Pawn pawn, PawnState state, bool player)
         {
             Job cur = pawn.CurJob;
-            if (!player || !pawn.Drafted || (cur != null && cur.playerForced)) { ClearHome(state); return; }
+            if (!player || !pawn.Spawned || !pawn.Drafted || (cur != null && cur.playerForced)) { ClearHome(state); return; }
             if (state.returnJobId < 0) return;
             if (cur != null && cur.loadID == state.returnJobId) return;
             var queue = pawn.jobs.jobQueue;

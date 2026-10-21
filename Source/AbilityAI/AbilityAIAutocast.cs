@@ -200,18 +200,18 @@ namespace AbilityAI
             if (!AbilityAIAutocast.HasAny(ability.pawn)) return;
             var mode = AbilityAIAutocast.ModeFor(ability.pawn, ability.def);
             if (mode == AbilityAIAutocastMode.Off) return;
-            // Left edge. Vanilla puts charges top right and the cooldown at the top centre; full size, the hotkey is
-            // top left and the label along the bottom, so the badge goes top left under the hotkey line. Shrunk there
-            // is no label, so bottom left, clear of the hotkey.
+            // Left edge. Full size, vanilla's top text line holds the hotkey (left), cooldown countdown (centre) and
+            // charges (right), and the label runs along the bottom, so the badge goes on the second line. Shrunk there
+            // is no label or countdown, so bottom left, clear of the hotkey.
             string text = mode == AbilityAIAutocastMode.Full ? "AAI_Badge_Full".Translate() : "AAI_Badge_Stationary".Translate();
             Text.Font = GameFont.Tiny;
             Vector2 size = Text.CalcSize(text);
-            float y = shrunk ? button.yMax - size.y - 1f : button.y + 2f + (command.hotKey != null ? Text.LineHeight : 0f);
+            float y = shrunk ? button.yMax - size.y - 1f : button.y + 3f + Text.LineHeight;
             // A long translation stays inside the button rather than spilling onto the next gizmo
             var r = new Rect(button.x + 3f, y, Mathf.Min(size.x + 4f, button.width - 6f), size.y);
             GUI.DrawTexture(r, TexUI.GrayTextBG);
             GUI.color = BadgeColor;
-            Widgets.Label(new Rect(r.x + 2f, r.y, r.width - 2f, size.y), text);
+            Widgets.Label(new Rect(r.x + 2f, r.y, r.width - 2f, size.y), text.Truncate(r.width - 2f));
             GUI.color = Color.white;
             Text.Font = GameFont.Small;
         }

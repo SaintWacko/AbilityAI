@@ -1,0 +1,77 @@
+{
+  "version": 1,
+  "buildId": 10,
+  "buildIdNote": null,
+  "reviewedAt": "2026-10-21T22:10:48.306Z",
+  "conversationId": "01a16032-25b8-718f-b241-4df68cee547d",
+  "focus": "Build 10 delta only: OpenMenu group filter (Drafted || displayGizmoWhileUndrafted), menu title now always command.LabelCap, multipleSelected plumbing removed.",
+  "diffSource": "since the oldest restore point still kept (2026-10-21T20:45:34Z); older ones were pruned, so the chat's first changes may be missing",
+  "parsed": true,
+  "problem": null,
+  "stoppedBecause": null,
+  "counts": {
+    "must": 0,
+    "should": 1,
+    "note": 2
+  },
+  "findings": [
+    {
+      "severity": "should",
+      "title": "Group filter uses GetAbility(def) without includeTemporary, so hediff-granted grouped abilities never join the menu",
+      "detail": "OpenMenu line 148 calls p.abilities?.GetAbility(def), which only searches the permanent `abilities` list. Vanilla builds gizmos (and so the grouped button) from AllAbilitiesForReading, which adds hediff, equipment, apparel, royalty and ideology-role abilities. Two of the three vanilla groupAbility defs (GhoulFrenzy at Anomaly Abilities.xml:519 and MetalbloodInjection at :611) are granted by implants (Hediffs_BodyParts_Prosthetic.xml:479/650), so with several ghouls selected the grouped menu sets the mode on the clicked ghoul only. Change it to GetAbility(def, true).",
+      "evidence": {
+        "kind": "index",
+        "ref": "Source/AbilityAI/AbilityAIAutocast.cs:148"
+      }
+    },
+    {
+      "severity": "note",
+      "title": "Group filter omits vanilla's GizmosVisible() and showWhenDrafted checks",
+      "detail": "Vanilla shows an ability gizmo only when (Drafted || displayGizmoWhileUndrafted) && a.GizmosVisible() (Pawn_AbilityTracker.cs:162) and (!Drafted || def.showWhenDrafted) (Ability.GetGizmos). The filter copies only the first clause, so a selected pawn whose gizmo is hidden by an effect comp or by showWhenDrafted=false would get the mode without being in the grouped button. No vanilla groupAbility def hits this; adding `&& a.GizmosVisible() && (!p.Drafted || def.showWhenDrafted)` matches vanilla exactly.",
+      "evidence": {
+        "kind": "index",
+        "ref": "Source/AbilityAI/AbilityAIAutocast.cs:147"
+      }
+    },
+    {
+      "severity": "note",
+      "title": "Shrunk-path menu title reads a defaultLabel that GizmoOnGUIShrunk never refreshes",
+      "detail": "Command_Ability.GizmoOnGUI sets defaultLabel to pawnLabel/originalLabel from parms.multipleSelected; Command.GizmoOnGUIShrunk goes straight to GizmoOnGUIInt and never does. So for a shrunk, ungrouped ability gizmo, command.LabelCap is whatever the cached gizmo last had at full size (usually the plain label), not 'Ability (Name)' as the comment at line 197 says. Cosmetic only.",
+      "evidence": {
+        "kind": "index",
+        "ref": "Source/AbilityAI/AbilityAIAutocast.cs:236"
+      }
+    }
+  ],
+  "checked": [
+    "all four Harmony targets bind: Command_Ability.GizmoOnGUI prefix/postfix, Command.GizmoOnGUIShrunk prefix/postfix (verify_patches 4/4)",
+    "prefixes return void, so they cannot skip the original (prefix-returns-void)",
+    "no corpus mod patches Command_Ability.GizmoOnGUI or Command.GizmoOnGUIShrunk, so there is nothing to conflict with",
+    "removing multipleSelected: GizmoGridDrawer sets multipleSelected only when another drawn first-gizmo ShowPawnDetailsWith it, so a grouped button gets originalLabel and an ungrouped multi-select gets …",
+    "full-size prefix reading LabelCap before vanilla sets it this frame is safe: the Ability.gizmo instance is cached, so it holds last frame's label",
+    "title fallback to def.LabelCap when the label is empty; AAI_Mode_Title keyed string exists with {0}",
+    "Offers(a) is applied per extra pawn, so a vetoed or non-player pawn is not added to the group",
+    "pyxis_mod_errors could not run: no Pyxis token configured"
+  ],
+  "unreviewed": [],
+  "outOfScope": [
+    "Source/AbilityAI/AbilityAI.cs",
+    "Source/AbilityAI/AbilityAIWorkers.cs",
+    "Source/AbilityAI/AbilityAIWorkersTargeted.cs",
+    "Source/AbilityAIInfo.cs",
+    "Source/AbilityAIMod.cs",
+    "About/About.xml",
+    "Languages/English/Keyed/AbilityAI.xml",
+    "LoadFolders.xml",
+    "Patches/AbilityAI_Royalty.xml",
+    "1.6/Source/AbilityAI.csproj",
+    "1.7/Source/AbilityAI.csproj",
+    "Source/AbilityAI.Build.csproj"
+  ],
+  "reviewed": [
+    "Source/AbilityAI/AbilityAIAutocast.cs"
+  ],
+  "parts": 1,
+  "buildCommit": "27208ed6883a30b264470aaf2af815ec54f5818c",
+  "partial": false
+}

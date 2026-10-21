@@ -144,8 +144,9 @@ namespace AbilityAI
             var pawns = new List<Pawn> { clicked.pawn };
             if (def.groupAbility)
                 foreach (object o in Find.Selector.SelectedObjectsListForReading)
-                    if (o is Pawn p && p != clicked.pawn && (p.Drafted || def.displayGizmoWhileUndrafted)
-                        && p.abilities?.GetAbility(def) is Ability a && Offers(a)) pawns.Add(p);
+                    // The same checks vanilla uses to show the gizmo; includeTemporary for implant and gear abilities
+                    if (o is Pawn p && p != clicked.pawn && (p.Drafted ? def.showWhenDrafted : def.displayGizmoWhileUndrafted)
+                        && p.abilities?.GetAbility(def, true) is Ability a && a.GizmosVisible() && Offers(a)) pawns.Add(p);
             AbilityAIAutocastMode current = ModeFor(clicked.pawn, def);
 
             var options = new List<FloatMenuOption>();
@@ -194,8 +195,7 @@ namespace AbilityAI
             // Used here, vanilla's button never sees the press: no cast on an enabled gizmo, no "disabled" message
             // on one that is cooling down
             ev.Use();
-            // A grouped button (one for several pawns) keeps the plain label; an ungrouped one with several pawns
-            // selected names its own pawn, which is the one the menu is for
+            // The label the gizmo last drew with (a shrunk gizmo doesn't refresh it, so it may lack the pawn's name)
             AbilityAIAutocast.OpenMenu(ability, command.LabelCap);
         }
 

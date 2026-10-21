@@ -988,8 +988,11 @@ namespace AbilityAI
         }
 
         // Vanilla's cast-position search with the pawn's own weapon against the hostile nearest the pawn, wanting
-        // cover from it, within CoverSearchRadius of where the pawn stands now (where it cast). Its current cell is a
-        // candidate too, so a pawn that cast from good cover stays. Once per walk back.
+        // cover from it, within CoverSearchRadius of where the pawn stands now (where it cast, or where a walk out that
+        // ended without a cast stopped). Its current cell is a candidate too, so a pawn that cast from good cover stays.
+        // Only cells with some cover from that enemy count: vanilla's search otherwise settles for any cell it can
+        // shoot from (usually the one the pawn is on), which would leave it standing in the open instead of falling
+        // back to its old spot. Once per walk back.
         private static bool TryFindCoverCell(Pawn pawn, out IntVec3 cell)
         {
             cell = IntVec3.Invalid;
@@ -1012,6 +1015,7 @@ namespace AbilityAI
                 verb = verb,
                 maxRangeFromTarget = verb.EffectiveRange,
                 maxRangeFromCaster = CoverSearchRadius,
+                validator = c => CoverUtility.CalculateOverallBlockChance(c, enemy.Position, pawn.Map) > 0f,
                 wantCoverFromTarget = true,
             };
             return CastPositionFinder.TryFindCastPosition(req, out cell);

@@ -28,7 +28,7 @@
   <AAI_ReturnTo_Original>Walk back to original position</AAI_ReturnTo_Original>
   <AAI_ReturnTo_Original_Tip>The pawn walks back to the exact spot it was standing on before it set off.</AAI_ReturnTo_Original_Tip>
   <AAI_ReturnTo_Cover>Find new cover from the ending position</AAI_ReturnTo_Cover>
-  <AAI_ReturnTo_Cover_Tip>The pawn looks for a spot within 6 tiles of where it cast that has cover from the nearest enemy and that it can shoot from, and goes there. It stays put if it is already on such a spot. If there is none, it walks back to its original position.</AAI_ReturnTo_Cover_Tip>
+  <AAI_ReturnTo_Cover_Tip>The pawn looks for a spot within 6 tiles of where it ended up that has cover from the nearest enemy and that it can shoot from, and goes there. It stays put if it is already on such a spot. If there is none, it walks back to its original position.</AAI_ReturnTo_Cover_Tip>
   <AAI_BreakCasting>Your pawns use abilities during mental breaks</AAI_BreakCasting>
   <AAI_BreakCasting_Tip>A pawn of yours in a mental break (a colonist, or an animal gone manhunter) is out of your control, so your autocast choices don't apply. With this on, a pawn in an aggressive break uses its abilities the way a raider would, treating your other pawns as enemies, and a panicking one may use movement abilities to flee. Off: the game's own AI decides, as it would without this mod.</AAI_BreakCasting_Tip>
   <AAI_Mode_Title>Autocast {0}</AAI_Mode_Title>

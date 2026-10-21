@@ -1,8 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Ability AI rules for Royalty's combat psycasts (Source/AbilityAI/). Only applied when Royalty is active.
      Raider psycasters use them only with the "also use abilities no mod claims" setting on. A host mod that grants
-     these psycasts (Entad traits: Rage Echo, Veil, Numbing Touch, Quenching, Bulwark, Chaos Skip, Stun) and claims
-     them shares the rules, because its ability copies share the vanilla def's extension list.
+     these psycasts and claims them shares the rules, because its ability copies share the vanilla def's extension list.
+     Each rule sits in its own PatchOperationConditional on its def, so a psycast another mod removed or renamed
+     costs only its own rule: a conditional with no nomatch succeeds when its xpath finds nothing, and the sequence
+     goes on to the next one.
      Left out on purpose: Skip (needs a second target), Beckon, Flashstorm, Neuroquake, manhunter pulse, mass chaos
      skip, farskip, chunkskip, solar pinhole, neural heat dump and the social Word of psycasts other than serenity. -->
 <Patch>
@@ -14,179 +16,222 @@
       <operations>
 
         <!-- Stun: first anyone aiming a grenade, launcher or psycast; otherwise the most dangerous enemy in range -->
-        <li Class="PatchOperationAddModExtension">
+        <li Class="PatchOperationConditional">
           <xpath>Defs/AbilityDef[defName="Stun"]</xpath>
-          <value>
-            <li Class="AbilityAI.AbilityAIExtension">
-              <workerClass>AbilityAI.AbilityAIWorker_Interrupt</workerClass>
-              <priority>9</priority>
-            </li>
-            <li Class="AbilityAI.AbilityAIExtension">
-              <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
-              <priority>3</priority>
-            </li>
-          </value>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="Stun"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Interrupt</workerClass>
+                <priority>9</priority>
+              </li>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
+                <priority>3</priority>
+              </li>
+            </value>
+          </match>
         </li>
 
-        <li Class="PatchOperationAddModExtension">
+        <li Class="PatchOperationConditional">
           <xpath>Defs/AbilityDef[defName="Burden"]</xpath>
-          <value>
-            <li Class="AbilityAI.AbilityAIExtension">
-              <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
-              <priority>2</priority>
-            </li>
-          </value>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="Burden"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
+                <priority>2</priority>
+              </li>
+            </value>
+          </match>
         </li>
 
         <!-- An enemy with at least one of its own side within 6 tiles and none of the caster's -->
-        <li Class="PatchOperationAddModExtension">
+        <li Class="PatchOperationConditional">
           <xpath>Defs/AbilityDef[defName="Berserk"]</xpath>
-          <value>
-            <li Class="AbilityAI.AbilityAIExtension">
-              <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
-              <priority>7</priority>
-              <preferGrouped>true</preferGrouped>
-              <minTargets>2</minTargets>
-              <radius>6</radius>
-              <avoidAllies>true</avoidAllies>
-            </li>
-          </value>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="Berserk"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
+                <priority>7</priority>
+                <preferGrouped>true</preferGrouped>
+                <minTargets>2</minTargets>
+                <radius>6</radius>
+                <avoidAllies>true</avoidAllies>
+              </li>
+            </value>
+          </match>
         </li>
 
         <!-- Throw away an enemy that is in melee with the caster or an ally -->
-        <li Class="PatchOperationAddModExtension">
+        <li Class="PatchOperationConditional">
           <xpath>Defs/AbilityDef[defName="ChaosSkip"]</xpath>
-          <value>
-            <li Class="AbilityAI.AbilityAIExtension">
-              <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
-              <priority>4</priority>
-              <meleeOnly>true</meleeOnly>
-            </li>
-          </value>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="ChaosSkip"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
+                <priority>4</priority>
+                <meleeOnly>true</meleeOnly>
+              </li>
+            </value>
+          </match>
         </li>
 
-        <!-- The pulses hit everyone in the area, so never with one of the caster's side inside -->
-        <li Class="PatchOperationAddModExtension">
+        <!-- The pulses hit everyone in the area, so never with one of the caster's side inside. Two defs on one
+             xpath: the conditional only needs one of them to exist, and the add then goes to whichever do. -->
+        <li Class="PatchOperationConditional">
           <xpath>Defs/AbilityDef[defName="BlindingPulse" or defName="VertigoPulse"]</xpath>
-          <value>
-            <li Class="AbilityAI.AbilityAIExtension">
-              <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
-              <priority>5</priority>
-              <minTargets>2</minTargets>
-              <avoidAllies>true</avoidAllies>
-            </li>
-          </value>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="BlindingPulse" or defName="VertigoPulse"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
+                <priority>5</priority>
+                <minTargets>2</minTargets>
+                <avoidAllies>true</avoidAllies>
+              </li>
+            </value>
+          </match>
         </li>
 
-        <li Class="PatchOperationAddModExtension">
+        <li Class="PatchOperationConditional">
           <xpath>Defs/AbilityDef[defName="BerserkPulse"]</xpath>
-          <value>
-            <li Class="AbilityAI.AbilityAIExtension">
-              <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
-              <priority>8</priority>
-              <minTargets>3</minTargets>
-              <avoidAllies>true</avoidAllies>
-            </li>
-          </value>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="BerserkPulse"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
+                <priority>8</priority>
+                <minTargets>3</minTargets>
+                <avoidAllies>true</avoidAllies>
+              </li>
+            </value>
+          </match>
         </li>
 
         <!-- The caster or an ally under half health near enemies, held in melee, or with two shooters on them -->
-        <li Class="PatchOperationAddModExtension">
+        <li Class="PatchOperationConditional">
           <xpath>Defs/AbilityDef[defName="Invisibility"]</xpath>
-          <value>
-            <li Class="AbilityAI.AbilityAIExtension">
-              <workerClass>AbilityAI.AbilityAIWorker_Defensive</workerClass>
-              <priority>6</priority>
-              <minThreats>2</minThreats>
-            </li>
-          </value>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="Invisibility"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Defensive</workerClass>
+                <priority>6</priority>
+                <minThreats>2</minThreats>
+              </li>
+            </value>
+          </match>
         </li>
 
         <!-- Gets an ally downed by pain alone back up; otherwise an ally in 40% pain or more -->
-        <li Class="PatchOperationAddModExtension">
+        <li Class="PatchOperationConditional">
           <xpath>Defs/AbilityDef[defName="Painblock"]</xpath>
-          <value>
-            <li Class="AbilityAI.AbilityAIExtension">
-              <workerClass>AbilityAI.AbilityAIWorker_Rescue</workerClass>
-              <priority>7</priority>
-              <painShockOnly>true</painShockOnly>
-            </li>
-            <li Class="AbilityAI.AbilityAIExtension">
-              <workerClass>AbilityAI.AbilityAIWorker_TargetFriendly</workerClass>
-              <priority>3</priority>
-              <minPain>0.4</minPain>
-            </li>
-          </value>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="Painblock"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Rescue</workerClass>
+                <priority>7</priority>
+                <painShockOnly>true</painShockOnly>
+              </li>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetFriendly</workerClass>
+                <priority>3</priority>
+                <minPain>0.4</minPain>
+              </li>
+            </value>
+          </match>
         </li>
 
-        <li Class="PatchOperationAddModExtension">
+        <li Class="PatchOperationConditional">
           <xpath>Defs/AbilityDef[defName="Focus"]</xpath>
-          <value>
-            <li Class="AbilityAI.AbilityAIExtension">
-              <workerClass>AbilityAI.AbilityAIWorker_TargetFriendly</workerClass>
-              <priority>2</priority>
-            </li>
-          </value>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="Focus"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetFriendly</workerClass>
+                <priority>2</priority>
+              </li>
+            </value>
+          </match>
         </li>
 
-        <li Class="PatchOperationAddModExtension">
+        <li Class="PatchOperationConditional">
           <xpath>Defs/AbilityDef[defName="Waterskip"]</xpath>
-          <value>
-            <li Class="AbilityAI.AbilityAIExtension">
-              <workerClass>AbilityAI.AbilityAIWorker_Firefighting</workerClass>
-              <priority>6</priority>
-            </li>
-          </value>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="Waterskip"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Firefighting</workerClass>
+                <priority>6</priority>
+              </li>
+            </value>
+          </match>
         </li>
 
         <!-- A wall two tiles toward the nearest shooter, when two are on the caster and it has no cover yet -->
-        <li Class="PatchOperationAddModExtension">
+        <li Class="PatchOperationConditional">
           <xpath>Defs/AbilityDef[defName="Wallraise"]</xpath>
-          <value>
-            <li Class="AbilityAI.AbilityAIExtension">
-              <workerClass>AbilityAI.AbilityAIWorker_Cover</workerClass>
-              <priority>4</priority>
-              <offsetTowardThreat>2</offsetTowardThreat>
-              <minThreats>2</minThreats>
-            </li>
-          </value>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="Wallraise"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Cover</workerClass>
+                <priority>4</priority>
+                <offsetTowardThreat>2</offsetTowardThreat>
+                <minThreats>2</minThreats>
+              </li>
+            </value>
+          </match>
         </li>
 
-        <li Class="PatchOperationAddModExtension">
+        <li Class="PatchOperationConditional">
           <xpath>Defs/AbilityDef[defName="Smokepop"]</xpath>
-          <value>
-            <li Class="AbilityAI.AbilityAIExtension">
-              <workerClass>AbilityAI.AbilityAIWorker_Cover</workerClass>
-              <priority>4</priority>
-              <minThreats>2</minThreats>
-            </li>
-          </value>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="Smokepop"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Cover</workerClass>
+                <priority>4</priority>
+                <minThreats>2</minThreats>
+              </li>
+            </value>
+          </match>
         </li>
 
         <!-- The skipshield also stops the caster's side shooting out, so only under heavier fire -->
-        <li Class="PatchOperationAddModExtension">
+        <li Class="PatchOperationConditional">
           <xpath>Defs/AbilityDef[defName="BulletShield"]</xpath>
-          <value>
-            <li Class="AbilityAI.AbilityAIExtension">
-              <workerClass>AbilityAI.AbilityAIWorker_Cover</workerClass>
-              <priority>5</priority>
-              <minThreats>3</minThreats>
-            </li>
-          </value>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="BulletShield"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Cover</workerClass>
+                <priority>5</priority>
+                <minThreats>3</minThreats>
+              </li>
+            </value>
+          </match>
         </li>
 
         <!-- The target sleeps about 4 minutes afterwards, so not for a break with under a minute left (a berserk
              psycast lasts 15 s), and only for someone close: the caster has to walk up and touch them -->
-        <li Class="PatchOperationAddModExtension">
+        <li Class="PatchOperationConditional">
           <xpath>Defs/AbilityDef[defName="WordOfSerenity"]</xpath>
-          <value>
-            <li Class="AbilityAI.AbilityAIExtension">
-              <workerClass>AbilityAI.AbilityAIWorker_Calm</workerClass>
-              <priority>5</priority>
-              <maxRange>8</maxRange>
-              <minBreakSeconds>60</minBreakSeconds>
-            </li>
-          </value>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="WordOfSerenity"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Calm</workerClass>
+                <priority>5</priority>
+                <maxRange>8</maxRange>
+                <minBreakSeconds>60</minBreakSeconds>
+              </li>
+            </value>
+          </match>
         </li>
 
       </operations>

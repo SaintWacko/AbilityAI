@@ -128,10 +128,10 @@ namespace AbilityAI
             if (!AbilityAISettings.Enabled || !AbilityAISettings.PlayerAutocast) return false;
             Pawn p = ability?.pawn;
             if (p == null || p.Faction == null || !p.Faction.IsPlayer || p.IsPrisoner) return false;
-            // Player pawns only autocast while drafted until the undrafted rules exist, and animals have no drafter:
-            // don't offer them a mode that would never fire
-            if (p.drafter == null) return false;
-            return ability.def.GetModExtension<AbilityAIExtension>() != null;
+            // A pawn that can't be drafted (most animals) only ever autocasts undrafted: don't offer it a mode for an
+            // ability whose workers are all combat-only, which would never fire
+            if (p.drafter == null && !AbilityAISettings.UndraftedAutocast) return false;
+            return AbilityAIDriver.HasWorker(ability.def, p.drafter == null);
         }
 
         // Every selected pawn of the player's with this ability: a grouped gizmo (several pawns selected) draws one
@@ -141,7 +141,7 @@ namespace AbilityAI
             AbilityDef def = clicked.def;
             var pawns = new List<Pawn>();
             foreach (object o in Find.Selector.SelectedObjectsListForReading)
-                if (o is Pawn p && p.abilities?.GetAbility(def) != null && p.Faction != null && p.Faction.IsPlayer && p.drafter != null) pawns.Add(p);
+                if (o is Pawn p && p.abilities?.GetAbility(def) is Ability a && Offers(a)) pawns.Add(p);
             if (!pawns.Contains(clicked.pawn)) pawns.Add(clicked.pawn);
             AbilityAIAutocastMode current = ModeFor(clicked.pawn, def);
 

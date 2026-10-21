@@ -20,7 +20,9 @@
   <AAI_Approach>Walk into range to use an ability</AAI_Approach>
   <AAI_Approach_Tip>A ranged pawn in a fight walks a few tiles closer when a target for one of its abilities is just out of range or out of sight, uses it, and then fights as usual. Only for abilities set up for it, such as flashbang and battle cry. Never while badly hurt, fleeing or held in melee.</AAI_Approach_Tip>
   <AAI_PlayerAutocast>Autocast for your pawns</AAI_PlayerAutocast>
-  <AAI_PlayerAutocast_Tip>Right-click an ability button to choose whether your pawn uses it by itself. Only for abilities the AI knows how to use, and for now only while the pawn is drafted: it casts while it stands in position or shoots, never in the middle of a move you ordered.</AAI_PlayerAutocast_Tip>
+  <AAI_PlayerAutocast_Tip>Right-click an ability button to choose whether your pawn uses it by itself. Only for abilities the AI knows how to use. Drafted, the pawn casts while it stands in position or shoots, never in the middle of a move you ordered.</AAI_PlayerAutocast_Tip>
+  <AAI_UndraftedAutocast>Also while undrafted</AAI_UndraftedAutocast>
+  <AAI_UndraftedAutocast_Tip>Lets undrafted pawns autocast the abilities that aren't only for fighting: recovering a low need, helping a downed ally, calming an ally in a mental break, putting out fires. The pawn stops its current job to cast, but never while lying down, carrying something, doing a job you ordered, or doing a job that can't be interrupted (surgery, bills). Animals that can't be drafted get the autocast menu only for these abilities.</AAI_UndraftedAutocast_Tip>
   <AAI_BreakCasting>Your pawns use abilities during mental breaks</AAI_BreakCasting>
   <AAI_BreakCasting_Tip>A pawn of yours in a mental break (a colonist, or an animal gone manhunter) is out of your control, so your autocast choices don't apply. With this on, a pawn in an aggressive break uses its abilities the way a raider would, treating your other pawns as enemies, and a panicking one may use movement abilities to flee. Off: your pawns in a break use no abilities.</AAI_BreakCasting_Tip>
   <AAI_Mode_Title>Autocast {0}</AAI_Mode_Title>

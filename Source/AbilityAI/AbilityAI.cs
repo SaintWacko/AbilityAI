@@ -326,7 +326,9 @@ namespace AbilityAI
         }
 
         /// <summary>Hostile pawns on the map that are a threat now: standing, visible and not threat-disabled.
-        /// From the attack-target cache, so turrets and other buildings are left out.</summary>
+        /// From the attack-target cache, so turrets and other buildings are left out. A caster with no faction
+        /// (manhunter, wild animal) gets nothing from the cache's faction lists, so for it every spawned pawn is
+        /// checked instead (one HostileTo per pawn on the map), plus whoever it is fighting back against.</summary>
         public List<Pawn> Enemies
         {
             get
@@ -334,17 +336,31 @@ namespace AbilityAI
                 if (!enemiesBuilt)
                 {
                     enemiesBuilt = true;
-                    // The cache hands back one shared list that its next caller clears, so copy out of it at once
-                    var targets = map.attackTargetsCache.GetPotentialTargetsFor(pawn);
-                    for (int i = 0; i < targets.Count; i++)
+                    if (pawn.Faction == null)
                     {
-                        if (!(targets[i].Thing is Pawn p) || !p.Spawned || p.Dead || p.Downed) continue;
-                        if (targets[i].ThreatDisabled(pawn) || p.IsPsychologicallyInvisible() || !p.HostileTo(pawn)) continue;
-                        enemies.Add(p);
+                        var all = map.mapPawns.AllPawnsSpawned;
+                        for (int i = 0; i < all.Count; i++)
+                            if (all[i] != pawn && IsEnemy(all[i])) enemies.Add(all[i]);
+                        // A wild animal hit by a hunter isn't hostile to it, but EnemyTarget keeps it as its target
+                        if (EnemyTarget is Pawn target && !enemies.Contains(target) && !target.IsPsychologicallyInvisible())
+                            enemies.Add(target);
+                    }
+                    else
+                    {
+                        // The cache hands back one shared list that its next caller clears, so copy out of it at once
+                        var targets = map.attackTargetsCache.GetPotentialTargetsFor(pawn);
+                        for (int i = 0; i < targets.Count; i++)
+                            if (targets[i].Thing is Pawn p && IsEnemy(p)) enemies.Add(p);
                     }
                 }
                 return enemies;
             }
+        }
+
+        private bool IsEnemy(Pawn p)
+        {
+            if (!p.Spawned || p.Dead || p.Downed) return false;
+            return !p.ThreatDisabled(pawn) && !p.IsPsychologicallyInvisible() && p.HostileTo(pawn);
         }
 
         /// <summary>Standing pawns of the caster's faction on the map, the caster included. A pawn with no faction
@@ -539,8 +555,8 @@ namespace AbilityAI
         }
 
         /// <summary>Whether and how the AI acts for this pawn, by the settings. Every pawn of the player's only for
-        /// abilities the player set to autocast (for now only pawns that can be drafted get the menu: colonists, slaves,
-        /// ghouls, mechs, and animals a mod makes draftable); prisoners never.</summary>
+        /// abilities the player set to autocast; prisoners never. Pawns that can't be drafted (most animals) only get
+        /// the menu for abilities with a worker that runs undrafted.</summary>
         public static Control ControlOf(Pawn pawn)
         {
             if (pawn.IsPrisoner) return Control.None;
@@ -582,14 +598,24 @@ namespace AbilityAI
         }
 
         /// <summary>The player rules: awake, standing, not on fire, not in a mental state, not casting or stunned.
-        /// Drafted: only while standing still in position or shooting, never during an ordered move. Undrafted
-        /// pawns don't autocast yet.</summary>
+        /// Drafted: only while standing still in position or shooting, never during an ordered move. Undrafted (with
+        /// UndraftedAutocast on): not lying down, not carrying anything, and only interrupting a job that may be
+        /// casually interrupted and that the player didn't order. The driver then only tries workers that run
+        /// undrafted.</summary>
         public static bool CanActNowPlayer(Pawn pawn)
         {
             if (!pawn.Spawned || pawn.Dead || pawn.Downed || !pawn.Awake() || pawn.IsBurning()) return false;
             if (pawn.InMentalState || pawn.CurJob?.ability != null) return false;
             if (pawn.stances?.stunner?.Stunned == true) return false;
-            if (!pawn.Drafted) return false;
+            if (!pawn.Drafted)
+            {
+                if (!AbilityAISettings.UndraftedAutocast) return false;
+                // In bed, resting, or carrying someone to one: the cast would get them up or drop what they hold
+                if (pawn.GetPosture() != PawnPosture.Standing || pawn.carryTracker?.CarriedThing != null) return false;
+                // A constant-tree job ends the current one: never surgery, a bill, or anything the player ordered
+                Job cur = pawn.CurJob;
+                return cur == null || (!cur.playerForced && cur.def.casualInterruptible);
+            }
             if (pawn.pather != null && pawn.pather.Moving) return false;
             JobDef job = pawn.CurJobDef;
             return job == null || job == JobDefOf.Wait_Combat || job == JobDefOf.Wait || job == JobDefOf.Wait_MaintainPosture
@@ -606,27 +632,30 @@ namespace AbilityAI
         /// ability has a working extension, the settings cover the pawn and a hook (or Unclaimed, or the player's
         /// autocast mode) lets it through. Independent of the moment: an ability on cooldown or held back by
         /// reserveCharges is still ours. Public so a host's own fallback AI can step aside for the same abilities.
-        /// The player's pawns only while drafted: undrafted, the driver never casts for them (CanActNowPlayer), so
-        /// whatever vanilla or the host would do is left alone.</summary>
+        /// The player's pawns undrafted only when the ability has a worker that runs undrafted and that setting is on:
+        /// otherwise the driver never casts it for them, so whatever vanilla or the host would do is left alone.</summary>
         public static bool Handles(Pawn pawn, Ability ability)
         {
             if (!AbilityAISettings.Enabled || pawn == null || ability?.def == null) return false;
-            if (!HasWorker(ability.def)) return false;
+            if (!HasWorker(ability.def, false)) return false;
             switch (ControlOf(pawn))
             {
                 case Control.NPC: return AbilityAIHooks.Allowed(pawn, ability);
-                case Control.Player: return pawn.Drafted && PlayerAllowed(pawn, ability);
+                case Control.Player:
+                    if (!PlayerAllowed(pawn, ability)) return false;
+                    return pawn.Drafted || (AbilityAISettings.UndraftedAutocast && HasWorker(ability.def, true));
                 default: return false;
             }
         }
 
-        // Any of its extensions, as TryGiveJob tries them all
-        private static bool HasWorker(AbilityDef def)
+        /// <summary>Any of its extensions has a working worker (TryGiveJob tries them all); with undraftedOnly, one
+        /// that runs for the player's undrafted pawns.</summary>
+        internal static bool HasWorker(AbilityDef def, bool undraftedOnly)
         {
             var exts = def.modExtensions;
             if (exts == null) return false;
             for (int i = 0; i < exts.Count; i++)
-                if (exts[i] is AbilityAIExtension ext && ext.Worker != null) return true;
+                if (exts[i] is AbilityAIExtension ext && ext.Worker != null && (!undraftedOnly || ext.Worker.WorksUndrafted)) return true;
             return false;
         }
 
@@ -693,6 +722,7 @@ namespace AbilityAI
             state.nextEvalTick = tick + EvalIntervalTicks;
             bool player = control == Control.Player;
             if (player ? !CanActNowPlayer(pawn) : !CanActNow(pawn)) return null;
+            bool undrafted = player && !pawn.Drafted;
 
             // Ready abilities with a worker, highest priority first (insertion sort: a pawn holds a handful). An
             // ability with several extensions is a candidate once per extension.
@@ -706,6 +736,7 @@ namespace AbilityAI
                 for (int j = 0; j < exts.Count; j++)
                 {
                     if (!(exts[j] is AbilityAIExtension ext) || ext.Worker == null) continue;
+                    if (undrafted && !ext.Worker.WorksUndrafted) continue;
                     if (!checkedReady)
                     {
                         checkedReady = true;
@@ -880,6 +911,7 @@ namespace AbilityAI
         public static bool Approach = true;
         public static bool PlayerAutocast = true;
         public static bool BreakCasting;
+        public static bool UndraftedAutocast = true;
         public const float DefaultMinGapSeconds = 2.5f;
         public static float MinGapSeconds = DefaultMinGapSeconds;
         public static bool DebugLog;
@@ -887,7 +919,7 @@ namespace AbilityAI
         public static void Reset()
         {
             Enabled = Hostiles = NonHostiles = Animals = Mechs = Approach = VanillaStandDown = true;
-            PlayerAutocast = true;
+            PlayerAutocast = UndraftedAutocast = true;
             Unclaimed = BreakCasting = false;
             MinGapSeconds = DefaultMinGapSeconds;
             DebugLog = false;
@@ -904,6 +936,7 @@ namespace AbilityAI
             Scribe_Values.Look(ref VanillaStandDown, "abilityAI_vanillaStandDown", true);
             Scribe_Values.Look(ref Approach, "abilityAI_approach", true);
             Scribe_Values.Look(ref PlayerAutocast, "abilityAI_playerAutocast", true);
+            Scribe_Values.Look(ref UndraftedAutocast, "abilityAI_undraftedAutocast", true);
             Scribe_Values.Look(ref BreakCasting, "abilityAI_breakCasting", false);
             Scribe_Values.Look(ref MinGapSeconds, "abilityAI_minGapSeconds", DefaultMinGapSeconds);
             MinGapSeconds = Mathf.Clamp(MinGapSeconds, 0f, 30f);
@@ -926,6 +959,7 @@ namespace AbilityAI
             list.CheckboxLabeled("AAI_Approach".Translate(), ref Approach, "AAI_Approach_Tip".Translate());
             list.Gap();
             list.CheckboxLabeled("AAI_PlayerAutocast".Translate(), ref PlayerAutocast, "AAI_PlayerAutocast_Tip".Translate());
+            list.CheckboxLabeled("  " + "AAI_UndraftedAutocast".Translate(), ref UndraftedAutocast, "AAI_UndraftedAutocast_Tip".Translate());
             list.CheckboxLabeled("AAI_BreakCasting".Translate(), ref BreakCasting, "AAI_BreakCasting_Tip".Translate());
             list.Gap();
             list.Label("AAI_MinGap".Translate(MinGapSeconds.ToString("0.#")));

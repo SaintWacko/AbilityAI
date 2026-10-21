@@ -22,6 +22,10 @@ namespace AbilityAI
 
         public AbilityAICombat Combat => ext.combat == AbilityAICombat.Default ? DefaultCombat : ext.combat;
 
+        /// <summary>Whether the player's pawns may autocast it while undrafted: any worker that isn't combat-only
+        /// (Recovery, Rescue, Calm, Firefighting by default). A def can opt a combat worker in with combat Any.</summary>
+        public bool WorksUndrafted => Combat != AbilityAICombat.InCombat;
+
         /// <summary>A target worth casting at now, or false. The driver runs AbilityAIDriver.Valid on the result
         /// once more, so a worker only needs to call it where it is choosing between candidates.</summary>
         public abstract bool TryFindTarget(AbilityAIContext ctx, Ability ability, out LocalTargetInfo target, out LocalTargetInfo dest);
@@ -326,7 +330,8 @@ namespace AbilityAI
     /// During the walk the pawn only shouts early once its current cell covers as many as the chosen one. Only ally
     /// cells and pair midpoints are tried, so three allies only their centroid covers count as two. Cost: with m
     /// nearby allies, m²/2 candidate cells × m distance checks (about 500 for 10) plus up to 4 reachability checks;
-    /// once per 10 s after a walk starts, once per 2 s while no spot is found.
+    /// once per 10 s after a walk starts, once per 2 s while no spot is found. Targeted cast: k² distance checks,
+    /// then up to 5 target validations, best ally first.
     /// </summary>
     public class AbilityAIWorker_AoEFriendly : AbilityAIWorker
     {
@@ -432,18 +437,31 @@ namespace AbilityAI
 
             float range = AbilityAIUtility.Range(ability, ext);
             float maxSq = range * range;
-            Pawn best = null;
-            int bestCount = ext.minTargets - 1;
+            // Every ally that would gather enough, best first: the best one can fail validation (out of sight) while
+            // the next would pass
+            centres.Clear();
             for (int i = 0; i < allies.Count; i++)
             {
-                if ((allies[i].Position - ctx.pawn.Position).LengthHorizontalSquared > maxSq) continue;
+                float d = (allies[i].Position - ctx.pawn.Position).LengthHorizontalSquared;
+                if (d > maxSq) continue;
                 int n = Count(allies, allies[i].Position, r2, hediff);
-                if (n > bestCount) { bestCount = n; best = allies[i]; }
+                if (n >= ext.minTargets) centres.Add(new Centre { pawn = allies[i], count = n, distSq = d });
             }
-            if (best == null) return false;
-            target = AbilityAIUtility.PawnOrCell(ability, best);
+            centres.Sort(MostThenNearest);
+            for (int i = 0; i < centres.Count && i < MaxTries; i++)
+            {
+                target = AbilityAIUtility.PawnOrCell(ability, centres[i].pawn);
+                if (target.IsValid) break;
+            }
+            centres.Clear();
             return target.IsValid;
         }
+
+        private struct Centre { public Pawn pawn; public int count; public float distSq; }
+        private static readonly List<Centre> centres = new List<Centre>();
+        private const int MaxTries = 5;
+        private static readonly System.Comparison<Centre> MostThenNearest =
+            (a, b) => a.count != b.count ? b.count.CompareTo(a.count) : a.distSq.CompareTo(b.distSq);
 
         private static int Count(List<Pawn> allies, IntVec3 c, float r2, HediffDef hediff)
         {

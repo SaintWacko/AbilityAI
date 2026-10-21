@@ -11,7 +11,7 @@ using Verse.AI;
 //
 // Cost: a worker only runs for a pawn that holds an ability with an extension, that ability is ready (CanCast,
 // reserve, gap) and a host hook claims it (or, for the player's pawns, the player set it to autocast; undrafted ones
-// only try workers where WorksUndrafted is true), at most once per 30 ticks per pawn and then not again for the
+// only try the workers their situation allows: AbilityAIDriver.PlayerSet), at most once per 30 ticks per pawn and then not again for the
 // global gap after a cast. Each worker notes its own cost below; k = hostile pawns on the map.
 namespace AbilityAI
 {
@@ -26,6 +26,14 @@ namespace AbilityAI
         /// <summary>Whether the player's pawns may autocast it while undrafted: any worker that isn't combat-only
         /// (Recovery, Rescue, Calm, Firefighting by default). A def can opt a combat worker in with combat Any.</summary>
         public bool WorksUndrafted => Combat != AbilityAICombat.InCombat;
+
+        /// <summary>Whether an undrafted player pawn that is fleeing may autocast it: the undrafted set plus workers
+        /// that help a pawn get away or keep going (Movement, Recovery).</summary>
+        public bool WorksFleeing => WorksUndrafted || ForFleeing;
+
+        /// <summary>True for workers that are worth using while running away. A fleeing pawn may not count as in
+        /// combat (nobody has hit it yet), so these also skip the combat-mode check while it flees.</summary>
+        protected internal virtual bool ForFleeing => false;
 
         /// <summary>A target worth casting at now, or false. The driver runs AbilityAIDriver.Valid on the result
         /// once more, so a worker only needs to call it where it is choosing between candidates.</summary>
@@ -502,6 +510,8 @@ namespace AbilityAI
     /// </summary>
     public class AbilityAIWorker_Movement : AbilityAIWorker
     {
+        protected internal override bool ForFleeing => true;
+
         private const float EscapeDangerRange = 12f;
         private const float EscapeMinGain = 4f;
         private const int Directions = 16;
@@ -692,6 +702,7 @@ namespace AbilityAI
     public class AbilityAIWorker_Recovery : AbilityAIWorker
     {
         protected override AbilityAICombat DefaultCombat => AbilityAICombat.OutOfCombat;
+        protected internal override bool ForFleeing => true;
 
         public override bool TryFindTarget(AbilityAIContext ctx, Ability ability, out LocalTargetInfo target, out LocalTargetInfo dest)
         {

@@ -43,10 +43,39 @@ namespace AbilityAI
             }
         }
 
+        // A pawn's psycast limits; only pawns whose limits differ from the defaults are stored
+        private class LimitsEntry : IExposable
+        {
+            public Pawn pawn;
+            public float heatCap = 1f;
+            public float focusFloor;
+
+            public void ExposeData()
+            {
+                Scribe_References.Look(ref pawn, "pawn");
+                Scribe_Values.Look(ref heatCap, "heatCap", 1f);
+                Scribe_Values.Look(ref focusFloor, "focusFloor", 0f);
+            }
+        }
+
+        private struct Limits
+        {
+            public float heatCap, focusFloor;
+        }
+
+        /// <summary>Default heat cap: no limit beyond vanilla's own (its entropy-limit toggle decides overheating).</summary>
+        public const float NoHeatCap = 1f;
+        public const float NoFocusFloor = 0f;
+
         private static AbilityAIAutocast instance;
         // Only pawns with at least one mode set are in here, so "does this pawn autocast anything" is one lookup
         private readonly Dictionary<Pawn, Dictionary<AbilityDef, AbilityAIAutocastMode>> modes = new Dictionary<Pawn, Dictionary<AbilityDef, AbilityAIAutocastMode>>();
+        private readonly Dictionary<Pawn, Limits> limits = new Dictionary<Pawn, Limits>();
         private List<Entry> saved;
+        private List<LimitsEntry> savedLimits;
+
+        /// <summary>Goes up on every mode change, so a cached answer built from the modes knows it is stale.</summary>
+        internal static int Version { get; private set; }
 
         public AbilityAIAutocast(World world) : base(world)
         {
@@ -72,6 +101,7 @@ namespace AbilityAI
         {
             var inst = Instance ?? Find.World?.GetComponent<AbilityAIAutocast>();
             if (inst == null || pawn == null || def == null) return;
+            Version++;
             if (mode == AbilityAIAutocastMode.Off)
             {
                 if (inst.modes.TryGetValue(pawn, out var byDef))
@@ -83,6 +113,32 @@ namespace AbilityAI
             }
             if (!inst.modes.TryGetValue(pawn, out var d)) inst.modes[pawn] = d = new Dictionary<AbilityDef, AbilityAIAutocastMode>();
             d[def] = mode;
+        }
+
+        /// <summary>The pawn's psycast autocast limits, or false when it has none (the defaults).</summary>
+        public static bool TryGetLimits(Pawn pawn, out float heatCap, out float focusFloor)
+        {
+            var inst = Instance;
+            if (inst != null && inst.limits.TryGetValue(pawn, out var l))
+            {
+                heatCap = l.heatCap;
+                focusFloor = l.focusFloor;
+                return true;
+            }
+            heatCap = NoHeatCap;
+            focusFloor = NoFocusFloor;
+            return false;
+        }
+
+        /// <summary>Sets the pawn's psycast limits; the defaults remove its entry.</summary>
+        public static void SetLimits(Pawn pawn, float heatCap, float focusFloor)
+        {
+            var inst = Instance ?? Find.World?.GetComponent<AbilityAIAutocast>();
+            if (inst == null || pawn == null) return;
+            heatCap = Mathf.Clamp01(heatCap);
+            focusFloor = Mathf.Clamp01(focusFloor);
+            if (heatCap >= NoHeatCap && focusFloor <= NoFocusFloor) inst.limits.Remove(pawn);
+            else inst.limits[pawn] = new Limits { heatCap = heatCap, focusFloor = focusFloor };
         }
 
         public override void ExposeData()
@@ -100,16 +156,44 @@ namespace AbilityAI
                             saved.Add(new Entry { pawn = kv.Key, def = m.Key, mode = m.Value });
                 }
             }
+            if (Scribe.mode == LoadSaveMode.Saving)
+            {
+                savedLimits = new List<LimitsEntry>();
+                foreach (var kv in limits)
+                    if (kv.Key != null && !kv.Key.Discarded)
+                        savedLimits.Add(new LimitsEntry { pawn = kv.Key, heatCap = kv.Value.heatCap, focusFloor = kv.Value.focusFloor });
+            }
             Scribe_Collections.Look(ref saved, "abilityAutocast", LookMode.Deep);
+            Scribe_Collections.Look(ref savedLimits, "psycastLimits", LookMode.Deep);
             if (Scribe.mode == LoadSaveMode.PostLoadInit)
             {
                 modes.Clear();
                 if (saved != null)
                     foreach (var e in saved)
                         if (e?.pawn != null && e.def != null) SetMode(e.pawn, e.def, e.mode);
+                limits.Clear();
+                if (savedLimits != null)
+                    foreach (var e in savedLimits)
+                        if (e?.pawn != null) SetLimits(e.pawn, e.heatCap, e.focusFloor);
             }
-            if (Scribe.mode == LoadSaveMode.Saving || Scribe.mode == LoadSaveMode.PostLoadInit) saved = null;
+            if (Scribe.mode == LoadSaveMode.Saving || Scribe.mode == LoadSaveMode.PostLoadInit)
+            {
+                saved = null;
+                savedLimits = null;
+            }
         }
+
+        private static bool CanApproach(AbilityDef def)
+        {
+            var exts = def.modExtensions;
+            if (exts == null) return false;
+            for (int i = 0; i < exts.Count; i++)
+                if (exts[i] is AbilityAIExtension ext && ext.Worker != null && ext.approachDistance > 0f) return true;
+            return false;
+        }
+
+        private static readonly AbilityAIAutocastMode[] Modes =
+            { AbilityAIAutocastMode.Off, AbilityAIAutocastMode.Stationary, AbilityAIAutocastMode.Full };
 
         internal static string Label(AbilityAIAutocastMode mode)
         {
@@ -128,10 +212,10 @@ namespace AbilityAI
             if (!AbilityAISettings.Enabled || !AbilityAISettings.PlayerAutocast) return false;
             Pawn p = ability?.pawn;
             if (p == null || p.Faction == null || !p.Faction.IsPlayer || p.IsPrisoner) return false;
-            // A pawn that can't be drafted (most animals) only ever autocasts undrafted: don't offer it a mode for an
-            // ability whose workers are all combat-only, which would never fire
+            // A pawn that can't be drafted (most animals) only ever autocasts undrafted, where it uses every worker
+            // while fighting back (AbilityAIDriver.FightsUndrafted). Without undrafted autocast it never would.
             if (p.drafter == null && !AbilityAISettings.UndraftedAutocast) return false;
-            return AbilityAIDriver.HasWorker(ability.def, p.drafter == null) && AbilityAIHooks.NotVetoed(p, ability);
+            return AbilityAIDriver.HasWorker(ability.def, AbilityAIDriver.PlayerSet.All) && AbilityAIHooks.NotVetoed(p, ability);
         }
 
         // A def with groupAbility draws one button for every selected pawn whose gizmo is shown (drafted, or the def
@@ -150,9 +234,12 @@ namespace AbilityAI
             AbilityAIAutocastMode current = ModeFor(clicked.pawn, def);
 
             var options = new List<FloatMenuOption>();
-            // Full joins this list once the player pawns' walk into range exists (until then it would act as Stationary)
-            foreach (AbilityAIAutocastMode mode in new[] { AbilityAIAutocastMode.Off, AbilityAIAutocastMode.Stationary })
+            // Full only adds the walk into range: drafted pawns, abilities set up with an approachDistance. Elsewhere
+            // it would act as Stationary, so it isn't offered (a Full set earlier stays, and shows as current).
+            bool full = clicked.pawn.drafter != null && CanApproach(def);
+            foreach (AbilityAIAutocastMode mode in Modes)
             {
+                if (mode == AbilityAIAutocastMode.Full && !full && current != AbilityAIAutocastMode.Full) continue;
                 string label = Label(mode);
                 if (mode == current) label = "AAI_Mode_Current".Translate(label);
                 AbilityAIAutocastMode m = mode;

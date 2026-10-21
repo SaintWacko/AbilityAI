@@ -509,7 +509,34 @@ namespace AbilityAI
             // Set by a TryFindApproachCell walk, cleared with approachJobId
             public AbilityDef approachAbility;
             public int approachExpected;
+
+            // Player Full mode: where the pawn stood before it walked to cast, the AttackStatic it was on (a fresh
+            // copy to queue once back), and the walk back. Kept from the start of the walk until the pawn is back
+            // or the player takes over (a new order, undrafting). Not saved: a pawn loaded mid-walk stays wherever
+            // it is, as any drafted pawn would.
+            public IntVec3 home = IntVec3.Invalid;
+            public Job resume;
+            public int returnJobId = -1;
+            public IntVec3 returnCell = IntVec3.Invalid;
+            public int returnTries;
         }
+
+        /// <summary>Which workers a player's pawn may use at the moment.</summary>
+        internal enum PlayerSet
+        {
+            /// <summary>Undrafted: workers that aren't combat-only (WorksUndrafted).</summary>
+            Safe,
+            /// <summary>Undrafted and fleeing: those plus Movement and Recovery (WorksFleeing).</summary>
+            Fleeing,
+            /// <summary>Drafted, or undrafted and fighting back: every worker.</summary>
+            All,
+        }
+
+        // Steps on the way back after a Full walk that were interrupted (shot at: the drafted think tree stops the
+        // pawn where it is) before giving up on going home
+        private const int MaxReturnTries = 2;
+        // How far from its old spot a pawn returning to cover may stand
+        private const float CoverSearchRadius = 6f;
 
         private struct Candidate
         {
@@ -522,6 +549,8 @@ namespace AbilityAI
         private static readonly AbilityAIContext ctx = new AbilityAIContext();
         private static readonly List<Candidate> candidates = new List<Candidate>();
         private static bool evaluating;
+        // The set of workers the pawn being evaluated may use (All for NPCs)
+        private static PlayerSet curSet = PlayerSet.All;
 
         /// <summary>Whether any of these abilities has an AI extension. The first check that touches defs.</summary>
         internal static bool AnyWithExtension(List<Ability> abilities)
@@ -540,6 +569,36 @@ namespace AbilityAI
             var pe = a.pawn.psychicEntropy;
             if (pe == null || pe.PsychicSensitivity < float.Epsilon) return false;
             return a.def.PsyfocusCost <= pe.CurrentPsyfocus + Pawn_PsychicEntropyTracker.PsyfocusCostTolerance;
+        }
+
+        /// <summary>The player's per-pawn psycast limits (the gizmo beside vanilla's psyfocus one): the cast must not
+        /// push neural heat over the cap or psyfocus under the floor. Real Psycasts only; a pawn with no limits set
+        /// stops at one dictionary lookup. Without a target the cheapest cost the psycast can have is used (asked
+        /// while choosing candidates); with one, the cost for that target (Word of Serenity costs more for a worse
+        /// break).</summary>
+        private static bool PsycastWithinLimits(Ability a, LocalTargetInfo target)
+        {
+            if (!(a is Psycast ps)) return true;
+            if (!AbilityAIAutocast.TryGetLimits(a.pawn, out float heatCap, out float focusFloor)) return true;
+            var pe = a.pawn.psychicEntropy;
+            if (pe == null) return true;
+            if (heatCap < 1f)
+            {
+                float gain = a.def.EntropyGain;
+                if (gain > float.Epsilon)
+                {
+                    // As Pawn_PsychicEntropyTracker.TryAddEntropy scales it; both stats cached for 250 ticks
+                    gain *= a.pawn.GetStatValue(StatDefOf.PsychicEntropyGain, true, 250);
+                    float max = a.pawn.GetStatValue(StatDefOf.PsychicEntropyMax, true, 250);
+                    if (pe.EntropyValue + gain > heatCap * max) return false;
+                }
+            }
+            if (focusFloor > 0f)
+            {
+                float cost = target.IsValid ? ps.FinalPsyfocusCost(target) : a.def.PsyfocusCostRange.min;
+                if (cost > float.Epsilon && pe.CurrentPsyfocus - cost < focusFloor - Pawn_PsychicEntropyTracker.PsyfocusCostTolerance) return false;
+            }
+            return true;
         }
 
         /// <summary>Who decides what the AI may cast for a pawn.</summary>
@@ -598,28 +657,76 @@ namespace AbilityAI
         }
 
         /// <summary>The player rules: awake, standing, not on fire, not in a mental state, not casting or stunned.
-        /// Drafted: only while standing still in position or shooting, never during an ordered move. Undrafted (with
-        /// UndraftedAutocast on): not lying down, not carrying anything, and only interrupting a job that may be
-        /// casually interrupted and that the player didn't order. The driver then only tries workers that run
-        /// undrafted.</summary>
+        /// Drafted: only while standing still in position or shooting, never during an ordered move (the pawn's own
+        /// Full-mode walk into range excepted). Undrafted (with UndraftedAutocast on): not lying down, not carrying
+        /// anything, and only interrupting a fight, or a job that may be casually interrupted and that the player
+        /// didn't order. The driver then picks the set of workers by what the pawn is doing (PlayerSet).</summary>
         public static bool CanActNowPlayer(Pawn pawn)
+        {
+            states.TryGetValue(pawn, out var state);
+            return CanActNowPlayer(pawn, state);
+        }
+
+        private static bool CanActNowPlayer(Pawn pawn, PawnState state)
         {
             if (!pawn.Spawned || pawn.Dead || pawn.Downed || !pawn.Awake() || pawn.IsBurning()) return false;
             if (pawn.InMentalState || pawn.CurJob?.ability != null) return false;
             if (pawn.stances?.stunner?.Stunned == true) return false;
+            Job cur = pawn.CurJob;
             if (!pawn.Drafted)
             {
                 if (!AbilityAISettings.UndraftedAutocast) return false;
                 // In bed, resting, or carrying someone to one: the cast would get them up or drop what they hold
                 if (pawn.GetPosture() != PawnPosture.Standing || pawn.carryTracker?.CarriedThing != null) return false;
+                if (cur == null) return true;
+                // Fighting back (a hostility response, an animal defending itself or released on a target): attack
+                // jobs can't be casually interrupted, but the cast is part of the fight, and TryGiveJob queues the
+                // attack to resume after it
+                if (IsFightJob(cur.def)) return true;
                 // A constant-tree job ends the current one: never surgery, a bill, or anything the player ordered
-                Job cur = pawn.CurJob;
-                return cur == null || (!cur.playerForced && cur.def.casualInterruptible);
+                return !cur.playerForced && cur.def.casualInterruptible;
             }
+            // Our own walk into range (Full mode) is a move, but casting from it is what it is for
+            if (state != null && state.approachJobId >= 0 && cur != null && cur.loadID == state.approachJobId) return true;
             if (pawn.pather != null && pawn.pather.Moving) return false;
-            JobDef job = pawn.CurJobDef;
+            JobDef job = cur?.def;
             return job == null || job == JobDefOf.Wait_Combat || job == JobDefOf.Wait || job == JobDefOf.Wait_MaintainPosture
                 || job == JobDefOf.AttackStatic;
+        }
+
+        private static bool IsFightJob(JobDef def) => def == JobDefOf.AttackStatic || def == JobDefOf.AttackMelee;
+
+        /// <summary>Whether this player pawn fights back while undrafted: a colonist or colony subhuman with the
+        /// hostility response set to Attack, or a tame animal (no hostility response of its own; it defends itself
+        /// and its master, or attacks when released). Colony mechs undrafted have no response to set and don't.</summary>
+        internal static bool FightsUndrafted(Pawn pawn)
+        {
+            var ps = pawn.playerSettings;
+            if (ps != null && ps.UsesConfigurableHostilityResponse) return ps.hostilityResponse == HostilityResponseMode.Attack;
+            return pawn.RaceProps.Animal || pawn.drafter == null;
+        }
+
+        /// <summary>The widest set this player pawn could ever use undrafted, whatever is happening right now: every
+        /// worker if it fights back, else the fleeing set (anyone may end up fleeing).</summary>
+        internal static PlayerSet UndraftedReach(Pawn pawn) => FightsUndrafted(pawn) ? PlayerSet.All : PlayerSet.Fleeing;
+
+        // The set for the pawn in ctx now, undrafted: every worker while it fights back (fighting by InCombat's
+        // undrafted meaning: a hostile target, or attacked or hurt in the last 10 s; an enemy elsewhere on the map
+        // doesn't count), the fleeing set while it runs, else the safe set
+        private static PlayerSet UndraftedSetNow(Pawn pawn)
+        {
+            if (FightsUndrafted(pawn) && ctx.InCombat) return PlayerSet.All;
+            return AbilityAIUtility.IsFleeing(ctx) ? PlayerSet.Fleeing : PlayerSet.Safe;
+        }
+
+        internal static bool InSet(AbilityAIWorker worker, PlayerSet set)
+        {
+            switch (set)
+            {
+                case PlayerSet.All: return true;
+                case PlayerSet.Fleeing: return worker.WorksFleeing;
+                default: return worker.WorksUndrafted;
+            }
         }
 
         // The player's own pawn: their mode counts as the claim, but a hook can still veto (an item bound to someone else)
@@ -632,18 +739,19 @@ namespace AbilityAI
         /// ability has a working extension, the settings cover the pawn and a hook (or Unclaimed, or the player's
         /// autocast mode) lets it through. Independent of the moment: an ability on cooldown or held back by
         /// reserveCharges is still ours. Public so a host's own fallback AI can step aside for the same abilities.
-        /// The player's pawns undrafted only when the ability has a worker that runs undrafted and that setting is on:
+        /// The player's pawns undrafted only with that setting on and when the ability has a worker the pawn could
+        /// use undrafted (UndraftedReach: every worker for one that fights back, else the safe and fleeing ones):
         /// otherwise the driver never casts it for them, so whatever vanilla or the host would do is left alone.</summary>
         public static bool Handles(Pawn pawn, Ability ability)
         {
             if (!AbilityAISettings.Enabled || pawn == null || ability?.def == null) return false;
-            if (!HasWorker(ability.def, false)) return false;
+            if (!HasWorker(ability.def, PlayerSet.All)) return false;
             switch (ControlOf(pawn))
             {
                 case Control.NPC: return AbilityAIHooks.Allowed(pawn, ability);
                 case Control.Player:
                     if (!PlayerAllowed(pawn, ability)) return false;
-                    return pawn.Drafted || (AbilityAISettings.UndraftedAutocast && HasWorker(ability.def, true));
+                    return pawn.Drafted || (AbilityAISettings.UndraftedAutocast && HasWorker(ability.def, UndraftedReach(pawn)));
                 default: return false;
             }
         }
@@ -660,18 +768,17 @@ namespace AbilityAI
             if (!AbilityAISettings.Enabled || pawn == null || ability?.def == null) return false;
             if (AbilityAISettings.PlayerAutocast && pawn.Faction != null && pawn.Faction.IsPlayer && !pawn.IsPrisoner
                 && !pawn.InMentalState)
-                return HasWorker(ability.def, false);
+                return HasWorker(ability.def, PlayerSet.All);
             return Handles(pawn, ability);
         }
 
-        /// <summary>Any of its extensions has a working worker (TryGiveJob tries them all); with undraftedOnly, one
-        /// that runs for the player's undrafted pawns.</summary>
-        internal static bool HasWorker(AbilityDef def, bool undraftedOnly)
+        /// <summary>Any of its extensions has a working worker (TryGiveJob tries them all) in the given set.</summary>
+        internal static bool HasWorker(AbilityDef def, PlayerSet set)
         {
             var exts = def.modExtensions;
             if (exts == null) return false;
             for (int i = 0; i < exts.Count; i++)
-                if (exts[i] is AbilityAIExtension ext && ext.Worker != null && (!undraftedOnly || ext.Worker.WorksUndrafted)) return true;
+                if (exts[i] is AbilityAIExtension ext && ext.Worker != null && InSet(ext.Worker, set)) return true;
             return false;
         }
 
@@ -725,8 +832,9 @@ namespace AbilityAI
             if (evaluating) return null;
             int tick = Find.TickManager.TicksGame;
             var state = states.GetValue(pawn, _ => new PawnState());
-            // A walk into range just ended (arrived or timed out): look again now rather than up to 30 ticks later,
-            // before vanilla's own positioning walks the pawn back out
+            bool player = control == Control.Player;
+            // A walk into range just ended (arrived, timed out, or cut short): look again now rather than up to 30
+            // ticks later, before vanilla's own positioning walks the pawn back out
             if (state.approachJobId >= 0 && pawn.CurJob?.loadID != state.approachJobId)
             {
                 state.approachJobId = -1;
@@ -734,45 +842,50 @@ namespace AbilityAI
                 state.approachExpected = 0;
                 state.nextEvalTick = tick;
             }
-            if (tick < state.nextEvalTick || tick < state.nextCastTick) return null;
+            if (state.home.IsValid) CheckHome(pawn, state, player);
+            // A Full walk is over and nothing has sent the pawn back yet: unless it casts now, it heads home
+            bool returnDue = state.home.IsValid && state.approachJobId < 0 && state.returnJobId < 0;
+            if (tick < state.nextEvalTick) return null;
+            if (tick < state.nextCastTick) return returnDue ? ReturnJob(pawn, state) : null;
             state.nextEvalTick = tick + EvalIntervalTicks;
-            bool player = control == Control.Player;
-            if (player ? !CanActNowPlayer(pawn) : !CanActNow(pawn)) return null;
-            bool undrafted = player && !pawn.Drafted;
-
-            // Ready abilities with a worker, highest priority first (insertion sort: a pawn holds a handful). An
-            // ability with several extensions is a candidate once per extension.
-            candidates.Clear();
-            for (int i = 0; i < abilities.Count; i++)
-            {
-                Ability a = abilities[i];
-                var exts = a.def.modExtensions;
-                if (exts == null || a.verb == null) continue;
-                bool checkedReady = false, ready = false;
-                for (int j = 0; j < exts.Count; j++)
-                {
-                    if (!(exts[j] is AbilityAIExtension ext) || ext.Worker == null) continue;
-                    if (undrafted && !ext.Worker.WorksUndrafted) continue;
-                    if (!checkedReady)
-                    {
-                        checkedReady = true;
-                        ready = a.CanCast && PsycastAffordable(a)
-                            && (state.abilityNext == null || !state.abilityNext.TryGetValue(a.def, out int next) || tick >= next)
-                            && (player ? PlayerAllowed(pawn, a) : AbilityAIHooks.Allowed(pawn, a));
-                    }
-                    if (!ready) break;
-                    if (ext.reserveCharges > 0 && a.UsesCharges && a.RemainingCharges <= ext.reserveCharges) continue;
-                    int at = candidates.Count;
-                    while (at > 0 && candidates[at - 1].ext.priority < ext.priority) at--;
-                    candidates.Insert(at, new Candidate { ability = a, ext = ext });
-                }
-            }
-            if (candidates.Count == 0) return null;
+            if (player ? !CanActNowPlayer(pawn, state) : !CanActNow(pawn)) return null;
+            bool drafted = pawn.Drafted;
 
             evaluating = true;
-            ctx.Begin(pawn, tick, state.approachJobId >= 0 ? state.approachAbility : null, state.approachExpected, player && pawn.Drafted);
+            ctx.Begin(pawn, tick, state.approachJobId >= 0 ? state.approachAbility : null, state.approachExpected, player && drafted);
             try
             {
+                curSet = player && !drafted ? UndraftedSetNow(pawn) : PlayerSet.All;
+
+                // Ready abilities with a worker, highest priority first (insertion sort: a pawn holds a handful). An
+                // ability with several extensions is a candidate once per extension.
+                candidates.Clear();
+                for (int i = 0; i < abilities.Count; i++)
+                {
+                    Ability a = abilities[i];
+                    var exts = a.def.modExtensions;
+                    if (exts == null || a.verb == null) continue;
+                    bool checkedReady = false, ready = false;
+                    for (int j = 0; j < exts.Count; j++)
+                    {
+                        if (!(exts[j] is AbilityAIExtension ext) || ext.Worker == null) continue;
+                        if (!InSet(ext.Worker, curSet)) continue;
+                        if (!checkedReady)
+                        {
+                            checkedReady = true;
+                            ready = a.CanCast && PsycastAffordable(a)
+                                && (state.abilityNext == null || !state.abilityNext.TryGetValue(a.def, out int next) || tick >= next)
+                                && (player ? PlayerAllowed(pawn, a) && PsycastWithinLimits(a, LocalTargetInfo.Invalid) : AbilityAIHooks.Allowed(pawn, a));
+                        }
+                        if (!ready) break;
+                        if (ext.reserveCharges > 0 && a.UsesCharges && a.RemainingCharges <= ext.reserveCharges) continue;
+                        int at = candidates.Count;
+                        while (at > 0 && candidates[at - 1].ext.priority < ext.priority) at--;
+                        candidates.Insert(at, new Candidate { ability = a, ext = ext });
+                    }
+                }
+                if (candidates.Count == 0) return returnDue ? ReturnJob(pawn, state) : null;
+
                 for (int i = 0; i < candidates.Count; i++)
                 {
                     Ability a = candidates[i].ability;
@@ -782,6 +895,7 @@ namespace AbilityAI
                     if (!worker.TryFindTarget(ctx, a, out LocalTargetInfo target, out LocalTargetInfo dest)) continue;
                     if (!dest.IsValid) dest = target;
                     if (!Valid(a, target)) continue;
+                    if (player && !PsycastWithinLimits(a, target)) continue;
 
                     state.nextCastTick = tick + Mathf.RoundToInt(AbilityAISettings.MinGapSeconds * GenTicks.TicksPerRealSecond);
                     if (ext.minGapSeconds > 0f)
@@ -792,30 +906,147 @@ namespace AbilityAI
                     if (AbilityAISettings.DebugLog && Prefs.DevMode)
                         Log.Message($"[Ability AI] {pawn.LabelShort} casts {a.def.label} ({worker.GetType().Name}) on {target}");
                     AbilityAIHooks.NotifyCast(pawn, a, target, dest);
-                    // A player's attack order would be lost: vanilla starts constant-tree jobs without resuming the
-                    // current one. Queue a copy so the pawn goes back to it after the cast.
-                    if (player && pawn.CurJobDef == JobDefOf.AttackStatic && pawn.CurJob.def.suspendable)
-                    {
-                        // Clone copies loadID; two live jobs with one id break loading a save made while both exist
-                        Job resume = pawn.CurJob.Clone();
-                        resume.loadID = Find.UniqueIDsManager.GetNextJobID();
-                        pawn.jobs.jobQueue.EnqueueFirst(resume);
-                    }
+                    if (player) QueueAfterCast(pawn, state);
                     return a.GetJob(target, dest);
                 }
-                // The player's pawns don't walk to cast yet (Full mode comes later)
-                return player ? null : TryApproach(state);
+                if (!player) return TryApproach(state, false);
+                if (returnDue) return ReturnJob(pawn, state);
+                // Full walks are drafted only, one at a time, and not while the last one is still on its way back
+                if (!drafted || state.home.IsValid) return null;
+                return TryApproach(state, true);
             }
             finally
             {
                 ctx.End();
                 candidates.Clear();
+                curSet = PlayerSet.All;
                 evaluating = false;
             }
         }
 
+        // What a player's pawn does after an autocast. Vanilla starts constant-tree jobs without resuming the current
+        // one, so an attack would be lost: queue a copy to resume. After a Full walk, the walk back goes first and the
+        // attack it was on before the walk after that.
+        private static void QueueAfterCast(Pawn pawn, PawnState state)
+        {
+            var queue = pawn.jobs.jobQueue;
+            if (state.home.IsValid && state.returnJobId < 0)
+            {
+                Job back = MakeReturnJob(pawn, state);
+                if (state.resume != null) queue.EnqueueFirst(state.resume);
+                state.resume = null;
+                if (back != null) queue.EnqueueFirst(back);
+                else ClearHome(state);
+                return;
+            }
+            Job cur = pawn.CurJob;
+            if (cur != null && IsFightJob(cur.def) && cur.def.suspendable) queue.EnqueueFirst(Resume(cur));
+        }
+
+        // Clone copies loadID; two live jobs with one id break loading a save made while both exist
+        private static Job Resume(Job job)
+        {
+            Job copy = job.Clone();
+            copy.loadID = Find.UniqueIDsManager.GetNextJobID();
+            return copy;
+        }
+
+        // A Full walk ended without a cast: the walk back now, with the attack from before the walk queued behind it.
+        // Already there (the walk was cut short at once): straight back to that attack, if any.
+        private static Job ReturnJob(Pawn pawn, PawnState state)
+        {
+            Job back = MakeReturnJob(pawn, state);
+            Job resume = state.resume;
+            state.resume = null;
+            if (back == null)
+            {
+                ClearHome(state);
+                return resume;
+            }
+            if (resume != null) pawn.jobs.jobQueue.EnqueueFirst(resume);
+            if (AbilityAISettings.DebugLog && Prefs.DevMode)
+                Log.Message($"[Ability AI] {pawn.LabelShort} walks back to {state.returnCell}");
+            return back;
+        }
+
+        // The walk to the spot the pawn left, or with ReturnToCover a covered spot near it that it can shoot from.
+        // Null when it is already there or can't get there. Not player-forced, so a new player order replaces it
+        // (and CheckHome sees the forced job and forgets the walk).
+        private static Job MakeReturnJob(Pawn pawn, PawnState state)
+        {
+            IntVec3 cell = state.home;
+            if (AbilityAISettings.ReturnToCover && TryFindCoverCell(pawn, state.home, out IntVec3 cover)) cell = cover;
+            if (cell == pawn.Position || !pawn.CanReach(cell, PathEndMode.OnCell, Danger.Deadly)) return null;
+            Job job = JobMaker.MakeJob(JobDefOf.Goto, cell);
+            job.locomotionUrgency = LocomotionUrgency.Jog;
+            state.returnJobId = job.loadID;
+            state.returnCell = cell;
+            return job;
+        }
+
+        // Vanilla's cast-position search with the pawn's own weapon against the hostile nearest the old spot, wanting
+        // cover from it, within CoverSearchRadius of that spot. Once per walk back.
+        private static bool TryFindCoverCell(Pawn pawn, IntVec3 home, out IntVec3 cell)
+        {
+            cell = IntVec3.Invalid;
+            var targets = pawn.Map.attackTargetsCache.GetPotentialTargetsFor(pawn);
+            Thing enemy = null;
+            float best = float.MaxValue;
+            for (int i = 0; i < targets.Count; i++)
+            {
+                if (!(targets[i].Thing is Pawn p) || p.Downed || targets[i].ThreatDisabled(pawn)) continue;
+                float d = (p.Position - home).LengthHorizontalSquared;
+                if (d < best) { best = d; enemy = p; }
+            }
+            if (enemy == null) return false;
+            Verb verb = pawn.TryGetAttackVerb(enemy, false);
+            if (verb == null || verb.IsMeleeAttack) return false;
+            var req = new CastPositionRequest
+            {
+                caster = pawn,
+                target = enemy,
+                verb = verb,
+                maxRangeFromTarget = verb.EffectiveRange,
+                maxRangeFromCaster = (pawn.Position - home).LengthHorizontal + CoverSearchRadius,
+                locus = home,
+                maxRangeFromLocus = CoverSearchRadius,
+                wantCoverFromTarget = true,
+            };
+            return CastPositionFinder.TryFindCastPosition(req, out cell);
+        }
+
+        // Whether the Full walk this pawn is on (out, cast, back) still stands. Forgotten when the player takes over
+        // (a forced job: their own order, or the attack the pawn resumes once home), when the pawn is undrafted
+        // (which also clears its queue) or stops being the player's to command, and once the walk back is over. A walk
+        // back cut short somewhere else (shot at: the drafted think tree stands the pawn still) is sent off again, up
+        // to MaxReturnTries times.
+        private static void CheckHome(Pawn pawn, PawnState state, bool player)
+        {
+            Job cur = pawn.CurJob;
+            if (!player || !pawn.Drafted || (cur != null && cur.playerForced)) { ClearHome(state); return; }
+            if (state.returnJobId < 0) return;
+            if (cur != null && cur.loadID == state.returnJobId) return;
+            var queue = pawn.jobs.jobQueue;
+            for (int i = 0; i < queue.Count; i++)
+                if (queue[i].job.loadID == state.returnJobId) return;
+            if (pawn.Position == state.returnCell || state.returnTries >= MaxReturnTries) { ClearHome(state); return; }
+            state.returnTries++;
+            state.returnJobId = -1;
+        }
+
+        private static void ClearHome(PawnState state)
+        {
+            state.home = IntVec3.Invalid;
+            state.resume = null;
+            state.returnJobId = -1;
+            state.returnCell = IntVec3.Invalid;
+            state.returnTries = 0;
+        }
+
         private static bool CombatAllows(AbilityAIWorker worker)
         {
+            // A fleeing pawn nobody has hit yet isn't in combat, but getting away is the point of these
+            if (curSet == PlayerSet.Fleeing && worker.ForFleeing) return true;
             switch (worker.Combat)
             {
                 case AbilityAICombat.InCombat: return ctx.InCombat;
@@ -827,13 +1058,15 @@ namespace AbilityAI
         // Nothing could be cast from here: walk toward the first candidate (by priority) that has something just out
         // of reach. Not while already walking to cast, and only for a fighting ranged pawn in decent shape: melee
         // pawns close in anyway, and a pawn that is hurt, fleeing, held in melee or carrying someone has better
-        // things to do. Cost: one worker scan like the one above, then one CastPositionFinder search, which checks
+        // things to do. NPCs with the Approach setting on; the player's drafted pawns for abilities set to Full (the
+        // caller has checked it isn't mid-move or already on a walk), recording where they stood so they go back
+        // after the cast. Cost: one worker scan like the one above, then one CastPositionFinder search, which checks
         // line of sight from every cell within approachDistance + 3 of the caster and range of the target (about
         // 27x27 cells for Flashbang), per ability per pawn once per 10 s after a walk starts and once per 2 s while
         // no cell is found.
-        private static Job TryApproach(PawnState state)
+        private static Job TryApproach(PawnState state, bool player)
         {
-            if (!AbilityAISettings.Approach) return null;
+            if (!player && !AbilityAISettings.Approach) return null;
             Pawn pawn = ctx.pawn;
             // Already walking to cast: let that walk finish (another ability's walk would replace it)
             if (state.approachJobId >= 0 && pawn.CurJob?.loadID == state.approachJobId) return null;
@@ -844,6 +1077,7 @@ namespace AbilityAI
                 Ability a = candidates[i].ability;
                 var ext = candidates[i].ext;
                 if (ext.approachDistance <= 0f || ctx.HealthFraction < ext.healthThreshold || !CombatAllows(ext.Worker)) continue;
+                if (player && AbilityAIAutocast.ModeFor(pawn, a.def) != AbilityAIAutocastMode.Full) continue;
                 if (state.approachNext != null && state.approachNext.TryGetValue(a.def, out int next) && ctx.tick < next) continue;
                 IntVec3 cell;
                 int expected = 0;
@@ -882,6 +1116,14 @@ namespace AbilityAI
                 state.approachJobId = job.loadID;
                 state.approachAbility = expected > 0 ? a.def : null;
                 state.approachExpected = expected;
+                if (player)
+                {
+                    ClearHome(state);
+                    state.home = pawn.Position;
+                    // Holding fire on a target the player picked: back to it once home
+                    Job cur = pawn.CurJob;
+                    if (cur != null && cur.def == JobDefOf.AttackStatic && cur.def.suspendable) state.resume = Resume(cur);
+                }
                 if (AbilityAISettings.DebugLog && Prefs.DevMode)
                     Log.Message($"[Ability AI] {pawn.LabelShort} moves to {cell} to cast {a.def.label} ({ext.Worker.GetType().Name}) at {at}");
                 return job;
@@ -928,6 +1170,7 @@ namespace AbilityAI
         public static bool PlayerAutocast = true;
         public static bool BreakCasting;
         public static bool UndraftedAutocast = true;
+        public static bool ReturnToCover;
         public const float DefaultMinGapSeconds = 2.5f;
         public static float MinGapSeconds = DefaultMinGapSeconds;
         public static bool DebugLog;
@@ -936,7 +1179,7 @@ namespace AbilityAI
         {
             Enabled = Hostiles = NonHostiles = Animals = Mechs = Approach = VanillaStandDown = true;
             PlayerAutocast = UndraftedAutocast = true;
-            Unclaimed = BreakCasting = false;
+            Unclaimed = BreakCasting = ReturnToCover = false;
             MinGapSeconds = DefaultMinGapSeconds;
             DebugLog = false;
         }
@@ -953,6 +1196,7 @@ namespace AbilityAI
             Scribe_Values.Look(ref Approach, "abilityAI_approach", true);
             Scribe_Values.Look(ref PlayerAutocast, "abilityAI_playerAutocast", true);
             Scribe_Values.Look(ref UndraftedAutocast, "abilityAI_undraftedAutocast", true);
+            Scribe_Values.Look(ref ReturnToCover, "abilityAI_returnToCover", false);
             Scribe_Values.Look(ref BreakCasting, "abilityAI_breakCasting", false);
             Scribe_Values.Look(ref MinGapSeconds, "abilityAI_minGapSeconds", DefaultMinGapSeconds);
             MinGapSeconds = Mathf.Clamp(MinGapSeconds, 0f, 30f);
@@ -976,6 +1220,7 @@ namespace AbilityAI
             list.Gap();
             list.CheckboxLabeled("AAI_PlayerAutocast".Translate(), ref PlayerAutocast, "AAI_PlayerAutocast_Tip".Translate());
             list.CheckboxLabeled("  " + "AAI_UndraftedAutocast".Translate(), ref UndraftedAutocast, "AAI_UndraftedAutocast_Tip".Translate());
+            list.CheckboxLabeled("  " + "AAI_ReturnToCover".Translate(), ref ReturnToCover, "AAI_ReturnToCover_Tip".Translate());
             list.CheckboxLabeled("AAI_BreakCasting".Translate(), ref BreakCasting, "AAI_BreakCasting_Tip".Translate());
             list.Gap();
             list.Label("AAI_MinGap".Translate(MinGapSeconds.ToString("0.#")));

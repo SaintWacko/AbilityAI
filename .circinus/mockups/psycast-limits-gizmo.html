@@ -1,0 +1,66 @@
+<style>
+  .wrap { display:flex; gap:28px; padding:16px; align-items:flex-start; flex-wrap:wrap; }
+  .cap { font-size:11px; color:var(--rw-ink-dim); width:212px; margin-top:6px; line-height:1.35; }
+  .giz { position:relative; width:212px; height:75px; background:var(--rw-panel); border:1px solid var(--rw-line); box-sizing:border-box; font-size:13px; color:var(--rw-ink); }
+  .lbl { position:absolute; left:6px; font-size:13px; }
+  .bar { position:absolute; left:69px; width:100px; height:22px; background:#1a1a1a; border:1px solid #6b6b6b; box-sizing:border-box; overflow:hidden; }
+  .fill { position:absolute; left:0; top:0; bottom:0; }
+  .heat { background:#2f6fb0; }
+  .psy  { background:#7a5aa8; }
+  .over { position:absolute; top:0; bottom:0; right:0; background:repeating-linear-gradient(45deg,rgba(0,0,0,.45) 0 3px,transparent 3px 6px); }
+  .under{ position:absolute; top:0; bottom:0; left:0; background:repeating-linear-gradient(45deg,rgba(0,0,0,.45) 0 3px,transparent 3px 6px); }
+  .num  { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:12px; text-shadow:0 0 2px #000; }
+  .mark { position:absolute; top:-3px; bottom:-3px; width:3px; background:#e8d36a; box-shadow:0 0 0 1px #000; cursor:ew-resize; }
+  .mark::after { content:""; position:absolute; left:-3px; top:-1px; border:4.5px solid transparent; border-top-color:#e8d36a; }
+  .icon { position:absolute; right:6px; top:21px; width:32px; height:32px; border:1px solid var(--rw-line); background:var(--rw-panel-2); display:flex; align-items:center; justify-content:center; }
+  .tick { position:absolute; bottom:2px; width:2px; height:6px; background:#000; }
+</style>
+
+<div class="rw-vanilla wrap">
+
+  <div>
+    <div class="rw-section">A. Own gizmo (recommended)</div>
+    <div class="giz">
+      <div class="lbl" style="top:12px">Heat cap</div>
+      <div class="bar" style="top:9px">
+        <div class="fill heat" style="width:42%"></div>
+        <div class="over" style="width:20%"></div>
+        <div class="num">80%</div>
+        <div class="mark" style="left:79%"></div>
+      </div>
+      <div class="lbl" style="top:44px">Focus floor</div>
+      <div class="bar" style="top:41px">
+        <div class="fill psy" style="width:64%"></div>
+        <div class="under" style="width:25%"></div>
+        <div class="num">25%</div>
+        <div class="mark" style="left:24%"></div>
+      </div>
+      <div class="icon" title="Reset to the defaults from the mod settings">
+        <svg width="20" height="20" viewBox="0 0 20 20"><path d="M10 3a7 7 0 1 1-6.6 4.7" fill="none" stroke="#ddd" stroke-width="2"/><path d="M2 3v5h5" fill="none" stroke="#ddd" stroke-width="2"/></svg>
+      </div>
+    </div>
+    <div class="cap">Bars show the pawn's current heat and psyfocus; the yellow handle is the autocast limit, dragged like vanilla's psyfocus target. Hatched part = where autocast won't go. Button resets to the mod-settings defaults. Only shown for a player pawn with at least one psycast set to autocast.</div>
+  </div>
+
+  <div>
+    <div class="rw-section">B. Handles on vanilla's gizmo</div>
+    <div class="giz">
+      <div class="lbl" style="top:12px">Heat</div>
+      <div class="bar" style="top:9px">
+        <div class="fill heat" style="width:42%"></div>
+        <div class="num">21 / 50</div>
+        <div class="mark" style="left:79%"></div>
+      </div>
+      <div class="lbl" style="top:44px">Psyfocus</div>
+      <div class="bar" style="top:41px">
+        <div class="fill psy" style="width:64%"></div>
+        <div class="tick" style="left:24%"></div><div class="tick" style="left:49%"></div><div class="tick" style="left:74%"></div>
+        <div class="num"></div>
+        <div class="mark" style="left:24%"></div>
+      </div>
+      <div class="icon"><svg width="18" height="18" viewBox="0 0 18 18"><rect x="4" y="8" width="10" height="8" fill="#ddd"/><path d="M6 8V5a3 3 0 0 1 6 0v3" fill="none" stroke="#ddd" stroke-width="2"/></svg></div>
+    </div>
+    <div class="cap">No extra gizmo, but vanilla's psyfocus bar is already a drag bar (the meditation target), so a second handle on it fights vanilla's drag, and any mod that replaces this gizmo loses the handles.</div>
+  </div>
+
+</div>

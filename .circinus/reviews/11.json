@@ -1,0 +1,67 @@
+{
+  "version": 1,
+  "buildId": 11,
+  "buildIdNote": null,
+  "reviewedAt": "2026-10-21T22:12:05.878Z",
+  "conversationId": "01a16032-25b8-718f-b241-4df68cee547d",
+  "focus": "Build 11 delta only: the OpenMenu group filter line (showWhenDrafted/displayGizmoWhileUndrafted, GetAbility(def, true), GizmosVisible).",
+  "diffSource": "since the oldest restore point still kept (2026-10-21T20:45:34Z); older ones were pruned, so the chat's first changes may be missing",
+  "parsed": true,
+  "problem": null,
+  "stoppedBecause": null,
+  "counts": {
+    "must": 0,
+    "should": 0,
+    "note": 2
+  },
+  "findings": [
+    {
+      "severity": "note",
+      "title": "Psycast.GetGizmos ignores showWhenDrafted, so the drafted branch can drop pawns vanilla still groups",
+      "detail": "Ability.GetGizmos hides the gizmo when drafted && !showWhenDrafted, but Psycast overrides GetGizmos and always yields Command_Psycast. For a modded psycast with groupAbility=true and showWhenDrafted=false, drafted pawns are on the shared button but the filter in OpenMenu (AbilityAIAutocast.cs:148) leaves them out, so the menu sets only some of them. No vanilla def combines the two flags. If wanted: in the drafted case test `(a is Psycast || def.showWhenDrafted)`.",
+      "evidence": {
+        "kind": "index",
+        "ref": "Assembly-CSharp/RimWorld/Psycast.cs:54"
+      }
+    },
+    {
+      "severity": "note",
+      "title": "Group filter skips vanilla's player-controlled check (visiblePrimary)",
+      "detail": "Pawn_AbilityTracker.GetGizmos only shows ability gizmos when IsColonistPlayerControlled / IsColonyMechPlayerControlled / IsColonySubhumanPlayerControlled / IsColonyAnimal; IsColonistPlayerControlled is false during a mental state. Offers checks only Faction.IsPlayer and !IsPrisoner, so a selected colonist in a mental break joins `pawns` even though its gizmo isn't drawn. Harmless (the player selected it) but not strictly 'the pawns the button represents'.",
+      "evidence": {
+        "kind": "index",
+        "ref": "Assembly-CSharp/RimWorld/Pawn_AbilityTracker.cs:157"
+      }
+    }
+  ],
+  "checked": [
+    "Drafted ? showWhenDrafted : displayGizmoWhileUndrafted, plus GizmosVisible(), matches vanilla's visibility checks (Pawn_AbilityTracker.cs:162 and Ability.cs:1050) for both draft states",
+    "GetAbility(def, true) searches AllAbilitiesForReading, the same list vanilla's GetGizmos loops over, including hediff/gear/mutant/royalty/role abilities and the mutant whitelist (Pawn_AbilityTracker.…",
+    "includeTemporary is needed: the vanilla groupAbility defs are ghoul heart abilities from hediffs (Anomaly/AbilityDefs/Abilities.xml:519,611)",
+    "Command_Ability.GroupsWith groups by def when groupAbility is set, so filtering selected pawns by the same def is the right set (Command_Ability.cs:142)",
+    "GetAbility is used only at this one line in the mod (search_mod)",
+    "every [HarmonyPatch] target binds, 6 of 6 (verify_patches)",
+    "pyxis_mod_errors could not run: no Pyxis token is configured (Settings → Integrations)"
+  ],
+  "unreviewed": [],
+  "outOfScope": [
+    "Source/AbilityAI/AbilityAI.cs",
+    "Source/AbilityAI/AbilityAIWorkers.cs",
+    "Source/AbilityAI/AbilityAIWorkersTargeted.cs",
+    "Source/AbilityAIInfo.cs",
+    "Source/AbilityAIMod.cs",
+    "About/About.xml",
+    "Languages/English/Keyed/AbilityAI.xml",
+    "LoadFolders.xml",
+    "Patches/AbilityAI_Royalty.xml",
+    "1.6/Source/AbilityAI.csproj",
+    "1.7/Source/AbilityAI.csproj",
+    "Source/AbilityAI.Build.csproj"
+  ],
+  "reviewed": [
+    "Source/AbilityAI/AbilityAIAutocast.cs"
+  ],
+  "parts": 1,
+  "buildCommit": "cb6ef76bdb952b040eeee74233f201af84bb0447",
+  "partial": false
+}

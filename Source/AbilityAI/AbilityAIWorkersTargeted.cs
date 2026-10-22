@@ -254,19 +254,61 @@ namespace AbilityAI
         {
             dest = LocalTargetInfo.Invalid;
             cands.Clear();
+            bool player = AbilityAIDriver.EvaluatingPlayer;
             float range = TargetingUtil.Reach(ability, ext);
+            // An undrafted pawn of the player's walks across the base to calm a friend; a drafted one keeps the
+            // extension's reach so it doesn't wander far from where it was put
+            if (player && !ctx.pawn.Drafted && AbilityAIUtility.Range(ability, ext) <= 0f) range = AbilityAISettings.CalmRange;
             float maxSq = range * range;
             var allies = ctx.Allies;
             for (int i = 0; i < allies.Count; i++)
             {
                 Pawn p = allies[i];
-                if (p == ctx.pawn || !(ext.anyMentalState ? p.InMentalState : p.InAggroMentalState)) continue;
+                if (p == ctx.pawn || !Wants(p, player)) continue;
                 float d = (p.Position - ctx.pawn.Position).LengthHorizontalSquared;
                 if (d > maxSq) continue;
                 if (ext.minBreakSeconds > 0f && TicksLeft(p.MentalState) < ext.minBreakSeconds * GenTicks.TicksPerRealSecond) continue;
                 cands.Add(new TargetingUtil.Cand { pawn = p, score = -d });
             }
             return TargetingUtil.FirstValid(cands, ability, out target);
+        }
+
+        // Aggressive breaks always; anyMentalState on the extension, any break. The player's pawns go by the
+        // CalmBreaks setting on top of that; NPCs keep the extension's rule.
+        private bool Wants(Pawn p, bool player)
+        {
+            if (!p.InMentalState) return false;
+            if (ext.anyMentalState || p.InAggroMentalState) return true;
+            if (!player) return false;
+            switch (AbilityAISettings.CalmBreaks)
+            {
+                case AbilityAICalmBreaks.Any: return true;
+                case AbilityAICalmBreaks.MajorAndExtreme: return Intensity(p.MentalStateDef) >= MentalBreakIntensity.Major;
+                default: return false;
+            }
+        }
+
+        // A mental state's break intensity, as vanilla's StopMentalState works it out (the MentalBreakDef that
+        // starts it; None for states no break starts, such as a psycast's berserk, which vanilla prices as minor).
+        // Built once by MentalStateDef index: one array read per check.
+        private static MentalBreakIntensity[] intensities;
+
+        private static MentalBreakIntensity Intensity(MentalStateDef def)
+        {
+            if (def == null) return MentalBreakIntensity.None;
+            if (intensities == null)
+            {
+                var arr = new MentalBreakIntensity[DefDatabase<MentalStateDef>.DefCount];
+                var breaks = DefDatabase<MentalBreakDef>.AllDefsListForReading;
+                for (int i = 0; i < breaks.Count; i++)
+                {
+                    var s = breaks[i].mentalState;
+                    if (s != null && s.index < arr.Length && arr[s.index] == MentalBreakIntensity.None)
+                        arr[s.index] = breaks[i].intensity;
+                }
+                intensities = arr;
+            }
+            return def.index < intensities.Length ? intensities[def.index] : MentalBreakIntensity.None;
         }
 
         // The most the break can still last: a forced end (psycasts set one) or the def's own longest duration.

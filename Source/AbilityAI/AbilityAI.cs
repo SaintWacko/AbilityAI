@@ -558,6 +558,10 @@ namespace AbilityAI
         // NPC rules (BreakCasting) is not, and keeps vanilla's player-faction AI vetoes (CompAllowsTarget).
         private static bool curPlayer;
 
+        /// <summary>True while TryGiveJob evaluates a pawn under the player rules: workers read it for rules that
+        /// differ for the player's own pawns (what Calm will end, how far it walks).</summary>
+        internal static bool EvaluatingPlayer => evaluating && curPlayer;
+
         /// <summary>Whether any of these abilities has an AI extension. The first check that touches defs.</summary>
         internal static bool AnyWithExtension(List<Ability> abilities)
         {
@@ -1233,6 +1237,15 @@ namespace AbilityAI
         }
     }
 
+    /// <summary>Which of an ally's mental breaks a player pawn's calming ability (Calm worker) will end. Aggressive
+    /// breaks always count; NPC casters only ever end those (or any, where the extension says anyMentalState).</summary>
+    public enum AbilityAICalmBreaks : byte
+    {
+        Aggressive,
+        MajorAndExtreme,
+        Any,
+    }
+
     /// <summary>The AI's settings. Static so the hot paths read a field, not an instance; saved through
     /// AbilityAIModSettings and drawn by AbilityAIMod (AbilityAIMod.cs).</summary>
     public static class AbilityAISettings
@@ -1250,6 +1263,10 @@ namespace AbilityAI
         public static bool UndraftedAutocast = true;
         public static bool ShowMarker = true;
         public static bool ReturnToCover;
+        public const AbilityAICalmBreaks DefaultCalmBreaks = AbilityAICalmBreaks.MajorAndExtreme;
+        public static AbilityAICalmBreaks CalmBreaks = DefaultCalmBreaks;
+        public const float DefaultCalmRange = 20f;
+        public static float CalmRange = DefaultCalmRange;
         public const int DefaultUndraftedIntervalTicks = 250;
         public static int UndraftedIntervalTicks = DefaultUndraftedIntervalTicks;
         public const float DefaultMinGapSeconds = 2.5f;
@@ -1263,6 +1280,8 @@ namespace AbilityAI
             Unclaimed = BreakCasting = ReturnToCover = false;
             MinGapSeconds = DefaultMinGapSeconds;
             UndraftedIntervalTicks = DefaultUndraftedIntervalTicks;
+            CalmBreaks = DefaultCalmBreaks;
+            CalmRange = DefaultCalmRange;
             AbilityAIBlockedJobs.Reset();
             DebugLog = false;
         }
@@ -1284,6 +1303,9 @@ namespace AbilityAI
             AbilityAIBlockedJobs.ExposeData();
             Scribe_Values.Look(ref ShowMarker, "abilityAI_showMarker", true);
             Scribe_Values.Look(ref ReturnToCover, "abilityAI_returnToCover", false);
+            Scribe_Values.Look(ref CalmBreaks, "abilityAI_calmBreaks", DefaultCalmBreaks);
+            Scribe_Values.Look(ref CalmRange, "abilityAI_calmRange", DefaultCalmRange);
+            CalmRange = Mathf.Clamp(CalmRange, 5f, 60f);
             Scribe_Values.Look(ref BreakCasting, "abilityAI_breakCasting", false);
             Scribe_Values.Look(ref MinGapSeconds, "abilityAI_minGapSeconds", DefaultMinGapSeconds);
             MinGapSeconds = Mathf.Clamp(MinGapSeconds, 0f, 30f);
@@ -1326,6 +1348,18 @@ namespace AbilityAI
                 ReturnToCover = false;
             if (list.RadioButton("AAI_ReturnTo_Cover".Translate(), ReturnToCover, 24f, "AAI_ReturnTo_Cover_Tip".Translate()))
                 ReturnToCover = true;
+            list.Label("  " + "AAI_CalmBreaks".Translate(), -1f, "AAI_CalmBreaks_Tip".Translate());
+            if (list.RadioButton("AAI_CalmBreaks_Aggressive".Translate(), CalmBreaks == AbilityAICalmBreaks.Aggressive, 24f,
+                "AAI_CalmBreaks_Aggressive_Tip".Translate()))
+                CalmBreaks = AbilityAICalmBreaks.Aggressive;
+            if (list.RadioButton("AAI_CalmBreaks_Major".Translate(), CalmBreaks == AbilityAICalmBreaks.MajorAndExtreme, 24f,
+                "AAI_CalmBreaks_Major_Tip".Translate()))
+                CalmBreaks = AbilityAICalmBreaks.MajorAndExtreme;
+            if (list.RadioButton("AAI_CalmBreaks_Any".Translate(), CalmBreaks == AbilityAICalmBreaks.Any, 24f,
+                "AAI_CalmBreaks_Any_Tip".Translate()))
+                CalmBreaks = AbilityAICalmBreaks.Any;
+            list.Label("      " + "AAI_CalmRange".Translate(CalmRange.ToString("0")), -1f, "AAI_CalmRange_Tip".Translate());
+            CalmRange = Mathf.Round(list.Slider(CalmRange, 5f, 60f));
             list.CheckboxLabeled("AAI_BreakCasting".Translate(), ref BreakCasting, "AAI_BreakCasting_Tip".Translate());
             list.Gap();
             list.Label("AAI_MinGap".Translate(MinGapSeconds.ToString("0.#")));
@@ -1347,7 +1381,17 @@ namespace AbilityAI
     {
         static void Postfix(Pawn ___pawn, ref ThinkResult __result)
         {
-            if (__result.IsValid || !AbilityAISettings.Enabled) return;
+            if (!AbilityAISettings.Enabled) return;
+            // An undrafted colonist's hostility response (Attack or Flee) answers every constant-tree check while a
+            // threat is near, so without this the AI would never get a look in for a colonist set to anything but
+            // Ignore: it would attack or run from a berserk friend instead of calming it. The player's pawns only;
+            // everyone else's constant tree keeps priority.
+            bool overHostility = false;
+            if (__result.IsValid)
+            {
+                if (!(__result.SourceNode is JobGiver_ConfigurableHostilityResponse)) return;
+                overHostility = true;
+            }
             var tracker = ___pawn?.abilities;
             if (tracker == null) return;
             var abilities = tracker.AllAbilitiesForReading;
@@ -1355,10 +1399,22 @@ namespace AbilityAI
             // The player's pawns with nothing set to autocast stop at one dictionary lookup here
             var control = AbilityAIDriver.ControlOf(___pawn);
             if (control == AbilityAIDriver.Control.None || !AbilityAIDriver.AnyWithExtension(abilities)) return;
+            if (overHostility && control != AbilityAIDriver.Control.Player) return;
             // Vanilla starts these jobs against the constant tree and saves the job giver's key in it; with no
             // constant tree a saved job would throw on load.
             var root = ___pawn.thinker?.ConstantThinkTree?.thinkRoot;
             if (root == null) return;
+            if (overHostility)
+            {
+                // A cast this AI started (its job giver is the tree's root, which vanilla never issues from) is
+                // under way: the hostility response would replace it on its next check, mid-walk or mid-warmup
+                Job cur = ___pawn.CurJob;
+                if (cur != null && cur.ability != null && cur.jobGiver == root)
+                {
+                    __result = ThinkResult.NoJob;
+                    return;
+                }
+            }
             try
             {
                 Job job = AbilityAIDriver.TryGiveJob(___pawn, abilities, control);

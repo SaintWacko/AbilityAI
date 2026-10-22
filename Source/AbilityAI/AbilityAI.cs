@@ -502,6 +502,8 @@ namespace AbilityAI
         private class PawnState
         {
             public int nextEvalTick;
+            // The last interval set was the slow undrafted one: drafting, fighting back or fleeing cuts it short
+            public bool slowEval;
             public int nextCastTick;
             public Dictionary<AbilityDef, int> abilityNext;
             public Dictionary<AbilityDef, int> approachNext;
@@ -697,6 +699,25 @@ namespace AbilityAI
 
         private static bool IsFightJob(JobDef def) => def == JobDefOf.AttackStatic || def == JobDefOf.AttackMelee;
 
+        /// <summary>Whether an undrafted player pawn should keep the quick 30-tick check: it fights back
+        /// (FightsUndrafted) and is in a fight by InCombat's undrafted meaning, or it is fleeing. A pawn that doesn't
+        /// fight back never uses combat abilities undrafted, so being hurt alone doesn't count. A handful of field
+        /// reads, no allocation: it runs every time vanilla asks the constant think tree, before the interval check.
+        /// The undrafted InCombat test minus the melee-attacker scan, which the recent-harm ticks already cover.</summary>
+        private static bool UndraftedNeedsQuickCheck(Pawn pawn, int tick)
+        {
+            if (pawn.MentalStateDef == MentalStateDefOf.PanicFlee) return true;
+            var job = pawn.CurJob;
+            if (job != null && (job.def == JobDefOf.Flee || job.def == JobDefOf.FleeAndCower)) return true;
+            var mind = pawn.mindState;
+            bool recent = mind != null && (tick - mind.lastHarmTick < AbilityAIContext.RecentTicks
+                || tick - mind.lastAttackTargetTick < AbilityAIContext.RecentTicks
+                || (mind.lastRangedHarmTick > 0 && tick - mind.lastRangedHarmTick < AbilityAIContext.RecentTicks));
+            if (job != null && job.exitMapOnArrival && recent) return true;
+            if (!FightsUndrafted(pawn)) return false;
+            return recent || (job != null && IsFightJob(job.def)) || (mind != null && mind.enemyTarget != null);
+        }
+
         /// <summary>Whether this player pawn fights back while undrafted: a colonist or colony subhuman with the
         /// hostility response set to Attack, or a tame animal (no hostility response of its own; it defends itself
         /// and its master, or attacks when released). Colony mechs undrafted have no response to set and don't.</summary>
@@ -878,9 +899,19 @@ namespace AbilityAI
             if (state.home.IsValid) CheckHome(pawn, state, player);
             // A Full walk is over and nothing has sent the pawn back yet: unless it casts now, it heads home
             bool returnDue = state.home.IsValid && state.approachJobId < 0 && state.returnJobId < 0;
+            // Undrafted player pawns with nothing combat-related going on are checked at the slow interval; the
+            // moment they are drafted, start fighting back or flee, the wait is cut short
+            bool quick = !player || pawn.Drafted || UndraftedNeedsQuickCheck(pawn, tick);
+            if (quick && state.slowEval)
+            {
+                state.slowEval = false;
+                if (state.nextEvalTick > tick) state.nextEvalTick = tick;
+            }
             if (tick < state.nextEvalTick) return null;
             if (tick < state.nextCastTick) return returnDue ? ReturnJob(pawn, state) : null;
-            state.nextEvalTick = tick + EvalIntervalTicks;
+            int interval = quick ? EvalIntervalTicks : Math.Max(EvalIntervalTicks, AbilityAISettings.UndraftedIntervalTicks);
+            state.slowEval = interval > EvalIntervalTicks;
+            state.nextEvalTick = tick + interval;
             if (player ? !CanActNowPlayer(pawn, state) : !CanActNow(pawn)) return null;
             bool drafted = pawn.Drafted;
 
@@ -1211,6 +1242,8 @@ namespace AbilityAI
         public static bool UndraftedAutocast = true;
         public static bool ShowMarker = true;
         public static bool ReturnToCover;
+        public const int DefaultUndraftedIntervalTicks = 250;
+        public static int UndraftedIntervalTicks = DefaultUndraftedIntervalTicks;
         public const float DefaultMinGapSeconds = 2.5f;
         public static float MinGapSeconds = DefaultMinGapSeconds;
         public static bool DebugLog;
@@ -1221,6 +1254,7 @@ namespace AbilityAI
             PlayerAutocast = UndraftedAutocast = ShowMarker = true;
             Unclaimed = BreakCasting = ReturnToCover = false;
             MinGapSeconds = DefaultMinGapSeconds;
+            UndraftedIntervalTicks = DefaultUndraftedIntervalTicks;
             DebugLog = false;
         }
 
@@ -1236,6 +1270,8 @@ namespace AbilityAI
             Scribe_Values.Look(ref Approach, "abilityAI_approach", true);
             Scribe_Values.Look(ref PlayerAutocast, "abilityAI_playerAutocast", true);
             Scribe_Values.Look(ref UndraftedAutocast, "abilityAI_undraftedAutocast", true);
+            Scribe_Values.Look(ref UndraftedIntervalTicks, "abilityAI_undraftedIntervalTicks", DefaultUndraftedIntervalTicks);
+            UndraftedIntervalTicks = Mathf.Clamp(UndraftedIntervalTicks, 30, 1200);
             Scribe_Values.Look(ref ShowMarker, "abilityAI_showMarker", true);
             Scribe_Values.Look(ref ReturnToCover, "abilityAI_returnToCover", false);
             Scribe_Values.Look(ref BreakCasting, "abilityAI_breakCasting", false);
@@ -1261,6 +1297,12 @@ namespace AbilityAI
             list.Gap();
             list.CheckboxLabeled("AAI_PlayerAutocast".Translate(), ref PlayerAutocast, "AAI_PlayerAutocast_Tip".Translate());
             list.CheckboxLabeled("  " + "AAI_UndraftedAutocast".Translate(), ref UndraftedAutocast, "AAI_UndraftedAutocast_Tip".Translate());
+            if (UndraftedAutocast)
+            {
+                list.Label("      " + "AAI_UndraftedInterval".Translate(UndraftedIntervalTicks, (UndraftedIntervalTicks / 60f).ToString("0.#")),
+                    -1f, "AAI_UndraftedInterval_Tip".Translate());
+                UndraftedIntervalTicks = Mathf.RoundToInt(list.Slider(UndraftedIntervalTicks, 30f, 1200f) / 10f) * 10;
+            }
             list.CheckboxLabeled("  " + "AAI_ShowMarker".Translate(), ref ShowMarker, "AAI_ShowMarker_Tip".Translate());
             list.Label("  " + "AAI_ReturnTo".Translate(), -1f, "AAI_ReturnTo_Tip".Translate());
             if (list.RadioButton("AAI_ReturnTo_Original".Translate(), !ReturnToCover, 24f, "AAI_ReturnTo_Original_Tip".Translate()))

@@ -689,8 +689,9 @@ namespace AbilityAI
                 // jobs can't be casually interrupted, but the cast is part of the fight, and TryGiveJob queues the
                 // attack to resume after it
                 if (IsFightJob(cur.def)) return true;
-                // A constant-tree job ends the current one: never surgery, a bill, or anything the player ordered
-                return !cur.playerForced && cur.def.casualInterruptible;
+                // A constant-tree job ends the current one: never surgery, a bill, or anything the player ordered,
+                // nor a job on the player's do-not-interrupt list (meals, recreation, gatherings by default)
+                return !cur.playerForced && cur.def.casualInterruptible && !AbilityAIBlockedJobs.IsBlocked(cur.def);
             }
             // Our own walk into range (Full mode) is a move, but casting from it is what it is for
             if (state != null && state.approachJobId >= 0 && cur != null && cur.loadID == state.approachJobId) return true;
@@ -817,7 +818,9 @@ namespace AbilityAI
         }
 
         /// <summary>Valid, short of the verb's own check (range, line of sight, reachability; it repeats the comps'
-        /// Valid). For targets the pawn means to walk into range of.</summary>
+        /// Valid). For targets the pawn means to walk into range of. The player-caster comp rules (CompAllowsTarget)
+        /// apply only while TryGiveJob is evaluating a pawn under Control.Player; called from anywhere else, every
+        /// comp's own AICanTargetNow decides.</summary>
         public static bool ValidIgnoringRange(Ability ability, LocalTargetInfo target)
         {
             if (!target.IsValid) return false;
@@ -1260,6 +1263,7 @@ namespace AbilityAI
             Unclaimed = BreakCasting = ReturnToCover = false;
             MinGapSeconds = DefaultMinGapSeconds;
             UndraftedIntervalTicks = DefaultUndraftedIntervalTicks;
+            AbilityAIBlockedJobs.Reset();
             DebugLog = false;
         }
 
@@ -1277,6 +1281,7 @@ namespace AbilityAI
             Scribe_Values.Look(ref UndraftedAutocast, "abilityAI_undraftedAutocast", true);
             Scribe_Values.Look(ref UndraftedIntervalTicks, "abilityAI_undraftedIntervalTicks", DefaultUndraftedIntervalTicks);
             UndraftedIntervalTicks = Mathf.Clamp(UndraftedIntervalTicks, 30, 1200);
+            AbilityAIBlockedJobs.ExposeData();
             Scribe_Values.Look(ref ShowMarker, "abilityAI_showMarker", true);
             Scribe_Values.Look(ref ReturnToCover, "abilityAI_returnToCover", false);
             Scribe_Values.Look(ref BreakCasting, "abilityAI_breakCasting", false);
@@ -1307,6 +1312,13 @@ namespace AbilityAI
                 list.Label("      " + "AAI_UndraftedInterval".Translate(UndraftedIntervalTicks, (UndraftedIntervalTicks / 60f).ToString("0.#")),
                     -1f, "AAI_UndraftedInterval_Tip".Translate());
                 UndraftedIntervalTicks = Mathf.RoundToInt(list.Slider(UndraftedIntervalTicks, 30f, 1200f) / 10f) * 10;
+                Rect jobs = list.GetRect(30f);
+                jobs.xMin += 24f;
+                jobs.width = Mathf.Min(jobs.width, 320f);
+                if (Widgets.ButtonText(jobs, "AAI_BlockedJobs".Translate(AbilityAIBlockedJobs.Count)))
+                    Find.WindowStack.Add(new Dialog_BlockedJobs());
+                TooltipHandler.TipRegion(jobs, "AAI_BlockedJobs_Tip".Translate());
+                list.Gap(4f);
             }
             list.CheckboxLabeled("  " + "AAI_ShowMarker".Translate(), ref ShowMarker, "AAI_ShowMarker_Tip".Translate());
             list.Label("  " + "AAI_ReturnTo".Translate(), -1f, "AAI_ReturnTo_Tip".Translate());

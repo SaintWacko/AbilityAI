@@ -554,6 +554,9 @@ namespace AbilityAI
         private static bool evaluating;
         // The set of workers the pawn being evaluated may use (All for NPCs)
         private static PlayerSet curSet = PlayerSet.All;
+        // The pawn being evaluated is under the player rules (Control.Player). A player pawn in a break run by the
+        // NPC rules (BreakCasting) is not, and keeps vanilla's player-faction AI vetoes (CompAllowsTarget).
+        private static bool curPlayer;
 
         /// <summary>Whether any of these abilities has an AI extension. The first check that touches defs.</summary>
         internal static bool AnyWithExtension(List<Ability> abilities)
@@ -706,7 +709,7 @@ namespace AbilityAI
         /// The undrafted InCombat test minus the melee-attacker scan, which the recent-harm ticks already cover.</summary>
         private static bool UndraftedNeedsQuickCheck(Pawn pawn, int tick)
         {
-            if (pawn.MentalStateDef == MentalStateDefOf.PanicFlee) return true;
+            // No PanicFlee test: a pawn in a mental state is never under the player rules (ControlOf)
             var job = pawn.CurJob;
             if (job != null && (job.def == JobDefOf.Flee || job.def == JobDefOf.FleeAndCower)) return true;
             var mind = pawn.mindState;
@@ -827,7 +830,7 @@ namespace AbilityAI
             if (!ability.CanApplyOn(target)) return false;
             if (comps != null)
             {
-                bool player = ability.pawn.Faction == Faction.OfPlayer;
+                bool player = evaluating && curPlayer;
                 for (int i = 0; i < comps.Count; i++)
                     if (!CompAllowsTarget(comps[i], target, player)) return false;
             }
@@ -920,6 +923,7 @@ namespace AbilityAI
             try
             {
                 curSet = player && !drafted ? UndraftedSetNow(pawn) : PlayerSet.All;
+                curPlayer = player;
 
                 // Ready abilities with a worker, highest priority first (insertion sort: a pawn holds a handful). An
                 // ability with several extensions is a candidate once per extension.
@@ -984,6 +988,7 @@ namespace AbilityAI
                 ctx.End();
                 candidates.Clear();
                 curSet = PlayerSet.All;
+                curPlayer = false;
                 evaluating = false;
             }
         }

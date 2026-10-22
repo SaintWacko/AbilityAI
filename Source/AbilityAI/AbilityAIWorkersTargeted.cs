@@ -270,6 +270,19 @@ namespace AbilityAI
                 if (ext.minBreakSeconds > 0f && TicksLeft(p.MentalState) < ext.minBreakSeconds * GenTicks.TicksPerRealSecond) continue;
                 cands.Add(new TargetingUtil.Cand { pawn = p, score = -d });
             }
+            // A catatonic breakdown is a hediff that downs the pawn for days, not a mental state, but vanilla's
+            // StopMentalState cures it and prices it as extreme. The player's pawns only, when extreme breaks count.
+            if (player && AbilityAISettings.CalmBreaks != AbilityAICalmBreaks.Aggressive && HediffDefOf.CatatonicBreakdown != null)
+            {
+                var downed = ctx.DownedAllies;
+                for (int i = 0; i < downed.Count; i++)
+                {
+                    Pawn p = downed[i];
+                    float d = (p.Position - ctx.pawn.Position).LengthHorizontalSquared;
+                    if (d > maxSq || p.health?.hediffSet?.HasHediff(HediffDefOf.CatatonicBreakdown) != true) continue;
+                    cands.Add(new TargetingUtil.Cand { pawn = p, score = -d });
+                }
+            }
             return TargetingUtil.FirstValid(cands, ability, out target);
         }
 

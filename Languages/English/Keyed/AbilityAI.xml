@@ -47,11 +47,11 @@
   <AAI_CalmBreaks_Aggressive>Aggressive breaks only</AAI_CalmBreaks_Aggressive>
   <AAI_CalmBreaks_Aggressive_Tip>Berserk, murderous rage and other breaks where the pawn attacks people.</AAI_CalmBreaks_Aggressive_Tip>
   <AAI_CalmBreaks_Major>Major and extreme breaks</AAI_CalmBreaks_Major>
-  <AAI_CalmBreaks_Major_Tip>Aggressive breaks, plus major and extreme ones such as psychotic wandering, sad wandering, tantrums and fire starting. Minor breaks such as a food binge or hiding in a room are left to run.</AAI_CalmBreaks_Major_Tip>
+  <AAI_CalmBreaks_Major_Tip>Aggressive breaks, plus major and extreme ones such as psychotic wandering, tantrums, fire starting and catatonic breakdown. Minor breaks such as sad wandering, a food binge or hiding in a room are left to run.</AAI_CalmBreaks_Major_Tip>
   <AAI_CalmBreaks_Any>Any break</AAI_CalmBreaks_Any>
   <AAI_CalmBreaks_Any_Tip>Every mental break, minor ones included.</AAI_CalmBreaks_Any_Tip>
   <AAI_CalmRange>Undrafted, walk up to {0} tiles to calm someone</AAI_CalmRange>
-  <AAI_CalmRange_Tip>How far an undrafted pawn goes to use a calming ability it has to touch the target with. Drafted pawns keep the ability's own reach (8 tiles for word of serenity), so they don't walk far from where you put them.</AAI_CalmRange_Tip>
+  <AAI_CalmRange_Tip>Measured in a straight line, so the walk itself can be longer. How far an undrafted pawn goes to use a calming ability it has to touch the target with. Drafted pawns keep the ability's own reach (8 tiles for word of serenity), so they don't walk far from where you put them.</AAI_CalmRange_Tip>
   <AAI_BreakCasting>Your pawns use abilities during mental breaks</AAI_BreakCasting>
   <AAI_BreakCasting_Tip>A pawn of yours in a mental break (a colonist, or an animal gone manhunter) is out of your control, so your autocast choices don't apply. With this on, a pawn in an aggressive break uses its abilities the way a raider would, treating your other pawns as enemies, and a panicking one may use movement abilities to flee. Off: the game's own AI decides, as it would without this mod.</AAI_BreakCasting_Tip>
   <AAI_Mode_Title>Autocast {0}</AAI_Mode_Title>

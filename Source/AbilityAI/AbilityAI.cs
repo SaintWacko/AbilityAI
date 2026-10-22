@@ -1379,6 +1379,13 @@ namespace AbilityAI
     [HarmonyPatch(typeof(Pawn_JobTracker), "DetermineNextConstantThinkTreeJob")]
     internal static class Patch_AbilityAI_ConstantThinkTree
     {
+        private static bool KeepCast(Pawn pawn, Job cast, Job hostility)
+        {
+            if (hostility.def != JobDefOf.FleeAndCower && hostility.def != JobDefOf.Flee) return true;
+            if (pawn.stances?.curStance is Stance_Warmup) return true;
+            return cast.targetA.Thing is Pawn t && t.HostileTo(pawn);
+        }
+
         static void Postfix(Pawn ___pawn, ref ThinkResult __result)
         {
             if (!AbilityAISettings.Enabled) return;
@@ -1407,10 +1414,14 @@ namespace AbilityAI
             if (overHostility)
             {
                 // A cast this AI started (its job giver is the tree's root, which vanilla never issues from) is
-                // under way: the hostility response would replace it on its next check, mid-walk or mid-warmup
+                // under way: the hostility response would replace it on its next check, mid-walk or mid-warmup.
+                // Attacking waits for it. Fleeing waits only once the warmup has begun, or when the cast is aimed at
+                // the threat itself (a berserk friend being calmed): a long walk to calm someone else across the map
+                // shouldn't carry a pawn set to flee into a raid.
                 Job cur = ___pawn.CurJob;
-                if (cur != null && cur.ability != null && cur.jobGiver == root)
+                if (cur != null && cur.ability != null && cur.jobGiver == root && KeepCast(___pawn, cur, __result.Job))
                 {
+                    JobMaker.ReturnToPool(__result.Job);
                     __result = ThinkResult.NoJob;
                     return;
                 }
@@ -1420,7 +1431,12 @@ namespace AbilityAI
                 Job job = AbilityAIDriver.TryGiveJob(___pawn, abilities, control);
                 // The tree's root as the source: the AI has no think node of its own, so a pawn saved mid-cast would
                 // otherwise log a missing think node on load
-                if (job != null) __result = new ThinkResult(job, root);
+                if (job != null)
+                {
+                    // Vanilla pools the think-tree jobs it doesn't start; the hostility job set aside here is one
+                    if (overHostility) JobMaker.ReturnToPool(__result.Job);
+                    __result = new ThinkResult(job, root);
+                }
             }
             catch (Exception e)
             {

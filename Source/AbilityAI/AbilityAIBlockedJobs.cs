@@ -179,9 +179,11 @@ namespace AbilityAI
                     n++;
                 }
                 if (wantOn) on = n; else off = n;
+                // No counts on the headers: rows stay in their group when ticked until the next rebuild, so a count
+                // here would go stale. The description line above carries the live count.
                 shown[header] = new Row
                 {
-                    label = wantOn ? "AAI_BlockedJobs_GroupOn".Translate(n) : "AAI_BlockedJobs_GroupOff".Translate(n),
+                    label = wantOn ? "AAI_BlockedJobs_GroupOn".Translate() : "AAI_BlockedJobs_GroupOff".Translate(),
                 };
             }
             search.noResultsMatched = on + off == 0;
@@ -237,7 +239,10 @@ namespace AbilityAI
                 bool now = on;
                 Widgets.Checkbox(new Vector2(row.x + 2f, row.y), ref now, RowHeight);
                 var labelRect = new Rect(row.x + RowHeight + 8f, row.y, row.width - RowHeight - 8f - PackWidth, RowHeight);
-                Widgets.Label(labelRect, (r.label.CapitalizeFirst() + "  " + r.def.defName.Colorize(ColoredText.SubtleGrayColor)).Truncate(labelRect.width));
+                // Truncate the plain label only: truncating a string with a colour tag in it can cut the closing tag
+                string dn = "  " + r.def.defName;
+                float labelW = Mathf.Max(0f, labelRect.width - Text.CalcSize(dn).x);
+                Widgets.Label(labelRect, r.label.CapitalizeFirst().Truncate(labelW) + dn.Colorize(ColoredText.SubtleGrayColor));
                 GUI.color = ColoredText.SubtleGrayColor;
                 Text.Anchor = TextAnchor.MiddleRight;
                 Widgets.Label(new Rect(row.xMax - PackWidth, row.y, PackWidth - 4f, RowHeight), r.pack.Truncate(PackWidth - 4f));

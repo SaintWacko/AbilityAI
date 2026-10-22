@@ -80,8 +80,9 @@ namespace AbilityAI
         public AbilityAIAutocast(World world) : base(world)
         {
             instance = this;
-            // A new world: let go of the last game's pawn held by the gizmo's cache
+            // A new world: let go of the last game's pawn held by the gizmo's cache, and the last game's abilities
             Gizmo_PsycastLimits.ClearCache();
+            AutocastMarker.ClearCache();
         }
 
         private static AbilityAIAutocast Instance => instance != null && instance.world == Find.World ? instance : null;
@@ -295,9 +296,14 @@ namespace AbilityAI
         {
             Ability ability = command.Ability;
             if (ability?.pawn == null || !AbilityAISettings.Enabled || !AbilityAISettings.PlayerAutocast) return;
-            if (!AbilityAIAutocast.HasAny(ability.pawn)) return;
-            var mode = AbilityAIAutocast.ModeFor(ability.pawn, ability.def);
-            if (mode == AbilityAIAutocastMode.Off) return;
+            var mode = AbilityAIAutocast.HasAny(ability.pawn)
+                ? AbilityAIAutocast.ModeFor(ability.pawn, ability.def) : AbilityAIAutocastMode.Off;
+            if (mode == AbilityAIAutocastMode.Off)
+            {
+                // Not set yet, but the right-click menu is there: a grey ring in the badge's spot
+                if (AbilityAISettings.ShowMarker && AutocastMarker.Offers(ability)) AutocastMarker.Draw(button, shrunk);
+                return;
+            }
             // A mode left on an ability a hook now vetoes (an item since bound to someone else) doesn't cast: no badge
             if (!AbilityAIHooks.NotVetoed(ability.pawn, ability)) return;
             // Left edge. Full size, vanilla's top text line holds the hotkey (left), cooldown countdown (centre) and

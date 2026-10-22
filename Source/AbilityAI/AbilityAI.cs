@@ -1177,6 +1177,7 @@ namespace AbilityAI
         public static bool PlayerAutocast = true;
         public static bool BreakCasting;
         public static bool UndraftedAutocast = true;
+        public static bool ShowMarker = true;
         public static bool ReturnToCover;
         public const float DefaultMinGapSeconds = 2.5f;
         public static float MinGapSeconds = DefaultMinGapSeconds;
@@ -1185,7 +1186,7 @@ namespace AbilityAI
         public static void Reset()
         {
             Enabled = Hostiles = NonHostiles = Animals = Mechs = Approach = VanillaStandDown = true;
-            PlayerAutocast = UndraftedAutocast = true;
+            PlayerAutocast = UndraftedAutocast = ShowMarker = true;
             Unclaimed = BreakCasting = ReturnToCover = false;
             MinGapSeconds = DefaultMinGapSeconds;
             DebugLog = false;
@@ -1203,6 +1204,7 @@ namespace AbilityAI
             Scribe_Values.Look(ref Approach, "abilityAI_approach", true);
             Scribe_Values.Look(ref PlayerAutocast, "abilityAI_playerAutocast", true);
             Scribe_Values.Look(ref UndraftedAutocast, "abilityAI_undraftedAutocast", true);
+            Scribe_Values.Look(ref ShowMarker, "abilityAI_showMarker", true);
             Scribe_Values.Look(ref ReturnToCover, "abilityAI_returnToCover", false);
             Scribe_Values.Look(ref BreakCasting, "abilityAI_breakCasting", false);
             Scribe_Values.Look(ref MinGapSeconds, "abilityAI_minGapSeconds", DefaultMinGapSeconds);
@@ -1227,6 +1229,7 @@ namespace AbilityAI
             list.Gap();
             list.CheckboxLabeled("AAI_PlayerAutocast".Translate(), ref PlayerAutocast, "AAI_PlayerAutocast_Tip".Translate());
             list.CheckboxLabeled("  " + "AAI_UndraftedAutocast".Translate(), ref UndraftedAutocast, "AAI_UndraftedAutocast_Tip".Translate());
+            list.CheckboxLabeled("  " + "AAI_ShowMarker".Translate(), ref ShowMarker, "AAI_ShowMarker_Tip".Translate());
             list.Label("  " + "AAI_ReturnTo".Translate(), -1f, "AAI_ReturnTo_Tip".Translate());
             if (list.RadioButton("AAI_ReturnTo_Original".Translate(), !ReturnToCover, 24f, "AAI_ReturnTo_Original_Tip".Translate()))
                 ReturnToCover = false;

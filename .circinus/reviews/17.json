@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "buildId": 17,
+  "buildIdNote": null,
+  "reviewedAt": "2026-10-21T23:05:55.148Z",
+  "conversationId": "01a1609c-f742-718f-b241-4e56775b2e83",
+  "focus": "comment and tooltip wording only since build 16",
+  "diffSource": "since build 16 (2026-10-21T23:04:06Z), the last reviewed build, from the build log",
+  "parsed": true,
+  "problem": null,
+  "stoppedBecause": null,
+  "counts": {
+    "must": 0,
+    "should": 1,
+    "note": 0
+  },
+  "findings": [
+    {
+      "severity": "should",
+      "title": "AAI_ReturnTo_Cover_Tip says \"best cover nearby\", but vanilla stops at the pawn's own cell once it is good enough",
+      "detail": "TryFindCoverCell calls CastPositionFinder.TryFindCastPosition, which scores the caster's own cell first and returns it at once if its preference is >= 1.0, without looking at nearby cells. A pawn on a good-enough spot stays even when a better covered cell is within 6 tiles, and the score also weighs range and the avoid grid, not just cover. Change the sentence in Languages/English/Keyed/AbilityAI.xml:31 to something like \"It stays put if its own spot already has good cover.\", which matches the code comment at AbilityAI.cs:993 (\"a pawn that cast from good cover stays\").",
+      "evidence": {
+        "kind": "index",
+        "ref": "Verse.AI/CastPositionFinder.cs:146-153"
+      }
+    }
+  ],
+  "checked": [
+    "CoverSearchRadius comment (AbilityAI.cs:538-540) matches its only use, maxRangeFromCaster in TryFindCoverCell around pawn.Position",
+    "MakeReturnJob comment \"where it is now\" is right: it is called after a cast (AbilityAI.cs:936) and from ReturnJob after a walk with no cast (AbilityAI.cs:955-959)",
+    "New comments agree with the existing TryFindCoverCell comment (AbilityAI.cs:991-996)",
+    "AAI_ReturnTo_Cover_Tip key still well-formed and still referenced by the settings RadioButton (AbilityAI.cs:1233)",
+    "No other language files carry AAI_ReturnTo_Cover_Tip, so no translation is stale",
+    "Tooltip's \"within 6 tiles\" matches CoverSearchRadius = 6f; \"can shoot from\" matches the verb.CanHitTargetFrom check in EvaluateCell; fallback to original position matches MakeReturnJob",
+    "No Harmony patch changed in this diff (the DetermineNextConstantThinkTreeJob postfix at :1251 is not touched), so verify_patches was not needed"
+  ],
+  "unreviewed": [],
+  "outOfScope": [],
+  "reviewed": [
+    "Source/AbilityAI/AbilityAI.cs",
+    "Languages/English/Keyed/AbilityAI.xml",
+    "1.6/Assemblies/AbilityAI.dll",
+    "1.6/Assemblies/AbilityAI.pdb",
+    "1.7/Assemblies/AbilityAI.dll",
+    "1.7/Assemblies/AbilityAI.pdb"
+  ],
+  "parts": 1,
+  "buildCommit": "149e78a4b68761eeb0a15b306ca73fc1d24a8f21",
+  "partial": false
+}

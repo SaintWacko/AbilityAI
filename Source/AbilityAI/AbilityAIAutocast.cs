@@ -198,11 +198,21 @@ namespace AbilityAI
         private static readonly AbilityAIAutocastMode[] Modes =
             { AbilityAIAutocastMode.Off, AbilityAIAutocastMode.Stationary, AbilityAIAutocastMode.Full };
 
-        internal static string Label(AbilityAIAutocastMode mode)
+        /// <summary>A touch ability (the Word psycasts: no range of its own, the cast job walks the caster up to the
+        /// target in every mode). "Stationary" would be the wrong word for it, so its in-place mode is plain
+        /// "Autocast"; it stores the same Stationary mode and has the same badge.</summary>
+        internal static bool IsTouch(AbilityDef def)
+        {
+            var v = def?.verbProperties;
+            return v != null && v.range <= 0f && def.targetRequired;
+        }
+
+        internal static string Label(AbilityAIAutocastMode mode, AbilityDef def)
         {
             switch (mode)
             {
-                case AbilityAIAutocastMode.Stationary: return "AAI_Mode_Stationary".Translate();
+                case AbilityAIAutocastMode.Stationary:
+                    return IsTouch(def) ? "AAI_Mode_Touch".Translate() : "AAI_Mode_Stationary".Translate();
                 case AbilityAIAutocastMode.Full: return "AAI_Mode_Full".Translate();
                 default: return "AAI_Mode_Off".Translate();
             }
@@ -244,7 +254,7 @@ namespace AbilityAI
             foreach (AbilityAIAutocastMode mode in Modes)
             {
                 if (mode == AbilityAIAutocastMode.Full && !full && current != AbilityAIAutocastMode.Full) continue;
-                string label = Label(mode);
+                string label = Label(mode, def);
                 if (mode == current) label = "AAI_Mode_Current".Translate(label);
                 AbilityAIAutocastMode m = mode;
                 options.Add(new FloatMenuOption(label, () =>

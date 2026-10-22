@@ -29,9 +29,16 @@
     },
     {
       "startedAt": 1792650547045,
-      "endedAt": null,
-      "reason": null,
-      "errorClasses": 0,
+      "endedAt": 1792652671110,
+      "reason": "game-closed",
+      "errorClasses": 1,
+      "conversationId": "01a16200-9c5e-7004-ad47-0e070bbe02c9"
+    },
+    {
+      "startedAt": 1792652921710,
+      "endedAt": 1792653151814,
+      "reason": "game-closed",
+      "errorClasses": 1,
       "conversationId": "01a16200-9c5e-7004-ad47-0e070bbe02c9"
     }
   ]

@@ -58,6 +58,7 @@
   <AAI_Mode_Off>Don't autocast</AAI_Mode_Off>
   <AAI_Mode_Stationary>Stationary Autocast</AAI_Mode_Stationary>
   <AAI_Mode_Full>Full Autocast</AAI_Mode_Full>
+  <AAI_Mode_Touch>Autocast</AAI_Mode_Touch>
   <AAI_Mode_Current>{0} (current)</AAI_Mode_Current>
   <AAI_Badge_Stationary>auto</AAI_Badge_Stationary>
   <AAI_Badge_Full>auto+</AAI_Badge_Full>

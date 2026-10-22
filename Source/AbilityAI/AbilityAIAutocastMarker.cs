@@ -97,7 +97,7 @@ namespace AbilityAI
             if (!(__instance is Command_Ability command)) return;
             Ability ability = command.Ability;
             if (ability?.pawn == null || !AutocastMarker.Offers(ability)) return;
-            string mode = AbilityAIAutocast.Label(AbilityAIAutocast.ModeFor(ability.pawn, ability.def));
+            string mode = AbilityAIAutocast.Label(AbilityAIAutocast.ModeFor(ability.pawn, ability.def), ability.def);
             __result += "\n\n" + "AAI_Autocast_Hint".Translate(mode).Colorize(ColoredText.SubtleGrayColor);
         }
     }

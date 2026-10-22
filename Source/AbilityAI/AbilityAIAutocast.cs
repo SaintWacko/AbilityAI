@@ -204,7 +204,8 @@ namespace AbilityAI
         internal static bool IsTouch(AbilityDef def)
         {
             var v = def?.verbProperties;
-            return v != null && v.range <= 0f && def.targetRequired;
+            // targetable: a targetRequired, untargetable verb is a self-cast (AbilityAIUtility.IsSelfCast)
+            return v != null && v.range <= 0f && v.targetable && def.targetRequired;
         }
 
         internal static string Label(AbilityAIAutocastMode mode, AbilityDef def)

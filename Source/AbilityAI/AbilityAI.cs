@@ -1379,6 +1379,12 @@ namespace AbilityAI
     [HarmonyPatch(typeof(Pawn_JobTracker), "DetermineNextConstantThinkTreeJob")]
     internal static class Patch_AbilityAI_ConstantThinkTree
     {
+        // Vanilla's own guard before pooling a think-tree job it won't start: never the running or a queued job
+        private static void Pool(Pawn pawn, Job job)
+        {
+            if (job != null && job != pawn.CurJob && !pawn.jobs.jobQueue.Contains(job)) JobMaker.ReturnToPool(job);
+        }
+
         private static bool KeepCast(Pawn pawn, Job cast, Job hostility)
         {
             if (hostility.def != JobDefOf.FleeAndCower && hostility.def != JobDefOf.Flee) return true;
@@ -1419,10 +1425,14 @@ namespace AbilityAI
                 // the threat itself (a berserk friend being calmed): a long walk to calm someone else across the map
                 // shouldn't carry a pawn set to flee into a raid.
                 Job cur = ___pawn.CurJob;
-                if (cur != null && cur.ability != null && cur.jobGiver == root && KeepCast(___pawn, cur, __result.Job))
+                if (cur != null && cur.ability != null && cur.jobGiver == root)
                 {
-                    JobMaker.ReturnToPool(__result.Job);
-                    __result = ThinkResult.NoJob;
+                    if (KeepCast(___pawn, cur, __result.Job))
+                    {
+                        Pool(___pawn, __result.Job);
+                        __result = ThinkResult.NoJob;
+                    }
+                    // Otherwise the flee wins; the driver has nothing to add mid-cast
                     return;
                 }
             }
@@ -1434,7 +1444,7 @@ namespace AbilityAI
                 if (job != null)
                 {
                     // Vanilla pools the think-tree jobs it doesn't start; the hostility job set aside here is one
-                    if (overHostility) JobMaker.ReturnToPool(__result.Job);
+                    if (overHostility) Pool(___pawn, __result.Job);
                     __result = new ThinkResult(job, root);
                 }
             }

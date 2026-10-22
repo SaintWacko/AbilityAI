@@ -805,10 +805,42 @@ namespace AbilityAI
                     if (!comps[i].Valid(target, false)) return false;
             if (!ability.CanApplyOn(target)) return false;
             if (comps != null)
+            {
+                bool player = ability.pawn.Faction == Faction.OfPlayer;
                 for (int i = 0; i < comps.Count; i++)
-                    if (!comps[i].AICanTargetNow(target)) return false;
+                    if (!CompAllowsTarget(comps[i], target, player)) return false;
+            }
             if (ability is Psycast ps && !PsycastValidOn(ps, target)) return false;
             return true;
+        }
+
+        // Some vanilla comps open AICanTargetNow with "if the caster is the player's, no": vanilla's AI never casts
+        // for colonists, so that line only ever stopped vanilla's own AI. For our player autocast it fails every
+        // target (Painblock, Focus, Invisibility, Burden... never fired). For those comps, and only for player
+        // casters, the rest of the method's rule is applied here instead. Decided once per runtime comp type: a
+        // subclass that declares its own AICanTargetNow is asked as usual, since its author's rule may be real.
+        private enum PlayerAIRule : byte { Ask, TargetIsPawn, TargetAimsAtCaster }
+        private static readonly Dictionary<Type, PlayerAIRule> playerAIRules = new Dictionary<Type, PlayerAIRule>();
+
+        private static bool CompAllowsTarget(CompAbilityEffect comp, LocalTargetInfo target, bool playerCaster)
+        {
+            if (!playerCaster) return comp.AICanTargetNow(target);
+            var type = comp.GetType();
+            if (!playerAIRules.TryGetValue(type, out var rule))
+            {
+                var declaring = type.GetMethod(nameof(CompAbilityEffect.AICanTargetNow), new[] { typeof(LocalTargetInfo) })?.DeclaringType;
+                rule = declaring == typeof(CompAbilityEffect_GiveHediff) ? PlayerAIRule.TargetIsPawn
+                     : declaring == typeof(CompAbilityEffect_FireBurst) ? PlayerAIRule.TargetAimsAtCaster
+                     : PlayerAIRule.Ask;
+                playerAIRules[type] = rule;
+            }
+            switch (rule)
+            {
+                case PlayerAIRule.TargetIsPawn: return target.Pawn != null;
+                case PlayerAIRule.TargetAimsAtCaster:
+                    return target.Thing is Pawn p && p.TargetCurrentlyAimingAt == comp.parent.pawn;
+                default: return comp.AICanTargetNow(target);
+            }
         }
 
         // The rest of Verb_CastPsycast.ValidateTarget, which would post messages, plus immunity: a psycast on a pawn

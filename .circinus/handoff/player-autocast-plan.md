@@ -4,7 +4,7 @@ Written at build 0011 (cb6ef76). Steps 1 and 2 (mode storage, right-click menu, 
 as are Entad's requests: `OthersStandDown`, hook vetoes on menu and badge, menu title from the gizmo label, group
 menu only for `groupAbility` defs.
 
-## Step 3: Full mode (agreed)
+## Step 3: Full mode (agreed, DONE builds 0012–0017)
 
 - Re-add Full to the `OpenMenu` mode list (a saved Full already loads and shows "auto+").
 - Full = Stationary plus an approach walk, using the NPC approach logic (TryApproach / approachDistance), only
@@ -18,7 +18,7 @@ menu only for `groupAbility` defs.
   own weapon verb against the nearest enemy, `wantCoverFromTarget = true`, so it is a covered spot it can shoot from.
 - Check first whether `JobDriver_CastAbility` already walks to range (`Toils_Combat.GotoCastPosition`).
 
-## Step 4: undrafted rules (agreed)
+## Step 4: undrafted rules (agreed, DONE)
 
 For undrafted player pawns with a mode set:
 - Any time: safe workers only (Recovery, Rescue, Calm, Firefighting): the existing `WorksUndrafted`.
@@ -33,7 +33,7 @@ For undrafted player pawns with a mode set:
 - Update `WorksUndrafted` / `HasWorker(def, undraftedOnly)` / `Handles` / `CanActNowPlayer` together, and the
   handoff docs' description of what undrafted pawns cast.
 
-## Step 5: psycast limits (agreed: mockup A)
+## Step 5: psycast limits (agreed: mockup A, DONE; reset button removed in 0019)
 
 User wants it per pawn: a gizmo like vanilla's psyfocus gizmo with "max autocast heat" and "min autocast psyfocus".
 Mockup: `.circinus/mockups/psycast-limits-gizmo.html` (A: own gizmo, recommended; B: handles on vanilla's gizmo).

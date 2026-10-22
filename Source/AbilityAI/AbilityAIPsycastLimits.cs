@@ -5,7 +5,8 @@ using UnityEngine;
 using Verse;
 
 // Per-pawn limits on what autocast may spend on psycasts: a neural heat cap and a psyfocus floor. Set from a gizmo
-// beside vanilla's psyfocus one (design: .circinus/mockups/psycast-limits-gizmo.html, variant A), stored in the
+// beside vanilla's psyfocus one (design: .circinus/mockups/psycast-limits-gizmo.html, variant A, but
+// without its reset button: dragging the handles to the ends is the reset), stored in the
 // AbilityAIAutocast world component, applied by AbilityAIDriver.PsycastWithinLimits. Only real Psycasts count; Entad's
 // psycast copies are plain Abilities. NPCs get no limits: vanilla already makes them pay psyfocus and respects their
 // heat limit, and there is nothing for the player to manage on a raider.

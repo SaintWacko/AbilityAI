@@ -1,0 +1,61 @@
+{
+  "version": 1,
+  "buildId": 19,
+  "buildIdNote": null,
+  "reviewedAt": "2026-10-22T04:28:46.024Z",
+  "conversationId": "01a1609c-f742-718f-b241-4e56775b2e83",
+  "focus": "Removal of the reset button from Gizmo_PsycastLimits and the width change",
+  "diffSource": "since build 18 (2026-10-22T04:16:37Z), the last reviewed build, from the build log",
+  "parsed": true,
+  "problem": null,
+  "stoppedBecause": null,
+  "counts": {
+    "must": 0,
+    "should": 0,
+    "note": 2
+  },
+  "findings": [
+    {
+      "severity": "note",
+      "title": "Drag-to-the-ends reset needs the last 2.5 px of the bar",
+      "detail": "With the button gone, resetting means dragging each handle to exactly 1.0 / 0.0. DraggableBar rounds to 1/20 steps and only updates targetValue while Mouse.IsOver(barRect), so on the 100 px bar 'no cap' needs the pointer within 2.5 px of xMax (and 'none' within 2.5 px of x). A fast drag that leaves the bar early stops at 95% / 5%. The 'no cap'/'none' bar text does confirm success, and vanilla's psyfocus target behaves the same, so this is worth knowing rather than fixing.",
+      "evidence": {
+        "kind": "index",
+        "ref": "Verse/Widgets.cs:3444"
+      }
+    },
+    {
+      "severity": "note",
+      "title": "Header comment still cites a mockup that has a reset button",
+      "detail": "The file header names .circinus/mockups/psycast-limits-gizmo.html variant A as the design, and that mockup still draws the reset icon and says 'Button resets to the mod-settings defaults'. Update either the mockup or the comment so the design reference matches the shipped gizmo.",
+      "evidence": {
+        "kind": "index",
+        "ref": ".circinus/mockups/psycast-limits-gizmo.html:42"
+      }
+    }
+  ],
+  "checked": [
+    "GetWidth = LabelWidth + BarWidth + 12 = 175 matches the drawn content: inner (ContractedBy 6) is 163 = heatRow/focusRow width (Source/AbilityAI/AbilityAIPsycastLimits.cs:95-125)",
+    "No other code depended on the old 212 width (search_mod Source/** for 212: none)",
+    "Removed ButtonSize and using Verse.Sound have no remaining users; build 19 is green",
+    "AAI_Limits_Reset has no remaining references and English is the only language folder",
+    "SetLimits still drops the pawn's entry when the defaults are dragged in (heatCap >= NoHeatCap && focusFloor <= NoFocusFloor), and DraggableBar can reach exactly 0 and 1 (Source/AbilityAI/AbilityAIAut…",
+    "Royalty patch comment's 'Full Autocast' matches the AAI_Mode_Full label (Languages/English/Keyed/AbilityAI.xml:40); no stale 'Autocast, may move' left",
+    "Pawn.GetGizmos postfix binds (verify_patches), passes the original list through, as the three corpus postfixes do",
+    "pyxis_mod_errors could not run: no Pyxis token configured"
+  ],
+  "unreviewed": [],
+  "outOfScope": [],
+  "reviewed": [
+    "Source/AbilityAI/AbilityAIPsycastLimits.cs",
+    "Languages/English/Keyed/AbilityAI.xml",
+    "Patches/AbilityAI_Royalty.xml",
+    "1.6/Assemblies/AbilityAI.dll",
+    "1.6/Assemblies/AbilityAI.pdb",
+    "1.7/Assemblies/AbilityAI.dll",
+    "1.7/Assemblies/AbilityAI.pdb"
+  ],
+  "parts": 1,
+  "buildCommit": "9f7ca3fade7bc629a29cbe7a554a4fe914401e09",
+  "partial": false
+}

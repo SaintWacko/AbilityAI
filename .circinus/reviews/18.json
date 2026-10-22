@@ -1,0 +1,69 @@
+{
+  "version": 1,
+  "buildId": 18,
+  "buildIdNote": null,
+  "reviewedAt": "2026-10-22T04:17:44.468Z",
+  "conversationId": "01a1609c-f742-718f-b241-4e56775b2e83",
+  "focus": "AutocastMarker: Offers cache, procedural ring texture, Command.DescPostfix getter postfix, Badge rewrite (HasAny no longer gates the early return)",
+  "diffSource": "since build 17 (2026-10-21T23:05:23Z), the last reviewed build, from the build log",
+  "parsed": true,
+  "problem": null,
+  "stoppedBecause": null,
+  "counts": {
+    "must": 0,
+    "should": 0,
+    "note": 2
+  },
+  "findings": [
+    {
+      "severity": "note",
+      "title": "Royalty patch comment still names the old mode label",
+      "detail": "The comment added in this build says \"a player pawn set to \\\"Autocast, may move\\\"\", but this same build renames AAI_Mode_Full to \"Full Autocast\" and updates every tooltip to match. Change the comment text to \"Full Autocast\" so the only remaining mention of the old label agrees with the UI.",
+      "evidence": {
+        "kind": "index",
+        "ref": "Patches/AbilityAI_Royalty.xml:10"
+      }
+    },
+    {
+      "severity": "note",
+      "title": "Tooltip hint is not gated by the new ShowMarker setting",
+      "detail": "Patch_Command_AutocastHint.Postfix appends the \"Right-click to set autocast\" line whenever Offers is true, regardless of AbilityAISettings.ShowMarker. The setting's tooltip only promises to control the ring, so this is consistent, but a player who turns the marker off to declutter still gets the extra tooltip text. If that is not intended, add `!AbilityAISettings.ShowMarker ||` handling at the top of the postfix.",
+      "evidence": {
+        "kind": "opinion",
+        "ref": "Source/AbilityAI/AbilityAIAutocastMarker.cs:94"
+      }
+    }
+  ],
+  "checked": [
+    "Command.DescPostfix getter postfix binds (verify_patches: 1 of 1 resolved)",
+    "Command.DescPostfix is a virtual declared on Command (Command.cs:73) and read once per hovered button (Command.cs:210); only Command_Ritual and Command_CallBossgroup override it, and no corpus mod so…",
+    "Corpus is silent on Command.get_DescPostfix: no other mod patches it, so there is no precedent to follow and none to conflict with",
+    "Postfix returns void and only appends to __result; it leaves at one type check for non-ability commands",
+    "Badge rewrite: ModeFor is still only called after HasAny; Off falls through to the marker; the vetoed-mode no-badge path is unchanged; Offers is skipped when ShowMarker is off",
+    "AbilityAIAutocast.Offers gates on Enabled, PlayerAutocast, player faction, not prisoner, the hooks and UndraftedAutocast, so neither the ring nor the hint shows on non-player pawns",
+    "AutocastMarker.Offers cache: frameCount-regression guard, MaxEntries clear, cleared on new world in the AbilityAIAutocast ctor",
+    "AutocastMarker.Draw leaves Text.Font at Small, the same as vanilla GizmoOnGUIInt and the existing Badge, and does not touch GUI.color",
+    "Ring texture built once in a [StaticConstructorOnStartup] static field on the main thread; pixels outside the ring have alpha 0; Apply(false, true) is valid",
+    "ColoredText.SubtleGrayColor exists in the game source (ColoredText.cs:54)",
+    "ShowMarker setting: Scribe key is unique, default true matches Reset(), checkbox wired with both translation keys present",
+    "New keys AAI_ShowMarker, AAI_ShowMarker_Tip and AAI_Autocast_Hint ({0} supplied by Translate(mode)) are in English Keyed; English is the only language folder, so no stale translations",
+    "Royalty patch: approachDistance is a real float field on AbilityAIExtension with a ConfigErrors check, added only on TargetHostile/AoEHostile rules, ChaosSkip correctly left without one, XML well-for…",
+    "pyxis_mod_errors could not run: no Pyxis token configured, so there is no community error evidence either way"
+  ],
+  "unreviewed": [],
+  "outOfScope": [],
+  "reviewed": [
+    "Source/AbilityAI/AbilityAI.cs",
+    "Source/AbilityAI/AbilityAIAutocast.cs",
+    "Source/AbilityAI/AbilityAIAutocastMarker.cs",
+    "Languages/English/Keyed/AbilityAI.xml",
+    "Patches/AbilityAI_Royalty.xml",
+    "1.6/Assemblies/AbilityAI.dll",
+    "1.6/Assemblies/AbilityAI.pdb",
+    "1.7/Assemblies/AbilityAI.dll",
+    "1.7/Assemblies/AbilityAI.pdb"
+  ],
+  "parts": 1,
+  "buildCommit": "5ea682d9fbe60d7a496f03f2f5fe5bb08ee7c44b",
+  "partial": false
+}

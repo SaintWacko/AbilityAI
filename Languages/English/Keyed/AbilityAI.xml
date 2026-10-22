@@ -47,7 +47,6 @@
   <AAI_Limits_Focus_Tip>Autocast won't use a psycast that would bring this pawn's psyfocus below this point. Casting by hand ignores this.</AAI_Limits_Focus_Tip>
   <AAI_Limits_NoCap>no cap</AAI_Limits_NoCap>
   <AAI_Limits_NoFloor>none</AAI_Limits_NoFloor>
-  <AAI_Limits_Reset>Reset autocast limits: no heat cap, no psyfocus floor.</AAI_Limits_Reset>
   <AAI_MinGap>Least time between one pawn's casts: {0} s</AAI_MinGap>
   <AAI_MinGap_Desc>Stops a pawn with several abilities from using them all in the same moment. Each ability's own cooldown and charges still apply.</AAI_MinGap_Desc>
   <AAI_DebugLog>Log ability AI decisions (dev mode)</AAI_DebugLog>

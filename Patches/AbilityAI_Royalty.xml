@@ -7,7 +7,7 @@
      goes on to the next one.
      Left out on purpose: Skip (needs a second target), Beckon, Flashstorm, Neuroquake, manhunter pulse, mass chaos
      skip, farskip, chunkskip, solar pinhole, neural heat dump and the social Word of psycasts other than serenity.
-     approachDistance (how far a ranged NPC, or a player pawn set to "Autocast, may move", walks to get a target into
+     approachDistance (how far a ranged NPC, or a player pawn set to "Full Autocast", walks to get a target into
      range) is only on the enemy-targeted rules: their workers are the ones that can pick a target to walk toward.
      Chaos skip is left without one, since its target is an enemy already in melee. -->
 <Patch>

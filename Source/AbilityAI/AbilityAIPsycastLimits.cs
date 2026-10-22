@@ -3,7 +3,6 @@ using HarmonyLib;
 using RimWorld;
 using UnityEngine;
 using Verse;
-using Verse.Sound;
 
 // Per-pawn limits on what autocast may spend on psycasts: a neural heat cap and a psyfocus floor. Set from a gizmo
 // beside vanilla's psyfocus one (design: .circinus/mockups/psycast-limits-gizmo.html, variant A), stored in the
@@ -28,7 +27,6 @@ namespace AbilityAI
         private const float LabelWidth = 63f;
         private const float BarWidth = 100f;
         private const float BarHeight = 22f;
-        private const float ButtonSize = 32f;
         // 5% steps, as vanilla's psyfocus target
         private const int Increments = 20;
 
@@ -93,7 +91,8 @@ namespace AbilityAI
             return false;
         }
 
-        public override float GetWidth(float maxWidth) => 212f;
+        // Label and bar plus the 6 px margin each side (no reset button: dragging both handles to the ends is the reset)
+        public override float GetWidth(float maxWidth) => LabelWidth + BarWidth + 12f;
 
         public override GizmoResult GizmoOnGUI(Vector2 topLeft, float maxWidth, GizmoRenderParms parms)
         {
@@ -127,14 +126,6 @@ namespace AbilityAI
             TooltipHandler.TipRegion(focusRow, () => "AAI_Limits_Focus_Tip".Translate(), 0x4A41C2);
 
             if (newCap != heatCap || newFloor != focusFloor) AbilityAIAutocast.SetLimits(pawn, newCap, newFloor);
-
-            var reset = new Rect(inner.xMax - ButtonSize, inner.y + (inner.height - ButtonSize) / 2f, ButtonSize, ButtonSize);
-            if (Widgets.ButtonImage(reset, TexButton.Reload))
-            {
-                AbilityAIAutocast.SetLimits(pawn, AbilityAIAutocast.NoHeatCap, AbilityAIAutocast.NoFocusFloor);
-                SoundDefOf.Tick_Low.PlayOneShotOnCamera();
-            }
-            TooltipHandler.TipRegion(reset, "AAI_Limits_Reset".Translate());
             return new GizmoResult(GizmoState.Clear);
         }
 

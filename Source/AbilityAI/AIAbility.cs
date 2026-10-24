@@ -101,7 +101,8 @@ namespace AbilityAI
     }
 
     /// <summary>A system of abilities the AI can drive. The core registers vanilla's; a compat assembly registers
-    /// its own.</summary>
+    /// its own. None of its methods may throw: a source that does is dropped for the rest of the session, and its
+    /// abilities go back to their own AI.</summary>
     public interface IAIAbilitySource
     {
         /// <summary>Whether the pawn holds any ability of this kind at all. Asked whenever the constant think tree has

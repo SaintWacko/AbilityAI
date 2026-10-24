@@ -117,7 +117,8 @@ namespace AbilityAI
                 {
                     int group = 1;
                     for (int j = 0; j < enemies.Count; j++)
-                        if (j != i && (enemies[j].Position - e.Position).LengthHorizontalSquared <= near2) group++;
+                        if (j != i && (enemies[j].Position - e.Position).LengthHorizontalSquared <= near2
+                            && (!spareBroken || !ctx.IsBrokenAlly(enemies[j]))) group++;
                     if (group < ext.minTargets) continue;
                     if (ext.preferGrouped) score *= group;
                 }

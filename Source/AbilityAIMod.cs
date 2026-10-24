@@ -79,7 +79,7 @@ namespace AbilityAI
     ///
     /// That includes a player pawn the driver isn't casting for right now (mode Off, undrafted with a combat-only
     /// ability, in a lord), so a host can't count on its aiCanUse fallback for the player's pawns while this mod and
-    /// its player autocast are on. A player pawn in a mental break, and NPCs, stand vanilla down only where this mod
+    /// its player autocast are on, except for an ability its hook vetoes for that pawn: a veto hands it back. A player pawn in a mental break, and NPCs, stand vanilla down only where this mod
     /// decides (Handles): an NPC whose kind is switched off in the settings, or an unclaimed ability with Unclaimed
     /// off, keeps vanilla's behaviour.
     ///

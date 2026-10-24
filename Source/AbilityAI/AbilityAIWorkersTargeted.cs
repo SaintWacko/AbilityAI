@@ -62,7 +62,7 @@ namespace AbilityAI
     /// Target hostile: one enemy (Stun, Burden, Berserk, Chaos Skip). Enemies within [minRange, range] the ability
     /// would affect (WouldAffect), scored by: the caster's current target +1, aiming at the caster +1, times its
     /// kind's combat power (0.5-3 x of 100), divided by distance over range. meleeOnly keeps only enemies next to
-    /// the caster or an ally. With minTargets above 1 the enemy needs that many of its side (itself included) within
+    /// the caster or an ally (one in a hostile break included: AbilityAIUtility.InMeleeWithSide). With minTargets above 1 the enemy needs that many of its side (itself included) within
     /// radius (default 5); preferGrouped multiplies the score by them, and avoidAllies skips enemies with anyone on
     /// the caster's side (Friendlies) within that radius (a berserk enemy attacks whoever is nearest). An ally in a
     /// hostile break is skipped, and avoided like a friendly, unless MayHitBrokenAllies. The best five are validated.

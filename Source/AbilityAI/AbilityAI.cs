@@ -442,7 +442,7 @@ namespace AbilityAI
         /// visitor's pulse spares the colonists it fights beside. Wild animals are left out. Prisoners held by the
         /// caster's faction are in it (spared by area casts), unlike Allies; captured members of the caster's own
         /// faction are in neither list. A caster with no faction (a wild animal) gets
-        /// every non-hostile pawn with a faction. Allies in a hostile break are left out (see BrokenAllies). Built only when a worker asks (avoidAllies, meleeOnly): one pass
+        /// every non-hostile pawn with a faction. Allies in a hostile break that are in BrokenAllies are left out. Built only when a worker asks (avoidAllies, meleeOnly): one pass
         /// over the map's spawned pawns.</summary>
         public List<Pawn> Friendlies
         {
@@ -451,11 +451,12 @@ namespace AbilityAI
                 if (!friendliesBuilt)
                 {
                     friendliesBuilt = true;
-                    // An ally in a hostile break is in Allies but not here: BrokenAllies decides whether it is spared.
-                    // One that Enemies drops (threat-disabled, invisible) is in neither list, so it stays here.
+                    // An ally in a hostile break is in Allies, and goes either here or in BrokenAllies (which then
+                    // decides whether it is spared), never both, never neither: one that Enemies drops (threat-disabled,
+                    // invisible, missing from the attack-target cache) stays here. Contains runs only for a broken ally.
                     var own = Allies;
                     for (int i = 0; i < own.Count; i++)
-                        if (own[i] == pawn || !IsBrokenAlly(own[i]) || !IsEnemy(own[i])) friendlies.Add(own[i]);
+                        if (own[i] == pawn || !IsBrokenAlly(own[i]) || !BrokenAllies.Contains(own[i])) friendlies.Add(own[i]);
                     var all = map.mapPawns.AllPawnsSpawned;
                     for (int i = 0; i < all.Count; i++)
                     {

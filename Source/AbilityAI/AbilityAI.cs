@@ -636,7 +636,7 @@ namespace AbilityAI
         private static readonly ConditionalWeakTable<Pawn, PawnState> states = new ConditionalWeakTable<Pawn, PawnState>();
         private static readonly AbilityAIContext ctx = new AbilityAIContext();
         private static readonly List<Candidate> candidates = new List<Candidate>();
-        // The pawn's abilities with an extension, from every source; filled by Collect, emptied after TryGiveJob
+        // The pawn's abilities with an extension, from every source; filled and emptied by TryGiveJob
         private static readonly List<AIAbility> collected = new List<AIAbility>();
         private static bool evaluating;
         // The set of workers the pawn being evaluated may use (All for NPCs)
@@ -649,19 +649,8 @@ namespace AbilityAI
         /// differ for the player's own pawns (what Calm will end, how far it walks).</summary>
         internal static bool EvaluatingPlayer => evaluating && curPlayer;
 
-        internal static bool Evaluating => evaluating;
 
-        /// <summary>The pawn's abilities that have an AI extension, from every source, into one shared list that
-        /// TryGiveJob reads and ReleaseCollected empties. The first check that touches defs.</summary>
-        internal static List<AIAbility> Collect(Pawn pawn)
-        {
-            collected.Clear();
-            AIAbilitySources.Collect(pawn, collected);
-            return collected;
-        }
 
-        // The wrappers hold their pawns: don't keep them past the evaluation
-        internal static void ReleaseCollected() => collected.Clear();
 
         /// <summary>The player's per-pawn psycast limits (the gizmo beside vanilla's psyfocus one): the cast must not
         /// push neural heat over the cap or psyfocus under the floor. Real Psycasts only; a pawn with no limits set
@@ -918,7 +907,7 @@ namespace AbilityAI
 
         public static bool ValidIgnoringRange(AIAbility ability, LocalTargetInfo target) => ability.ValidIgnoringRange(target);
 
-        internal static Job TryGiveJob(Pawn pawn, List<AIAbility> abilities, Control control)
+        internal static Job TryGiveJob(Pawn pawn, Control control)
         {
             if (evaluating) return null;
             int tick = Find.TickManager.TicksGame;
@@ -956,6 +945,9 @@ namespace AbilityAI
             ctx.Begin(pawn, tick, state.approachJobId >= 0 ? state.approachAbility : null, state.approachExpected, player && drafted);
             try
             {
+                // Only now, past the interval checks: a pawn that isn't due pays no wrapper lookups
+                var abilities = collected;
+                AIAbilitySources.Collect(pawn, abilities);
                 curSet = player && !drafted ? UndraftedSetNow(pawn) : PlayerSet.All;
                 curPlayer = player;
 
@@ -1021,6 +1013,8 @@ namespace AbilityAI
             {
                 ctx.End();
                 candidates.Clear();
+                // The wrappers hold their pawns: don't keep them past the evaluation
+                collected.Clear();
                 curSet = PlayerSet.All;
                 curPlayer = false;
                 evaluating = false;
@@ -1456,11 +1450,10 @@ namespace AbilityAI
                 if (!(__result.SourceNode is JobGiver_ConfigurableHostilityResponse)) return;
                 overHostility = true;
             }
-            // Collect shares one list with the evaluation that is running
-            if (___pawn == null || AbilityAIDriver.Evaluating || !AIAbilitySources.HasAny(___pawn)) return;
+            if (___pawn == null || !AIAbilitySources.HasAny(___pawn)) return;
             // The player's pawns with nothing set to autocast stop at one dictionary lookup here
             var control = AbilityAIDriver.ControlOf(___pawn);
-            if (control == AbilityAIDriver.Control.None) return;
+            if (control == AbilityAIDriver.Control.None || !AIAbilitySources.AnyWithExtension(___pawn)) return;
             if (overHostility && control != AbilityAIDriver.Control.Player) return;
             // Vanilla starts these jobs against the constant tree and saves the job giver's key in it; with no
             // constant tree a saved job would throw on load.
@@ -1487,9 +1480,7 @@ namespace AbilityAI
             }
             try
             {
-                var abilities = AbilityAIDriver.Collect(___pawn);
-                if (abilities.Count == 0) return;
-                Job job = AbilityAIDriver.TryGiveJob(___pawn, abilities, control);
+                Job job = AbilityAIDriver.TryGiveJob(___pawn, control);
                 // The tree's root as the source: the AI has no think node of its own, so a pawn saved mid-cast would
                 // otherwise log a missing think node on load
                 if (job != null)
@@ -1504,10 +1495,7 @@ namespace AbilityAI
                 // Vanilla's constant-tree call has its own try/catch; this runs after it
                 Log.ErrorOnce($"[Ability AI] threw for {___pawn.def.defName}: {e}", ___pawn.def.shortHash ^ 0x7A12);
             }
-            finally
-            {
-                AbilityAIDriver.ReleaseCollected();
-            }
+
         }
     }
 }

@@ -94,6 +94,11 @@ namespace AbilityAI
             return inst != null && inst.modes.ContainsKey(pawn);
         }
 
+        // The AbilityDef overloads keep assemblies built before modes were keyed by Def working
+        public static AbilityAIAutocastMode ModeFor(Pawn pawn, AbilityDef def) => ModeFor(pawn, (Def)def);
+
+        public static void SetMode(Pawn pawn, AbilityDef def, AbilityAIAutocastMode mode) => SetMode(pawn, (Def)def, mode);
+
         public static AbilityAIAutocastMode ModeFor(Pawn pawn, Def def)
         {
             var inst = Instance;

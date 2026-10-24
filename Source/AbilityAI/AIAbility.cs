@@ -108,6 +108,10 @@ namespace AbilityAI
         /// nothing to do, before anything else: keep it to a few field reads.</summary>
         bool HasAny(Pawn pawn);
 
+        /// <summary>Whether any of them has a def with an AbilityAIExtension. Asked once the pawn is known to be one
+        /// the AI acts for, before the per-pawn interval: one def lookup per ability, no wrappers.</summary>
+        bool AnyWithExtension(Pawn pawn);
+
         /// <summary>Append the pawn's abilities of this kind whose def carries an AbilityAIExtension, each as its
         /// one cached wrapper.</summary>
         void Collect(Pawn pawn, List<AIAbility> into);
@@ -127,7 +131,17 @@ namespace AbilityAI
             for (int i = 0; i < sources.Count; i++)
             {
                 try { if (sources[i].HasAny(pawn)) return true; }
-                catch (Exception e) { Log.ErrorOnce($"[Ability AI] {sources[i].GetType().Name}.HasAny threw: {e}", sources[i].GetType().GetHashCode() ^ 0x5A3); }
+                catch (Exception e) { if (Drop(i, nameof(IAIAbilitySource.HasAny), e)) i--; }
+            }
+            return false;
+        }
+
+        internal static bool AnyWithExtension(Pawn pawn)
+        {
+            for (int i = 0; i < sources.Count; i++)
+            {
+                try { if (sources[i].AnyWithExtension(pawn)) return true; }
+                catch (Exception e) { if (Drop(i, nameof(IAIAbilitySource.AnyWithExtension), e)) i--; }
             }
             return false;
         }
@@ -137,8 +151,23 @@ namespace AbilityAI
             for (int i = 0; i < sources.Count; i++)
             {
                 try { sources[i].Collect(pawn, into); }
-                catch (Exception e) { Log.ErrorOnce($"[Ability AI] {sources[i].GetType().Name}.Collect threw: {e}", sources[i].GetType().GetHashCode() ^ 0x5A4); }
+                catch (Exception e) { if (Drop(i, nameof(IAIAbilitySource.Collect), e)) i--; }
             }
+        }
+
+        // These run on every idle think check of every pawn: a source that throws once would throw every time, so
+        // it is dropped for the rest of the session. Vanilla's own source is never dropped.
+        private static bool Drop(int i, string method, Exception e)
+        {
+            var source = sources[i];
+            if (source == VanillaAIAbility.Source)
+            {
+                Log.ErrorOnce($"[Ability AI] vanilla abilities: {method} threw: {e}", 0x5A3 ^ method.GetHashCode());
+                return false;
+            }
+            Log.Error($"[Ability AI] {source.GetType().FullName}.{method} threw, so its abilities are left to their own AI from now on: {e}");
+            sources.RemoveAt(i);
+            return true;
         }
     }
 
@@ -161,6 +190,15 @@ namespace AbilityAI
             {
                 var tracker = pawn.abilities;
                 return tracker != null && tracker.AllAbilitiesForReading.Count > 0;
+            }
+
+            public bool AnyWithExtension(Pawn pawn)
+            {
+                var list = pawn.abilities?.AllAbilitiesForReading;
+                if (list == null) return false;
+                for (int i = 0; i < list.Count; i++)
+                    if (list[i].def.GetModExtension<AbilityAIExtension>() != null) return true;
+                return false;
             }
 
             public void Collect(Pawn pawn, List<AIAbility> into)

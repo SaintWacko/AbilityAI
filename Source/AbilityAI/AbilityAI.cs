@@ -358,14 +358,16 @@ namespace AbilityAI
                     {
                         // The cache hands back one shared list that its next caller clears, so copy out of it at once.
                         // It can list a pawn twice: a hostile raider in an aggro break comes from both the faction set
-                        // and the mental-state set, and a prison-breaking or rebelling caster adds its host's pawns on
-                        // top. Counting it twice would inflate area casts, so those are checked against the list.
+                        // and the mental-state set, a factionless humanlike from the factionless set and the faction set
+                        // of a faction hostile to them (mechanoids, entities), and a prison-breaking or rebelling caster
+                        // adds its host's pawns on top. Counting it twice would inflate area casts, so those are checked
+                        // against the list.
                         bool casterBreaking = pawn.guest != null && (PrisonBreakUtility.IsPrisonBreaking(pawn)
                             || (ModsConfig.IdeologyActive && SlaveRebellionUtility.IsRebelling(pawn)));
                         var targets = map.attackTargetsCache.GetPotentialTargetsFor(pawn);
                         for (int i = 0; i < targets.Count; i++)
                             if (targets[i].Thing is Pawn p && IsEnemy(p)
-                                && ((p.MentalState == null && !casterBreaking) || !enemies.Contains(p)))
+                                && ((p.MentalState == null && p.Faction != null && !casterBreaking) || !enemies.Contains(p)))
                                 enemies.Add(p);
                     }
                 }
@@ -422,7 +424,8 @@ namespace AbilityAI
         }
 
         /// <summary>Allies a buff may go to: Allies without those in a hostile break (IsBrokenAlly), so Focus,
-        /// Painblock or Invisibility never strengthen a berserker against its own side. The caster is always in it.
+        /// Painblock or Invisibility never target a berserker. An area buff (AoEFriendly) doesn't count them or centre
+        /// on them, but still covers one standing in its radius. The caster is always in it.
         /// Built on first use: one mental-state read per ally.</summary>
         public List<Pawn> SupportAllies
         {

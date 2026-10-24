@@ -54,6 +54,14 @@
   <AAI_CalmRange_Tip>Measured in a straight line, so the walk itself can be longer. How far an undrafted pawn goes to use a calming ability it has to touch the target with. Drafted pawns keep the ability's own reach (8 tiles for word of serenity), so they don't walk far from where you put them.</AAI_CalmRange_Tip>
   <AAI_BreakCasting>Your pawns use abilities during mental breaks</AAI_BreakCasting>
   <AAI_BreakCasting_Tip>A pawn of yours in a mental break (a colonist, or an animal gone manhunter) is out of your control, so your autocast choices don't apply. With this on, a pawn in an aggressive break uses its abilities the way a raider would, treating your other pawns as enemies, and a panicking one may use movement abilities to flee. Off: the game's own AI decides, as it would without this mod.</AAI_BreakCasting_Tip>
+  <AAI_BrokenAllies>Abilities meant for enemies, used on allies in a mental break:</AAI_BrokenAllies>
+  <AAI_BrokenAllies_Tip>A berserk colonist or a tame animal gone manhunter attacks its own side. This decides whether its friends use their enemy abilities on it. It applies to every caster: your pawns on autocast, raiders and visitors alike. Calming abilities are not affected; they have their own setting.</AAI_BrokenAllies_Tip>
+  <AAI_BrokenAllies_Never>Never</AAI_BrokenAllies_Never>
+  <AAI_BrokenAllies_Never_Tip>Allies in a break are treated as friends: never targeted, and kept out of area abilities that avoid allies.</AAI_BrokenAllies_Never_Tip>
+  <AAI_BrokenAllies_Harmless>Harmless abilities only</AAI_BrokenAllies_Harmless>
+  <AAI_BrokenAllies_Harmless_Tip>Only abilities that disable without lasting harm, such as stun, burden and blinding pulse. Everything else treats them as friends.</AAI_BrokenAllies_Harmless_Tip>
+  <AAI_BrokenAllies_Any>Any ability</AAI_BrokenAllies_Any>
+  <AAI_BrokenAllies_Any_Tip>Allies in a break are treated as enemies, damaging abilities included.</AAI_BrokenAllies_Any_Tip>
   <AAI_Mode_Title>Autocast {0}</AAI_Mode_Title>
   <AAI_Mode_Off>Don't autocast</AAI_Mode_Off>
   <AAI_Mode_Stationary>Stationary Autocast</AAI_Mode_Stationary>

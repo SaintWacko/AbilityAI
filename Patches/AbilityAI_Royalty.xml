@@ -9,7 +9,9 @@
      skip, farskip, chunkskip, solar pinhole, neural heat dump and the social Word of psycasts other than serenity.
      approachDistance (how far a ranged NPC, or a player pawn set to "Full Autocast", walks to get a target into
      range) is only on the enemy-targeted rules: their workers are the ones that can pick a target to walk toward.
-     Chaos skip is left without one, since its target is an enemy already in melee. -->
+     Chaos skip is left without one, since its target is an enemy already in melee.
+     harmless marks the rules that disable without lasting harm: with the "allies in a mental break" setting on
+     its default, those may also be used on a berserk ally. -->
 <Patch>
   <Operation Class="PatchOperationFindMod">
     <mods>
@@ -27,11 +29,13 @@
               <li Class="AbilityAI.AbilityAIExtension">
                 <workerClass>AbilityAI.AbilityAIWorker_Interrupt</workerClass>
                 <priority>9</priority>
+                <harmless>true</harmless>
               </li>
               <li Class="AbilityAI.AbilityAIExtension">
                 <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
                 <priority>3</priority>
                 <approachDistance>8</approachDistance>
+                <harmless>true</harmless>
               </li>
             </value>
           </match>
@@ -46,6 +50,7 @@
                 <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
                 <priority>2</priority>
                 <approachDistance>8</approachDistance>
+                <harmless>true</harmless>
               </li>
             </value>
           </match>
@@ -98,6 +103,7 @@
                 <minTargets>2</minTargets>
                 <avoidAllies>true</avoidAllies>
                 <approachDistance>8</approachDistance>
+                <harmless>true</harmless>
               </li>
             </value>
           </match>

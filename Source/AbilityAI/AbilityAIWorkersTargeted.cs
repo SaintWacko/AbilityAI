@@ -64,7 +64,8 @@ namespace AbilityAI
     /// kind's combat power (0.5-3 x of 100), divided by distance over range. meleeOnly keeps only enemies next to
     /// the caster or an ally. With minTargets above 1 the enemy needs that many of its side (itself included) within
     /// radius (default 5); preferGrouped multiplies the score by them, and avoidAllies skips enemies with anyone on
-    /// the caster's side (Friendlies) within that radius (a berserk enemy attacks whoever is nearest). The best five are validated.
+    /// the caster's side (Friendlies) within that radius (a berserk enemy attacks whoever is nearest). An ally in a
+    /// hostile break is skipped, and avoided like a friendly, unless MayHitBrokenAllies. The best five are validated.
     /// Approach: the same out to range + approachDistance.
     /// Cost: k WouldAffect checks, k² distance checks only with grouping, k×a with meleeOnly or avoidAllies.
     /// </summary>
@@ -98,12 +99,14 @@ namespace AbilityAI
             float near = ext.radius >= 0f ? ext.radius : 5f;
             float near2 = near * near;
             bool grouping = ext.preferGrouped || ext.minTargets > 1;
+            bool spareBroken = !AbilityAIUtility.MayHitBrokenAllies(ext);
             Thing current = ctx.EnemyTarget;
             for (int i = 0; i < enemies.Count; i++)
             {
                 Pawn e = enemies[i];
                 float d = (e.Position - ctx.pawn.Position).LengthHorizontalSquared;
                 if (d > maxSq || d < minSq) continue;
+                if (spareBroken && ctx.IsBrokenAlly(e)) continue;
                 if (!AbilityAIUtility.WouldAffect(ability, ext, e)) continue;
                 if (ext.meleeOnly && !AbilityAIUtility.InMeleeWithSide(ctx, e)) continue;
                 float score = 1f;
@@ -118,7 +121,8 @@ namespace AbilityAI
                     if (group < ext.minTargets) continue;
                     if (ext.preferGrouped) score *= group;
                 }
-                if (ext.avoidAllies && TargetingUtil.AnyWithin(ctx.Friendlies, e.Position, near2)) continue;
+                if (ext.avoidAllies && (TargetingUtil.AnyWithin(ctx.Friendlies, e.Position, near2)
+                    || (spareBroken && TargetingUtil.AnyWithin(ctx.BrokenAllies, e.Position, near2)))) continue;
                 score /= 1f + Mathf.Sqrt(d) / Mathf.Max(range, 1f);
                 cands.Add(new TargetingUtil.Cand { pawn = e, score = score });
             }
@@ -342,6 +346,7 @@ namespace AbilityAI
     /// explosive projectile (grenades, launchers), or with minAimSeconds any aim with that long left. Only when more
     /// of the enemy's aim is left than this ability's own warmup. A stun pauses the enemy's aim for its length (it
     /// doesn't cancel it); a mental state or a teleport breaks it. Area abilities centre on the enemy. Nearest first.
+    /// An ally in a hostile break is skipped unless MayHitBrokenAllies.
     /// Cost: k stance reads, then up to 10 validations.
     /// </summary>
     public class AbilityAIWorker_Interrupt : AbilityAIWorker
@@ -357,11 +362,13 @@ namespace AbilityAI
             float maxSq = range * range;
             int ourWarmup = Mathf.CeilToInt((ability.verb.verbProps?.warmupTime ?? 0f) * GenTicks.TicksPerRealSecond) + MarginTicks;
             int minAim = Mathf.RoundToInt(ext.minAimSeconds * GenTicks.TicksPerRealSecond);
+            bool spareBroken = !AbilityAIUtility.MayHitBrokenAllies(ext);
             var enemies = ctx.Enemies;
             for (int i = 0; i < enemies.Count; i++)
             {
                 Pawn e = enemies[i];
                 if (!(e.stances?.curStance is Stance_Warmup w) || w.verb == null || w.ticksLeft <= ourWarmup) continue;
+                if (spareBroken && ctx.IsBrokenAlly(e)) continue;
                 // A non-hostile ability (painblock, focus on its own side) isn't worth a stun
                 bool danger = (w.verb is Verb_CastAbility cast && cast.ability?.def != null && cast.ability.def.hostile)
                     || Explosive(w.verb) || (minAim > 0 && w.ticksLeft >= minAim);

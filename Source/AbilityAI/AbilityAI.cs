@@ -40,7 +40,9 @@ namespace AbilityAI
     public interface IAbilityAIHook
     {
         /// <summary>Asked for every ready ability with an AI extension, before any targeting work. Claim = this
-        /// ability is the host's to cast for this pawn; Veto = never now (an unbound item, say).</summary>
+        /// ability is the host's to cast for this pawn; Veto = never now (an unbound item, say). On the player's own
+        /// pawns (outside a mental break) Veto means Ability AI neither casts it nor stops anyone else casting it:
+        /// vanilla's AI or the host's own fallback keeps it (OthersStandDown).</summary>
         AbilityAIVote Vote(Pawn pawn, Ability ability);
 
         /// <summary>The AI has just handed vanilla a job to cast this ability. Vanilla may still discard it without
@@ -204,6 +206,9 @@ namespace AbilityAI
         public float minBreakSeconds;
         /// <summary>Interrupt: also any aim with at least this many seconds left (0 = only abilities and explosives).</summary>
         public float minAimSeconds;
+        /// <summary>Hostile workers: the ability disables without lasting harm (stun, burden, blinding), so with the
+        /// BrokenAllies setting at HarmlessOnly it may be used on an ally in a hostile mental break.</summary>
+        public bool harmless;
 
         [Unsaved] private AbilityAIWorker worker;
 
@@ -243,7 +248,8 @@ namespace AbilityAI
         public int tick;
 
         private bool combatKnown, inCombat;
-        private bool enemiesBuilt, alliesBuilt, aimsBuilt, friendliesBuilt;
+        private bool enemiesBuilt, alliesBuilt, aimsBuilt, friendliesBuilt, brokenBuilt;
+        private readonly List<Pawn> brokenAllies = new List<Pawn>();
         private readonly List<Pawn> friendlies = new List<Pawn>();
         private readonly List<Pawn> enemies = new List<Pawn>();
         private readonly List<Pawn> allies = new List<Pawn>();
@@ -267,7 +273,7 @@ namespace AbilityAI
             tick = t;
             approachAbility = walkingFor;
             approachExpected = expected;
-            combatKnown = enemiesBuilt = alliesBuilt = aimsBuilt = friendliesBuilt = enemyTargetKnown = false;
+            combatKnown = enemiesBuilt = alliesBuilt = aimsBuilt = friendliesBuilt = brokenBuilt = enemyTargetKnown = false;
         }
 
         internal void End()
@@ -277,6 +283,7 @@ namespace AbilityAI
             downedAllies.Clear();
             aimedAt.Clear();
             friendlies.Clear();
+            brokenAllies.Clear();
             enemyTarget = null;
             pawn = null;
             map = null;
@@ -354,6 +361,37 @@ namespace AbilityAI
                     }
                 }
                 return enemies;
+            }
+        }
+
+        /// <summary>Hostile to the caster only because of its own mental state (a berserk colonist, a tame animal gone
+        /// manhunter, a raider's friend in a rage): its faction is the caster's or isn't hostile to it. Such a pawn is
+        /// in Enemies, since it is a threat, but hostile workers spare it unless the BrokenAllies setting allows
+        /// (AbilityAIUtility.MayHitBrokenAllies). A factionless caster or target never counts. One field read for a
+        /// pawn not in a mental state.</summary>
+        public bool IsBrokenAlly(Pawn p)
+        {
+            var state = p.MentalState;
+            if (state == null) return false;
+            Faction mine = pawn.Faction, theirs = p.Faction;
+            if (mine == null || theirs == null) return false;
+            return (theirs == mine || !theirs.HostileTo(mine)) && state.ForceHostileTo(pawn);
+        }
+
+        /// <summary>The broken allies among Enemies (IsBrokenAlly), for workers that keep clear of them as they do of
+        /// Friendlies. Built on first use: k mental-state reads.</summary>
+        public List<Pawn> BrokenAllies
+        {
+            get
+            {
+                if (!brokenBuilt)
+                {
+                    brokenBuilt = true;
+                    var list = Enemies;
+                    for (int i = 0; i < list.Count; i++)
+                        if (IsBrokenAlly(list[i])) brokenAllies.Add(list[i]);
+                }
+                return brokenAllies;
             }
         }
 
@@ -796,9 +834,11 @@ namespace AbilityAI
         public static bool OthersStandDown(Pawn pawn, Ability ability)
         {
             if (!AbilityAISettings.Enabled || pawn == null || ability?.def == null) return false;
+            // A host's veto hands the ability back to vanilla or the host's own fallback (HasWorker first: it is the
+            // cheap test)
             if (AbilityAISettings.PlayerAutocast && pawn.Faction != null && pawn.Faction.IsPlayer && !pawn.IsPrisoner
                 && !pawn.InMentalState)
-                return HasWorker(ability.def, PlayerSet.All);
+                return HasWorker(ability.def, PlayerSet.All) && AbilityAIHooks.NotVetoed(pawn, ability);
             return Handles(pawn, ability);
         }
 
@@ -1246,6 +1286,16 @@ namespace AbilityAI
         Any,
     }
 
+    /// <summary>Whether hostile workers may target an ally in a hostile mental break (AbilityAIContext.IsBrokenAlly).
+    /// Every caster, NPC or player.</summary>
+    public enum AbilityAIBrokenAllies : byte
+    {
+        Never,
+        /// <summary>Only with an extension marked harmless.</summary>
+        HarmlessOnly,
+        Any,
+    }
+
     /// <summary>The AI's settings. Static so the hot paths read a field, not an instance; saved through
     /// AbilityAIModSettings and drawn by AbilityAIMod (AbilityAIMod.cs).</summary>
     public static class AbilityAISettings
@@ -1267,6 +1317,8 @@ namespace AbilityAI
         public static AbilityAICalmBreaks CalmBreaks = DefaultCalmBreaks;
         public const float DefaultCalmRange = 20f;
         public static float CalmRange = DefaultCalmRange;
+        public const AbilityAIBrokenAllies DefaultBrokenAllies = AbilityAIBrokenAllies.HarmlessOnly;
+        public static AbilityAIBrokenAllies BrokenAllies = DefaultBrokenAllies;
         public const int DefaultUndraftedIntervalTicks = 250;
         public static int UndraftedIntervalTicks = DefaultUndraftedIntervalTicks;
         public const float DefaultMinGapSeconds = 2.5f;
@@ -1282,6 +1334,7 @@ namespace AbilityAI
             UndraftedIntervalTicks = DefaultUndraftedIntervalTicks;
             CalmBreaks = DefaultCalmBreaks;
             CalmRange = DefaultCalmRange;
+            BrokenAllies = DefaultBrokenAllies;
             AbilityAIBlockedJobs.Reset();
             DebugLog = false;
         }
@@ -1307,6 +1360,7 @@ namespace AbilityAI
             Scribe_Values.Look(ref CalmRange, "abilityAI_calmRange", DefaultCalmRange);
             CalmRange = Mathf.Clamp(CalmRange, 5f, 60f);
             Scribe_Values.Look(ref BreakCasting, "abilityAI_breakCasting", false);
+            Scribe_Values.Look(ref BrokenAllies, "abilityAI_brokenAllies", DefaultBrokenAllies);
             Scribe_Values.Look(ref MinGapSeconds, "abilityAI_minGapSeconds", DefaultMinGapSeconds);
             MinGapSeconds = Mathf.Clamp(MinGapSeconds, 0f, 30f);
             Scribe_Values.Look(ref DebugLog, "abilityAI_debugLog", false);
@@ -1361,6 +1415,16 @@ namespace AbilityAI
             list.Label("      " + "AAI_CalmRange".Translate(CalmRange.ToString("0")), -1f, "AAI_CalmRange_Tip".Translate());
             CalmRange = Mathf.Round(list.Slider(CalmRange, 5f, 60f));
             list.CheckboxLabeled("AAI_BreakCasting".Translate(), ref BreakCasting, "AAI_BreakCasting_Tip".Translate());
+            list.Label("AAI_BrokenAllies".Translate(), -1f, "AAI_BrokenAllies_Tip".Translate());
+            if (list.RadioButton("AAI_BrokenAllies_Never".Translate(), BrokenAllies == AbilityAIBrokenAllies.Never, 24f,
+                "AAI_BrokenAllies_Never_Tip".Translate()))
+                BrokenAllies = AbilityAIBrokenAllies.Never;
+            if (list.RadioButton("AAI_BrokenAllies_Harmless".Translate(), BrokenAllies == AbilityAIBrokenAllies.HarmlessOnly, 24f,
+                "AAI_BrokenAllies_Harmless_Tip".Translate()))
+                BrokenAllies = AbilityAIBrokenAllies.HarmlessOnly;
+            if (list.RadioButton("AAI_BrokenAllies_Any".Translate(), BrokenAllies == AbilityAIBrokenAllies.Any, 24f,
+                "AAI_BrokenAllies_Any_Tip".Translate()))
+                BrokenAllies = AbilityAIBrokenAllies.Any;
             list.Gap();
             list.Label("AAI_MinGap".Translate(MinGapSeconds.ToString("0.#")));
             MinGapSeconds = Mathf.Round(list.Slider(MinGapSeconds, 0f, 30f) * 2f) / 2f;

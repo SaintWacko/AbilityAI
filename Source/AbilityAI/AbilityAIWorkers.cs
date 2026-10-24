@@ -205,6 +205,18 @@ namespace AbilityAI
             return false;
         }
 
+        /// <summary>Whether a hostile worker using this extension may target an ally in a hostile mental break
+        /// (AbilityAIContext.IsBrokenAlly), by the BrokenAllies setting.</summary>
+        public static bool MayHitBrokenAllies(AbilityAIExtension ext)
+        {
+            switch (AbilityAISettings.BrokenAllies)
+            {
+                case AbilityAIBrokenAllies.Any: return true;
+                case AbilityAIBrokenAllies.HarmlessOnly: return ext.harmless;
+                default: return false;
+            }
+        }
+
         public static bool Has(Pawn pawn, HediffDef hediff) => hediff != null && pawn.health?.hediffSet?.HasHediff(hediff) == true;
 
         /// <summary>The pawn itself if the ability accepts it, else the cell it stands on.</summary>
@@ -244,7 +256,8 @@ namespace AbilityAI
     /// AoE hostile: an area ability at the spot that catches the most enemies (Flashbang, Artillery, blinding and
     /// berserk pulses). Each enemy in range is a candidate centre, scored by the enemies within the radius of it that
     /// the ability would affect (WouldAffect: a second flashbang skips the group the first one stunned); at least
-    /// minTargets, between minRange and the ability's range, no ally inside with avoidAllies. The best five are checked
+    /// minTargets, between minRange and the ability's range, no ally inside with avoidAllies. An ally in a hostile
+    /// break counts as an ally (never counted, never a centre, avoided with avoidAllies) unless MayHitBrokenAllies. The best five are checked
     /// against the verb (line of sight). Approach: the same scoring out to range + approachDistance, without the verb.
     /// Cost: k WouldAffect checks and k² distance checks, then up to 10 target validations.
     /// </summary>
@@ -292,11 +305,12 @@ namespace AbilityAI
             float maxSq = range * range, minSq = ext.minRange * ext.minRange;
             IntVec3 from = ctx.pawn.Position;
 
+            bool spareBroken = !AbilityAIUtility.MayHitBrokenAllies(ext);
             affected.Clear();
             int affectable = 0;
             for (int i = 0; i < enemies.Count; i++)
             {
-                bool a = AbilityAIUtility.WouldAffect(ability, ext, enemies[i]);
+                bool a = (!spareBroken || !ctx.IsBrokenAlly(enemies[i])) && AbilityAIUtility.WouldAffect(ability, ext, enemies[i]);
                 affected.Add(a);
                 if (a) affectable++;
             }
@@ -307,11 +321,12 @@ namespace AbilityAI
                 Pawn e = enemies[i];
                 float d = (e.Position - from).LengthHorizontalSquared;
                 if (d > maxSq || d < minSq) continue;
+                if (spareBroken && !affected[i] && ctx.IsBrokenAlly(e)) continue;
                 int count = 0;
                 for (int j = 0; j < enemies.Count; j++)
                     if (affected[j] && (j == i || (enemies[j].Position - e.Position).LengthHorizontalSquared <= r2)) count++;
                 if (count < ext.minTargets) continue;
-                if (ext.avoidAllies && radius > 0f && AnyAllyNear(ctx, e.Position, r2)) continue;
+                if (ext.avoidAllies && radius > 0f && AnyAllyNear(ctx, e.Position, r2, spareBroken)) continue;
                 centres.Add(new Centre { pawn = e, count = count, distSq = d });
             }
             // Most enemies caught first, then the nearest (more likely to be in sight)
@@ -319,13 +334,12 @@ namespace AbilityAI
             return centres.Count > 0;
         }
 
-        // Anyone on the caster's side, colonists included when the caster is a friendly visitor
-        private static bool AnyAllyNear(AbilityAIContext ctx, IntVec3 c, float r2)
+        // Anyone on the caster's side, colonists included when the caster is a friendly visitor, and the ones in a
+        // hostile break when they are to be spared
+        private static bool AnyAllyNear(AbilityAIContext ctx, IntVec3 c, float r2, bool spareBroken)
         {
-            var side = ctx.Friendlies;
-            for (int i = 0; i < side.Count; i++)
-                if ((side[i].Position - c).LengthHorizontalSquared <= r2) return true;
-            return false;
+            if (TargetingUtil.AnyWithin(ctx.Friendlies, c, r2)) return true;
+            return spareBroken && TargetingUtil.AnyWithin(ctx.BrokenAllies, c, r2);
         }
     }
 

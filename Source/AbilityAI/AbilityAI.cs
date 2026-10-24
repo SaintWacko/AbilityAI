@@ -248,8 +248,9 @@ namespace AbilityAI
         public int tick;
 
         private bool combatKnown, inCombat;
-        private bool enemiesBuilt, alliesBuilt, aimsBuilt, friendliesBuilt, brokenBuilt;
+        private bool enemiesBuilt, alliesBuilt, aimsBuilt, friendliesBuilt, brokenBuilt, supportBuilt;
         private readonly List<Pawn> brokenAllies = new List<Pawn>();
+        private readonly List<Pawn> supportAllies = new List<Pawn>();
         private readonly List<Pawn> friendlies = new List<Pawn>();
         private readonly List<Pawn> enemies = new List<Pawn>();
         private readonly List<Pawn> allies = new List<Pawn>();
@@ -273,7 +274,7 @@ namespace AbilityAI
             tick = t;
             approachAbility = walkingFor;
             approachExpected = expected;
-            combatKnown = enemiesBuilt = alliesBuilt = aimsBuilt = friendliesBuilt = brokenBuilt = enemyTargetKnown = false;
+            combatKnown = enemiesBuilt = alliesBuilt = aimsBuilt = friendliesBuilt = brokenBuilt = supportBuilt = enemyTargetKnown = false;
         }
 
         internal void End()
@@ -284,6 +285,7 @@ namespace AbilityAI
             aimedAt.Clear();
             friendlies.Clear();
             brokenAllies.Clear();
+            supportAllies.Clear();
             enemyTarget = null;
             pawn = null;
             map = null;
@@ -354,10 +356,17 @@ namespace AbilityAI
                     }
                     else
                     {
-                        // The cache hands back one shared list that its next caller clears, so copy out of it at once
+                        // The cache hands back one shared list that its next caller clears, so copy out of it at once.
+                        // It can list a pawn twice: a hostile raider in an aggro break comes from both the faction set
+                        // and the mental-state set, and a prison-breaking or rebelling caster adds its host's pawns on
+                        // top. Counting it twice would inflate area casts, so those are checked against the list.
+                        bool casterBreaking = pawn.guest != null && (PrisonBreakUtility.IsPrisonBreaking(pawn)
+                            || (ModsConfig.IdeologyActive && SlaveRebellionUtility.IsRebelling(pawn)));
                         var targets = map.attackTargetsCache.GetPotentialTargetsFor(pawn);
                         for (int i = 0; i < targets.Count; i++)
-                            if (targets[i].Thing is Pawn p && IsEnemy(p)) enemies.Add(p);
+                            if (targets[i].Thing is Pawn p && IsEnemy(p)
+                                && ((p.MentalState == null && !casterBreaking) || !enemies.Contains(p)))
+                                enemies.Add(p);
                     }
                 }
                 return enemies;
@@ -409,6 +418,24 @@ namespace AbilityAI
             {
                 BuildAllies();
                 return allies;
+            }
+        }
+
+        /// <summary>Allies a buff may go to: Allies without those in a hostile break (IsBrokenAlly), so Focus,
+        /// Painblock or Invisibility never strengthen a berserker against its own side. The caster is always in it.
+        /// Built on first use: one mental-state read per ally.</summary>
+        public List<Pawn> SupportAllies
+        {
+            get
+            {
+                if (!supportBuilt)
+                {
+                    supportBuilt = true;
+                    var own = Allies;
+                    for (int i = 0; i < own.Count; i++)
+                        if (own[i] == pawn || !IsBrokenAlly(own[i])) supportAllies.Add(own[i]);
+                }
+                return supportAllies;
             }
         }
 

@@ -85,6 +85,7 @@
                 <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
                 <priority>4</priority>
                 <meleeOnly>true</meleeOnly>
+                <harmless>true</harmless>
               </li>
             </value>
           </match>

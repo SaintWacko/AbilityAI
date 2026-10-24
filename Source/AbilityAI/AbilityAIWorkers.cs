@@ -384,7 +384,7 @@ namespace AbilityAI
 
             // Allies (not the caster) that would gain the buff and could be covered from a reachable cell
             near.Clear();
-            var allies = ctx.Allies;
+            var allies = ctx.SupportAllies;
             for (int i = 0; i < allies.Count; i++)
             {
                 Pawn a = allies[i];
@@ -449,7 +449,7 @@ namespace AbilityAI
             float radius = AbilityAIUtility.Radius(ability, ext);
             float r2 = radius * radius;
             HediffDef hediff = AbilityAIUtility.Hediff(ability, ext);
-            var allies = ctx.Allies;
+            var allies = ctx.SupportAllies;
 
             if (AbilityAIUtility.IsSelfCast(ability))
             {

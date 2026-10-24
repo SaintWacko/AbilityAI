@@ -148,7 +148,7 @@ namespace AbilityAI
             bool self = AbilityAIUtility.CanTargetSelf(ability);
             bool onlySelf = AbilityAIUtility.IsSelfCast(ability);
             HediffDef hediff = AbilityAIUtility.Hediff(ability, ext);
-            var allies = ctx.Allies;
+            var allies = ctx.SupportAllies;
             for (int i = 0; i < allies.Count; i++)
             {
                 Pawn a = allies[i];
@@ -186,7 +186,7 @@ namespace AbilityAI
             float range = TargetingUtil.Reach(ability, ext);
             float maxSq = range * range;
             HediffDef hediff = AbilityAIUtility.Hediff(ability, ext);
-            var allies = ctx.Allies;
+            var allies = ctx.SupportAllies;
             for (int i = 0; i < allies.Count; i++)
             {
                 Pawn a = allies[i];

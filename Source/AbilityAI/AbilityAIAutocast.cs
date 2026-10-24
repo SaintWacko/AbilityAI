@@ -69,7 +69,8 @@ namespace AbilityAI
 
         private static AbilityAIAutocast instance;
         // Only pawns with at least one mode set are in here, so "does this pawn autocast anything" is one lookup
-        private readonly Dictionary<Pawn, Dictionary<AbilityDef, AbilityAIAutocastMode>> modes = new Dictionary<Pawn, Dictionary<AbilityDef, AbilityAIAutocastMode>>();
+        // Keyed by Def so another ability system's defs can share it; only AbilityDef entries are saved here
+        private readonly Dictionary<Pawn, Dictionary<Def, AbilityAIAutocastMode>> modes = new Dictionary<Pawn, Dictionary<Def, AbilityAIAutocastMode>>();
         private readonly Dictionary<Pawn, Limits> limits = new Dictionary<Pawn, Limits>();
         private List<Entry> saved;
         private List<LimitsEntry> savedLimits;
@@ -93,14 +94,14 @@ namespace AbilityAI
             return inst != null && inst.modes.ContainsKey(pawn);
         }
 
-        public static AbilityAIAutocastMode ModeFor(Pawn pawn, AbilityDef def)
+        public static AbilityAIAutocastMode ModeFor(Pawn pawn, Def def)
         {
             var inst = Instance;
             if (inst == null || !inst.modes.TryGetValue(pawn, out var byDef)) return AbilityAIAutocastMode.Off;
             return byDef.TryGetValue(def, out var m) ? m : AbilityAIAutocastMode.Off;
         }
 
-        public static void SetMode(Pawn pawn, AbilityDef def, AbilityAIAutocastMode mode)
+        public static void SetMode(Pawn pawn, Def def, AbilityAIAutocastMode mode)
         {
             var inst = Instance ?? Find.World?.GetComponent<AbilityAIAutocast>();
             if (inst == null || pawn == null || def == null) return;
@@ -114,7 +115,7 @@ namespace AbilityAI
                 }
                 return;
             }
-            if (!inst.modes.TryGetValue(pawn, out var d)) inst.modes[pawn] = d = new Dictionary<AbilityDef, AbilityAIAutocastMode>();
+            if (!inst.modes.TryGetValue(pawn, out var d)) inst.modes[pawn] = d = new Dictionary<Def, AbilityAIAutocastMode>();
             d[def] = mode;
         }
 
@@ -155,8 +156,8 @@ namespace AbilityAI
                     // A discarded pawn is gone for good; a dead one may still be resurrected
                     if (kv.Key == null || kv.Key.Discarded) continue;
                     foreach (var m in kv.Value)
-                        if (m.Key != null && m.Value != AbilityAIAutocastMode.Off)
-                            saved.Add(new Entry { pawn = kv.Key, def = m.Key, mode = m.Value });
+                        if (m.Key is AbilityDef def && m.Value != AbilityAIAutocastMode.Off)
+                            saved.Add(new Entry { pawn = kv.Key, def = def, mode = m.Value });
                 }
             }
             if (Scribe.mode == LoadSaveMode.Saving)

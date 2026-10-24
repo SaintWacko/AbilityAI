@@ -97,6 +97,18 @@ namespace AbilityAI
             return true;
         }
 
+        // Hooks vote on vanilla abilities only (their API takes one): any other kind goes by the Unclaimed setting for
+        // NPCs and is never vetoed for the player's pawns
+        internal static bool Allowed(Pawn pawn, AIAbility ability) =>
+            ability.Vanilla != null ? Allowed(pawn, ability.Vanilla) : AbilityAISettings.Unclaimed;
+
+        internal static bool NotVetoed(Pawn pawn, AIAbility ability) => ability.Vanilla == null || NotVetoed(pawn, ability.Vanilla);
+
+        internal static void NotifyCast(Pawn pawn, AIAbility ability, LocalTargetInfo target, LocalTargetInfo dest)
+        {
+            if (ability.Vanilla != null) NotifyCast(pawn, ability.Vanilla, target, dest);
+        }
+
         internal static void NotifyCast(Pawn pawn, Ability ability, LocalTargetInfo target, LocalTargetInfo dest)
         {
             for (int i = 0; i < hooks.Count; i++)
@@ -258,15 +270,15 @@ namespace AbilityAI
         private readonly Dictionary<Pawn, int> aimedAt = new Dictionary<Pawn, int>();
         private Thing enemyTarget;
         private bool enemyTargetKnown;
-        private AbilityDef approachAbility;
+        private Def approachAbility;
         private int approachExpected;
         private bool drafted;
 
         /// <summary>While the pawn walks to a cell a worker chose with TryFindApproachCell for this ability: how
         /// many targets the worker expected to reach from there. 0 otherwise.</summary>
-        public int ApproachExpected(Ability ability) => ability.def == approachAbility ? approachExpected : 0;
+        public int ApproachExpected(AIAbility ability) => ability.Def == approachAbility ? approachExpected : 0;
 
-        internal void Begin(Pawn p, int t, AbilityDef walkingFor, int expected, bool drafted)
+        internal void Begin(Pawn p, int t, Def walkingFor, int expected, bool drafted)
         {
             pawn = p;
             this.drafted = drafted;
@@ -578,11 +590,11 @@ namespace AbilityAI
             // The last interval set was the slow undrafted one: drafting, fighting back or fleeing cuts it short
             public bool slowEval;
             public int nextCastTick;
-            public Dictionary<AbilityDef, int> abilityNext;
-            public Dictionary<AbilityDef, int> approachNext;
+            public Dictionary<Def, int> abilityNext;
+            public Dictionary<Def, int> approachNext;
             public int approachJobId = -1;
             // Set by a TryFindApproachCell walk, cleared with approachJobId
-            public AbilityDef approachAbility;
+            public Def approachAbility;
             public int approachExpected;
 
             // Player Full mode: where the pawn stood before it walked to cast, the AttackStatic it was on (a fresh
@@ -616,7 +628,7 @@ namespace AbilityAI
 
         private struct Candidate
         {
-            public Ability ability;
+            public AIAbility ability;
             public AbilityAIExtension ext;
         }
 
@@ -624,6 +636,8 @@ namespace AbilityAI
         private static readonly ConditionalWeakTable<Pawn, PawnState> states = new ConditionalWeakTable<Pawn, PawnState>();
         private static readonly AbilityAIContext ctx = new AbilityAIContext();
         private static readonly List<Candidate> candidates = new List<Candidate>();
+        // The pawn's abilities with an extension, from every source; filled by Collect, emptied after TryGiveJob
+        private static readonly List<AIAbility> collected = new List<AIAbility>();
         private static bool evaluating;
         // The set of workers the pawn being evaluated may use (All for NPCs)
         private static PlayerSet curSet = PlayerSet.All;
@@ -635,50 +649,46 @@ namespace AbilityAI
         /// differ for the player's own pawns (what Calm will end, how far it walks).</summary>
         internal static bool EvaluatingPlayer => evaluating && curPlayer;
 
-        /// <summary>Whether any of these abilities has an AI extension. The first check that touches defs.</summary>
-        internal static bool AnyWithExtension(List<Ability> abilities)
+        internal static bool Evaluating => evaluating;
+
+        /// <summary>The pawn's abilities that have an AI extension, from every source, into one shared list that
+        /// TryGiveJob reads and ReleaseCollected empties. The first check that touches defs.</summary>
+        internal static List<AIAbility> Collect(Pawn pawn)
         {
-            for (int i = 0; i < abilities.Count; i++)
-                if (abilities[i].def.GetModExtension<AbilityAIExtension>() != null) return true;
-            return false;
+            collected.Clear();
+            AIAbilitySources.Collect(pawn, collected);
+            return collected;
         }
 
-        /// <summary>A psycast the pawn could pay for. Checked up front because Verb_CastPsycast.ValidateTarget posts
-        /// its "not enough psyfocus" and similar messages whatever showMessages says, and Psycast.CanCast only checks
-        /// psyfocus for psycasts without neural heat.</summary>
-        private static bool PsycastAffordable(Ability a)
-        {
-            if (!(a is Psycast)) return true;
-            var pe = a.pawn.psychicEntropy;
-            if (pe == null || pe.PsychicSensitivity < float.Epsilon) return false;
-            return a.def.PsyfocusCost <= pe.CurrentPsyfocus + Pawn_PsychicEntropyTracker.PsyfocusCostTolerance;
-        }
+        // The wrappers hold their pawns: don't keep them past the evaluation
+        internal static void ReleaseCollected() => collected.Clear();
 
         /// <summary>The player's per-pawn psycast limits (the gizmo beside vanilla's psyfocus one): the cast must not
         /// push neural heat over the cap or psyfocus under the floor. Real Psycasts only; a pawn with no limits set
         /// stops at one dictionary lookup. Without a target the cheapest cost the psycast can have is used (asked
         /// while choosing candidates); with one, the cost for that target (Word of Serenity costs more for a worse
         /// break).</summary>
-        private static bool PsycastWithinLimits(Ability a, LocalTargetInfo target)
+        private static bool PsycastWithinLimits(AIAbility a, LocalTargetInfo target)
         {
-            if (!(a is Psycast ps)) return true;
-            if (!AbilityAIAutocast.TryGetLimits(a.pawn, out float heatCap, out float focusFloor)) return true;
-            var pe = a.pawn.psychicEntropy;
+            if (!a.IsPsycast) return true;
+            Pawn pawn = a.Pawn;
+            if (!AbilityAIAutocast.TryGetLimits(pawn, out float heatCap, out float focusFloor)) return true;
+            var pe = pawn.psychicEntropy;
             if (pe == null) return true;
             if (heatCap < 1f)
             {
-                float gain = a.def.EntropyGain;
+                float gain = a.HeatGain;
                 if (gain > float.Epsilon)
                 {
                     // As Pawn_PsychicEntropyTracker.TryAddEntropy scales it; both stats cached for 250 ticks
-                    gain *= a.pawn.GetStatValue(StatDefOf.PsychicEntropyGain, true, 250);
-                    float max = a.pawn.GetStatValue(StatDefOf.PsychicEntropyMax, true, 250);
+                    gain *= pawn.GetStatValue(StatDefOf.PsychicEntropyGain, true, 250);
+                    float max = pawn.GetStatValue(StatDefOf.PsychicEntropyMax, true, 250);
                     if (pe.EntropyValue + gain > heatCap * max) return false;
                 }
             }
             if (focusFloor > 0f)
             {
-                float cost = target.IsValid ? ps.FinalPsyfocusCost(target) : a.def.PsyfocusCostRange.min;
+                float cost = a.PsyfocusCost(target);
                 if (cost > float.Epsilon && pe.CurrentPsyfocus - cost < focusFloor - Pawn_PsychicEntropyTracker.PsyfocusCostTolerance) return false;
             }
             return true;
@@ -833,9 +843,9 @@ namespace AbilityAI
         }
 
         // The player's own pawn: their mode counts as the claim, but a hook can still veto (an item bound to someone else)
-        private static bool PlayerAllowed(Pawn pawn, Ability a)
+        private static bool PlayerAllowed(Pawn pawn, AIAbility a)
         {
-            return AbilityAIAutocast.ModeFor(pawn, a.def) != AbilityAIAutocastMode.Off && AbilityAIHooks.NotVetoed(pawn, a);
+            return AbilityAIAutocast.ModeFor(pawn, a.Def) != AbilityAIAutocastMode.Off && AbilityAIHooks.NotVetoed(pawn, a);
         }
 
         /// <summary>Whether this mod is the one that decides when this pawn casts this ability: the AI is on, the
@@ -879,7 +889,7 @@ namespace AbilityAI
         }
 
         /// <summary>Any of its extensions has a working worker (TryGiveJob tries them all) in the given set.</summary>
-        internal static bool HasWorker(AbilityDef def, PlayerSet set)
+        internal static bool HasWorker(Def def, PlayerSet set)
         {
             var exts = def.modExtensions;
             if (exts == null) return false;
@@ -891,83 +901,19 @@ namespace AbilityAI
         /// <summary>Every vanilla check a player's cast would pass, minus aiCanUse (see the file header), plus each
         /// effect comp's AI veto. Workers call it on each target they consider; it is also run once more on the
         /// target they return.</summary>
-        public static bool Valid(Ability ability, LocalTargetInfo target)
-        {
-            if (!ValidIgnoringRange(ability, target)) return false;
-            return ability.verb.ValidateTarget(target, false);
-        }
+        public static bool Valid(Ability ability, LocalTargetInfo target) => VanillaAIAbility.Of(ability).Valid(target);
+
+        public static bool Valid(AIAbility ability, LocalTargetInfo target) => ability.Valid(target);
 
         /// <summary>Valid, short of the verb's own check (range, line of sight, reachability; it repeats the comps'
         /// Valid). For targets the pawn means to walk into range of. The player-caster comp rules (CompAllowsTarget)
         /// apply only while TryGiveJob is evaluating a pawn under Control.Player; called from anywhere else, every
         /// comp's own AICanTargetNow decides.</summary>
-        public static bool ValidIgnoringRange(Ability ability, LocalTargetInfo target)
-        {
-            if (!target.IsValid) return false;
-            // The comps' own Valid first and quietly: some comps' CanApplyOn calls Valid with messages on
-            // (CompAbilityEffect_Wallraise), which would post "occupied cells" for every spot the AI tries
-            var comps = ability.EffectComps;
-            if (comps != null)
-                for (int i = 0; i < comps.Count; i++)
-                    if (!comps[i].Valid(target, false)) return false;
-            if (!ability.CanApplyOn(target)) return false;
-            if (comps != null)
-            {
-                bool player = evaluating && curPlayer;
-                for (int i = 0; i < comps.Count; i++)
-                    if (!CompAllowsTarget(comps[i], target, player)) return false;
-            }
-            if (ability is Psycast ps && !PsycastValidOn(ps, target)) return false;
-            return true;
-        }
+        public static bool ValidIgnoringRange(Ability ability, LocalTargetInfo target) => VanillaAIAbility.Of(ability).ValidIgnoringRange(target);
 
-        // Some vanilla comps open AICanTargetNow with "if the caster is the player's, no": vanilla's AI never casts
-        // for colonists, so that line only ever stopped vanilla's own AI. For our player autocast it fails every
-        // target (Painblock, Focus, Invisibility, Burden... never fired). For those comps, and only for player
-        // casters, the rest of the method's rule is applied here instead. Decided once per runtime comp type: a
-        // subclass that declares its own AICanTargetNow is asked as usual, since its author's rule may be real.
-        private enum PlayerAIRule : byte { Ask, TargetIsPawn, TargetAimsAtCaster }
-        private static readonly Dictionary<Type, PlayerAIRule> playerAIRules = new Dictionary<Type, PlayerAIRule>();
+        public static bool ValidIgnoringRange(AIAbility ability, LocalTargetInfo target) => ability.ValidIgnoringRange(target);
 
-        private static bool CompAllowsTarget(CompAbilityEffect comp, LocalTargetInfo target, bool playerCaster)
-        {
-            if (!playerCaster) return comp.AICanTargetNow(target);
-            var type = comp.GetType();
-            if (!playerAIRules.TryGetValue(type, out var rule))
-            {
-                var declaring = type.GetMethod(nameof(CompAbilityEffect.AICanTargetNow), new[] { typeof(LocalTargetInfo) })?.DeclaringType;
-                rule = declaring == typeof(CompAbilityEffect_GiveHediff) ? PlayerAIRule.TargetIsPawn
-                     : declaring == typeof(CompAbilityEffect_FireBurst) ? PlayerAIRule.TargetAimsAtCaster
-                     : PlayerAIRule.Ask;
-                playerAIRules[type] = rule;
-            }
-            switch (rule)
-            {
-                case PlayerAIRule.TargetIsPawn: return target.Pawn != null;
-                case PlayerAIRule.TargetAimsAtCaster:
-                    return target.Thing is Pawn p && p.TargetCurrentlyAimingAt == comp.parent.pawn;
-                default: return comp.AICanTargetNow(target);
-            }
-        }
-
-        // The rest of Verb_CastPsycast.ValidateTarget, which would post messages, plus immunity: a psycast on a pawn
-        // with no psychic sensitivity only shows "immune" and spends the heat
-        private static bool PsycastValidOn(Psycast ps, LocalTargetInfo target)
-        {
-            var pe = ps.pawn.psychicEntropy;
-            float cost = ps.FinalPsyfocusCost(target);
-            if (cost > float.Epsilon && cost > pe.CurrentPsyfocus + Pawn_PsychicEntropyTracker.PsyfocusCostTolerance) return false;
-            Pawn p = target.Pawn;
-            if (p == null) return true;
-            if (p.kindDef.isBoss)
-            {
-                var comps = ps.EffectComps;
-                for (int i = 0; i < comps.Count; i++) if (!comps[i].Props.canTargetBosses) return false;
-            }
-            return ps.CanApplyPsycastTo(target);
-        }
-
-        internal static Job TryGiveJob(Pawn pawn, List<Ability> abilities, Control control)
+        internal static Job TryGiveJob(Pawn pawn, List<AIAbility> abilities, Control control)
         {
             if (evaluating) return null;
             int tick = Find.TickManager.TicksGame;
@@ -1013,9 +959,9 @@ namespace AbilityAI
                 candidates.Clear();
                 for (int i = 0; i < abilities.Count; i++)
                 {
-                    Ability a = abilities[i];
-                    var exts = a.def.modExtensions;
-                    if (exts == null || a.verb == null) continue;
+                    AIAbility a = abilities[i];
+                    var exts = a.Def.modExtensions;
+                    if (exts == null) continue;
                     bool checkedReady = false, ready = false;
                     for (int j = 0; j < exts.Count; j++)
                     {
@@ -1024,8 +970,8 @@ namespace AbilityAI
                         if (!checkedReady)
                         {
                             checkedReady = true;
-                            ready = a.CanCast && PsycastAffordable(a)
-                                && (state.abilityNext == null || !state.abilityNext.TryGetValue(a.def, out int next) || tick >= next)
+                            ready = a.CanCastNow
+                                && (state.abilityNext == null || !state.abilityNext.TryGetValue(a.Def, out int next) || tick >= next)
                                 && (player ? PlayerAllowed(pawn, a) && PsycastWithinLimits(a, LocalTargetInfo.Invalid) : AbilityAIHooks.Allowed(pawn, a));
                         }
                         if (!ready) break;
@@ -1039,7 +985,7 @@ namespace AbilityAI
 
                 for (int i = 0; i < candidates.Count; i++)
                 {
-                    Ability a = candidates[i].ability;
+                    AIAbility a = candidates[i].ability;
                     var ext = candidates[i].ext;
                     var worker = ext.Worker;
                     if (!CombatAllows(worker)) continue;
@@ -1051,14 +997,14 @@ namespace AbilityAI
                     state.nextCastTick = tick + Mathf.RoundToInt(AbilityAISettings.MinGapSeconds * GenTicks.TicksPerRealSecond);
                     if (ext.minGapSeconds > 0f)
                     {
-                        if (state.abilityNext == null) state.abilityNext = new Dictionary<AbilityDef, int>();
-                        state.abilityNext[a.def] = tick + Mathf.RoundToInt(ext.minGapSeconds * GenTicks.TicksPerRealSecond);
+                        if (state.abilityNext == null) state.abilityNext = new Dictionary<Def, int>();
+                        state.abilityNext[a.Def] = tick + Mathf.RoundToInt(ext.minGapSeconds * GenTicks.TicksPerRealSecond);
                     }
                     if (AbilityAISettings.DebugLog && Prefs.DevMode)
-                        Log.Message($"[Ability AI] {pawn.LabelShort} casts {a.def.label} ({worker.GetType().Name}) on {target}");
+                        Log.Message($"[Ability AI] {pawn.LabelShort} casts {a.Label} ({worker.GetType().Name}) on {target}");
                     AbilityAIHooks.NotifyCast(pawn, a, target, dest);
                     if (player) QueueAfterCast(pawn, state);
-                    return a.GetJob(target, dest);
+                    return a.MakeCastJob(target, dest);
                 }
                 if (!player) return TryApproach(state, false);
                 if (returnDue) return ReturnJob(pawn, state);
@@ -1232,11 +1178,11 @@ namespace AbilityAI
             if (AbilityAIUtility.IsFleeing(ctx) || AbilityAIUtility.InMelee(ctx)) return null;
             for (int i = 0; i < candidates.Count; i++)
             {
-                Ability a = candidates[i].ability;
+                AIAbility a = candidates[i].ability;
                 var ext = candidates[i].ext;
                 if (ext.approachDistance <= 0f || ctx.HealthFraction < ext.healthThreshold || !CombatAllows(ext.Worker)) continue;
-                if (player && AbilityAIAutocast.ModeFor(pawn, a.def) != AbilityAIAutocastMode.Full) continue;
-                if (state.approachNext != null && state.approachNext.TryGetValue(a.def, out int next) && ctx.tick < next) continue;
+                if (player && AbilityAIAutocast.ModeFor(pawn, a.Def) != AbilityAIAutocastMode.Full) continue;
+                if (state.approachNext != null && state.approachNext.TryGetValue(a.Def, out int next) && ctx.tick < next) continue;
                 IntVec3 cell;
                 int expected = 0;
                 string at;
@@ -1246,8 +1192,8 @@ namespace AbilityAI
                 else if (byCell)
                 {
                     // Nothing worth walking to: that scan is m³, so don't repeat it every 30 ticks
-                    if (state.approachNext == null) state.approachNext = new Dictionary<AbilityDef, int>();
-                    state.approachNext[a.def] = ctx.tick + ApproachFailRetryTicks;
+                    if (state.approachNext == null) state.approachNext = new Dictionary<Def, int>();
+                    state.approachNext[a.Def] = ctx.tick + ApproachFailRetryTicks;
                     continue;
                 }
                 else
@@ -1257,22 +1203,22 @@ namespace AbilityAI
                     if (!TryFindApproachCell(a, ext, goal, out cell))
                     {
                         // The cast-position search is the costliest step here: not again for 2 s
-                        if (state.approachNext == null) state.approachNext = new Dictionary<AbilityDef, int>();
-                        state.approachNext[a.def] = ctx.tick + ApproachFailRetryTicks;
+                        if (state.approachNext == null) state.approachNext = new Dictionary<Def, int>();
+                        state.approachNext[a.Def] = ctx.tick + ApproachFailRetryTicks;
                         continue;
                     }
                     expected = 0;
                     at = goal.LabelShort;
                 }
 
-                if (state.approachNext == null) state.approachNext = new Dictionary<AbilityDef, int>();
-                state.approachNext[a.def] = ctx.tick + ApproachRetryTicks;
+                if (state.approachNext == null) state.approachNext = new Dictionary<Def, int>();
+                state.approachNext[a.Def] = ctx.tick + ApproachRetryTicks;
                 Job job = JobMaker.MakeJob(JobDefOf.Goto, cell);
                 job.expiryInterval = ApproachExpiryTicks;
                 job.checkOverrideOnExpire = false;
                 job.locomotionUrgency = LocomotionUrgency.Jog;
                 state.approachJobId = job.loadID;
-                state.approachAbility = expected > 0 ? a.def : null;
+                state.approachAbility = expected > 0 ? a.Def : null;
                 state.approachExpected = expected;
                 if (player)
                 {
@@ -1283,7 +1229,7 @@ namespace AbilityAI
                     if (cur != null && cur.def == JobDefOf.AttackStatic && cur.def.suspendable) state.resume = Resume(cur);
                 }
                 if (AbilityAISettings.DebugLog && Prefs.DevMode)
-                    Log.Message($"[Ability AI] {pawn.LabelShort} moves to {cell} to cast {a.def.label} ({ext.Worker.GetType().Name}) at {at}");
+                    Log.Message($"[Ability AI] {pawn.LabelShort} moves to {cell} to cast {a.Label} ({ext.Worker.GetType().Name}) at {at}");
                 return job;
             }
             return null;
@@ -1291,7 +1237,7 @@ namespace AbilityAI
 
         // A self-cast ability walks toward the goal itself (Battle Cry: toward the allies); a targeted one to a
         // vanilla cast position for its verb, preferring cover from the target as the fight AI does
-        private static bool TryFindApproachCell(Ability a, AbilityAIExtension ext, Thing goal, out IntVec3 cell)
+        private static bool TryFindApproachCell(AIAbility a, AbilityAIExtension ext, Thing goal, out IntVec3 cell)
         {
             Pawn pawn = ctx.pawn;
             cell = IntVec3.Invalid;
@@ -1304,7 +1250,7 @@ namespace AbilityAI
             {
                 caster = pawn,
                 target = goal,
-                verb = a.verb,
+                verb = a.Verb,
                 maxRangeFromTarget = Mathf.Max(1.5f, AbilityAIUtility.Range(a, ext) - 1f),
                 maxRangeFromCaster = ext.approachDistance + 3f,
                 wantCoverFromTarget = true,
@@ -1474,8 +1420,8 @@ namespace AbilityAI
     }
 
     /// <summary>Runs the ability AI whenever the constant think tree has nothing to do, as Bastle Framework's
-    /// BastleAI does. Pawns with no abilities return after three field reads; pawns whose abilities have no AI
-    /// extension after one def lookup per ability.</summary>
+    /// BastleAI does. Pawns with no abilities return after a few field reads per ability source; pawns whose
+    /// abilities have no AI extension after one def lookup per ability.</summary>
     [HarmonyPatch(typeof(Pawn_JobTracker), "DetermineNextConstantThinkTreeJob")]
     internal static class Patch_AbilityAI_ConstantThinkTree
     {
@@ -1505,13 +1451,11 @@ namespace AbilityAI
                 if (!(__result.SourceNode is JobGiver_ConfigurableHostilityResponse)) return;
                 overHostility = true;
             }
-            var tracker = ___pawn?.abilities;
-            if (tracker == null) return;
-            var abilities = tracker.AllAbilitiesForReading;
-            if (abilities.Count == 0) return;
+            // Collect shares one list with the evaluation that is running
+            if (___pawn == null || AbilityAIDriver.Evaluating || !AIAbilitySources.HasAny(___pawn)) return;
             // The player's pawns with nothing set to autocast stop at one dictionary lookup here
             var control = AbilityAIDriver.ControlOf(___pawn);
-            if (control == AbilityAIDriver.Control.None || !AbilityAIDriver.AnyWithExtension(abilities)) return;
+            if (control == AbilityAIDriver.Control.None) return;
             if (overHostility && control != AbilityAIDriver.Control.Player) return;
             // Vanilla starts these jobs against the constant tree and saves the job giver's key in it; with no
             // constant tree a saved job would throw on load.
@@ -1538,6 +1482,8 @@ namespace AbilityAI
             }
             try
             {
+                var abilities = AbilityAIDriver.Collect(___pawn);
+                if (abilities.Count == 0) return;
                 Job job = AbilityAIDriver.TryGiveJob(___pawn, abilities, control);
                 // The tree's root as the source: the AI has no think node of its own, so a pawn saved mid-cast would
                 // otherwise log a missing think node on load
@@ -1552,6 +1498,10 @@ namespace AbilityAI
             {
                 // Vanilla's constant-tree call has its own try/catch; this runs after it
                 Log.ErrorOnce($"[Ability AI] threw for {___pawn.def.defName}: {e}", ___pawn.def.shortHash ^ 0x7A12);
+            }
+            finally
+            {
+                AbilityAIDriver.ReleaseCollected();
             }
         }
     }

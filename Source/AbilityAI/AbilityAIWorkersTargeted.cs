@@ -15,7 +15,7 @@ namespace AbilityAI
 
         /// <summary>The verb's range, or for a touch ability (the Word of psycasts, range 0 or less) maxRange or 20
         /// tiles: the cast job walks there, so this is how far the AI looks.</summary>
-        public static float Reach(Ability ability, AbilityAIExtension ext)
+        public static float Reach(AIAbility ability, AbilityAIExtension ext)
         {
             float r = AbilityAIUtility.Range(ability, ext);
             if (r > 0f) return r;
@@ -47,7 +47,7 @@ namespace AbilityAI
         public static void SortBest(List<Cand> list) => list.Sort((a, b) => b.score.CompareTo(a.score));
 
         /// <summary>The first of the best few the ability accepts as a pawn target.</summary>
-        public static bool FirstValid(List<Cand> list, Ability ability, out LocalTargetInfo target)
+        public static bool FirstValid(List<Cand> list, AIAbility ability, out LocalTargetInfo target)
         {
             target = LocalTargetInfo.Invalid;
             SortBest(list);
@@ -73,14 +73,14 @@ namespace AbilityAI
     {
         private static readonly List<TargetingUtil.Cand> cands = new List<TargetingUtil.Cand>();
 
-        public override bool TryFindTarget(AbilityAIContext ctx, Ability ability, out LocalTargetInfo target, out LocalTargetInfo dest)
+        public override bool TryFindTarget(AbilityAIContext ctx, AIAbility ability, out LocalTargetInfo target, out LocalTargetInfo dest)
         {
             dest = LocalTargetInfo.Invalid;
             Score(ctx, ability, TargetingUtil.Reach(ability, ext));
             return TargetingUtil.FirstValid(cands, ability, out target);
         }
 
-        public override bool TryFindApproachTarget(AbilityAIContext ctx, Ability ability, float reach, out Thing goal)
+        public override bool TryFindApproachTarget(AbilityAIContext ctx, AIAbility ability, float reach, out Thing goal)
         {
             goal = null;
             Score(ctx, ability, reach);
@@ -91,7 +91,7 @@ namespace AbilityAI
             return goal != null;
         }
 
-        private void Score(AbilityAIContext ctx, Ability ability, float range)
+        private void Score(AbilityAIContext ctx, AIAbility ability, float range)
         {
             cands.Clear();
             var enemies = ctx.Enemies;
@@ -139,7 +139,7 @@ namespace AbilityAI
     {
         private static readonly List<TargetingUtil.Cand> cands = new List<TargetingUtil.Cand>();
 
-        public override bool TryFindTarget(AbilityAIContext ctx, Ability ability, out LocalTargetInfo target, out LocalTargetInfo dest)
+        public override bool TryFindTarget(AbilityAIContext ctx, AIAbility ability, out LocalTargetInfo target, out LocalTargetInfo dest)
         {
             dest = LocalTargetInfo.Invalid;
             cands.Clear();
@@ -177,7 +177,7 @@ namespace AbilityAI
         private const float DangerRange = 15f;
         private static readonly List<TargetingUtil.Cand> cands = new List<TargetingUtil.Cand>();
 
-        public override bool TryFindTarget(AbilityAIContext ctx, Ability ability, out LocalTargetInfo target, out LocalTargetInfo dest)
+        public override bool TryFindTarget(AbilityAIContext ctx, AIAbility ability, out LocalTargetInfo target, out LocalTargetInfo dest)
         {
             dest = LocalTargetInfo.Invalid;
             cands.Clear();
@@ -223,7 +223,7 @@ namespace AbilityAI
         protected override AbilityAICombat DefaultCombat => AbilityAICombat.Any;
         private static readonly List<TargetingUtil.Cand> cands = new List<TargetingUtil.Cand>();
 
-        public override bool TryFindTarget(AbilityAIContext ctx, Ability ability, out LocalTargetInfo target, out LocalTargetInfo dest)
+        public override bool TryFindTarget(AbilityAIContext ctx, AIAbility ability, out LocalTargetInfo target, out LocalTargetInfo dest)
         {
             dest = LocalTargetInfo.Invalid;
             cands.Clear();
@@ -255,7 +255,7 @@ namespace AbilityAI
         protected override AbilityAICombat DefaultCombat => AbilityAICombat.Any;
         private static readonly List<TargetingUtil.Cand> cands = new List<TargetingUtil.Cand>();
 
-        public override bool TryFindTarget(AbilityAIContext ctx, Ability ability, out LocalTargetInfo target, out LocalTargetInfo dest)
+        public override bool TryFindTarget(AbilityAIContext ctx, AIAbility ability, out LocalTargetInfo target, out LocalTargetInfo dest)
         {
             dest = LocalTargetInfo.Invalid;
             cands.Clear();
@@ -355,13 +355,13 @@ namespace AbilityAI
         private const int MarginTicks = 6;
         private static readonly List<TargetingUtil.Cand> cands = new List<TargetingUtil.Cand>();
 
-        public override bool TryFindTarget(AbilityAIContext ctx, Ability ability, out LocalTargetInfo target, out LocalTargetInfo dest)
+        public override bool TryFindTarget(AbilityAIContext ctx, AIAbility ability, out LocalTargetInfo target, out LocalTargetInfo dest)
         {
             target = dest = LocalTargetInfo.Invalid;
             cands.Clear();
             float range = TargetingUtil.Reach(ability, ext);
             float maxSq = range * range;
-            int ourWarmup = Mathf.CeilToInt((ability.verb.verbProps?.warmupTime ?? 0f) * GenTicks.TicksPerRealSecond) + MarginTicks;
+            int ourWarmup = Mathf.CeilToInt(ability.WarmupSeconds * GenTicks.TicksPerRealSecond) + MarginTicks;
             int minAim = Mathf.RoundToInt(ext.minAimSeconds * GenTicks.TicksPerRealSecond);
             bool spareBroken = !AbilityAIUtility.MayHitBrokenAllies(ext);
             var enemies = ctx.Enemies;
@@ -410,7 +410,7 @@ namespace AbilityAI
         private struct Spot { public IntVec3 cell; public float weight; public float score; }
         private static readonly List<Spot> spots = new List<Spot>();
 
-        public override bool TryFindTarget(AbilityAIContext ctx, Ability ability, out LocalTargetInfo target, out LocalTargetInfo dest)
+        public override bool TryFindTarget(AbilityAIContext ctx, AIAbility ability, out LocalTargetInfo target, out LocalTargetInfo dest)
         {
             target = dest = LocalTargetInfo.Invalid;
             var fires = ctx.map.listerThings.ThingsOfDef(ThingDefOf.Fire);

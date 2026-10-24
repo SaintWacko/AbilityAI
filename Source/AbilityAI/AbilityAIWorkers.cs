@@ -37,14 +37,14 @@ namespace AbilityAI
 
         /// <summary>A target worth casting at now, or false. The driver runs AbilityAIDriver.Valid on the result
         /// once more, so a worker only needs to call it where it is choosing between candidates.</summary>
-        public abstract bool TryFindTarget(AbilityAIContext ctx, Ability ability, out LocalTargetInfo target, out LocalTargetInfo dest);
+        public abstract bool TryFindTarget(AbilityAIContext ctx, AIAbility ability, out LocalTargetInfo target, out LocalTargetInfo dest);
 
         /// <summary>Only asked when TryFindTarget found nothing for any ability and the extension sets
         /// approachDistance: the thing the pawn should walk toward so that it could cast, looking as far as reach
         /// (range + approachDistance). Targets are checked with AbilityAIDriver.ValidIgnoringRange, since range and
         /// line of sight are what the walk is for. A targeted ability casts at the goal from a cast position the
         /// driver finds; a self-cast one walks to the goal.</summary>
-        public virtual bool TryFindApproachTarget(AbilityAIContext ctx, Ability ability, float reach, out Thing goal)
+        public virtual bool TryFindApproachTarget(AbilityAIContext ctx, AIAbility ability, float reach, out Thing goal)
         {
             goal = null;
             return false;
@@ -58,7 +58,7 @@ namespace AbilityAI
         /// must have checked the pawn can reach, and how many targets the cast would reach from there. While the walk
         /// lasts, ctx.ApproachExpected(ability) returns that number, so the worker can wait for the spot it chose
         /// instead of casting at the first cell that meets minTargets. False = retried in 2 s.</summary>
-        public virtual bool TryFindApproachCell(AbilityAIContext ctx, Ability ability, out IntVec3 cell, out int expected)
+        public virtual bool TryFindApproachCell(AbilityAIContext ctx, AIAbility ability, out IntVec3 cell, out int expected)
         {
             cell = IntVec3.Invalid;
             expected = 0;
@@ -70,111 +70,48 @@ namespace AbilityAI
     {
         /// <summary>The extension's radius, else the first effect comp that states one, else the ability's own
         /// Ability_EffectRadius stat (the area psycasts: blinding pulse, berserk pulse).</summary>
-        public static float Radius(Ability ability, AbilityAIExtension ext)
+        public static float Radius(AIAbility ability, AbilityAIExtension ext)
         {
             if (ext.radius >= 0f) return ext.radius;
-            var comps = ability.def.comps;
-            if (comps != null)
-                for (int i = 0; i < comps.Count; i++)
-                {
-                    if (AbilityAIInfo.Of(comps[i]) is IAbilityAIInfo info) return info.AIRadius;
-                    if (comps[i] is CompProperties_AbilitySmokepop smoke) return smoke.smokeRadius;
-                }
-            return ability.def.HasAreaOfEffect ? ability.def.EffectRadius : 0f;
+            var e = ability.Effects;
+            return e.hasEffectRadius ? e.effectRadius : ability.DefaultRadius;
         }
 
-        /// <summary>The extension's hediff, else the first effect comp that gives one.</summary>
-        public static HediffDef Hediff(Ability ability, AbilityAIExtension ext)
-        {
-            if (ext.hediff != null) return ext.hediff;
-            var comps = ability.def.comps;
-            if (comps != null)
-                for (int i = 0; i < comps.Count; i++)
-                {
-                    if (AbilityAIInfo.Of(comps[i]) is IAbilityAIInfo info && info.AIHediff != null) return info.AIHediff;
-                    if (comps[i] is CompProperties_AbilityGiveHediff give && give.hediffDef != null) return give.hediffDef;
-                }
-            return null;
-        }
+        /// <summary>The extension's hediff, else the first effect that gives one.</summary>
+        public static HediffDef Hediff(AIAbility ability, AbilityAIExtension ext) => ext.hediff ?? ability.Effects.anyHediff;
 
-        /// <summary>How far the ability reaches: its verb's range, capped by the extension's maxRange.</summary>
-        public static float Range(Ability ability, AbilityAIExtension ext)
+        /// <summary>How far the ability reaches: its own range, capped by the extension's maxRange.</summary>
+        public static float Range(AIAbility ability, AbilityAIExtension ext)
         {
-            float r = ability.verb.EffectiveRange;
+            float r = ability.Range;
             return ext.maxRange >= 0f ? Mathf.Min(r, ext.maxRange) : r;
         }
 
-        /// <summary>Cast on the caster only: no target needed, or an untargetable verb that may target itself.
-        /// (Range 0 alone isn't: the Word of psycasts have no range because the caster walks up and touches.)</summary>
-        public static bool IsSelfCast(Ability ability)
-        {
-            var vp = ability.def.verbProperties;
-            if (vp == null || !ability.def.targetRequired) return true;
-            return !vp.targetable && vp.targetParams?.canTargetSelf == true;
-        }
+        public static bool IsSelfCast(AIAbility ability) => ability.IsSelfCast;
 
-        /// <summary>Whether the verb accepts the caster as its target (Painblock, Invisibility, Focus).</summary>
-        public static bool CanTargetSelf(Ability ability) =>
-            IsSelfCast(ability) || ability.def.verbProperties?.targetParams?.canTargetSelf == true;
-
-        // What an ability does to the pawns it hits, read once per AbilityDef from its comps
-        private class Effects
-        {
-            public bool stuns, mentalState, psychic, notOnMechs;
-            public HediffDef hediff;
-        }
-        private static readonly Dictionary<AbilityDef, Effects> effects = new Dictionary<AbilityDef, Effects>();
+        public static bool CanTargetSelf(AIAbility ability) => ability.CanTargetSelf;
 
         /// <summary>Forget what was read from the comps: AbilityAIInfo.Register calls it, since a new reader can
         /// change the answer.</summary>
-        internal static void ClearEffectsCache() => effects.Clear();
-
-        private static Effects EffectsOf(AbilityDef def)
-        {
-            if (effects.TryGetValue(def, out var e)) return e;
-            e = new Effects();
-            var comps = def.comps;
-            if (comps != null)
-                for (int i = 0; i < comps.Count; i++)
-                {
-                    var c = comps[i];
-                    if (AbilityAIInfo.Of(c) is IAbilityAIInfo info)
-                    {
-                        e.stuns |= info.AIStuns;
-                        if (e.hediff == null) e.hediff = info.AIHediff;
-                    }
-                    if (c.compClass != null && typeof(CompAbilityEffect_Stun).IsAssignableFrom(c.compClass)) e.stuns = true;
-                    // As CompAbilityEffect_GiveHediff.Apply decides who gets it
-                    if (c is CompProperties_AbilityGiveHediff give && give.applyToTarget && !give.onlyApplyToSelf && e.hediff == null) e.hediff = give.hediffDef;
-                    if (c is CompProperties_AbilityGiveMentalState) e.mentalState = true;
-                    if (c is CompProperties_AbilityEffect ae)
-                    {
-                        if (ae.psychic) e.psychic = true;
-                        // Psycast.CanApplyPsycastTo: once any comp is psychic, any comp not for mechs rules them out
-                        if (!ae.applicableToMechs) e.notOnMechs = true;
-                    }
-                }
-            effects[def] = e;
-            return e;
-        }
+        internal static void ClearEffectsCache() => VanillaAIAbility.ClearEffectsCache();
 
         /// <summary>Whether casting this at a hostile pawn would do anything: a psycast can't touch a pawn without
         /// psychic sensitivity (or a mech, for some), and with skipAffected a pawn already stunned by a stunning
         /// ability, already carrying its hediff, or already in a mental state from a mental-state one is skipped.
         /// Cost: a few field reads, plus a cached stat read for psycasts.</summary>
-        public static bool WouldAffect(Ability ability, AbilityAIExtension ext, Pawn p)
+        public static bool WouldAffect(AIAbility ability, AbilityAIExtension ext, Pawn p)
         {
-            var e = EffectsOf(ability.def);
+            var e = ability.Effects;
             // Psycast.CanApplyPsycastTo, without the uncached stat read; plain Ability copies of psycasts skip it
             // in vanilla too
-            if (e.psychic && ability is Psycast)
+            if (e.psychic && ability.IsPsycast)
             {
                 if (p.GetStatValue(StatDefOf.PsychicSensitivity, true, 250) < float.Epsilon) return false;
                 if (e.notOnMechs && p.Faction != null && p.Faction == Faction.OfMechanoids) return false;
             }
             if (!ext.skipAffected) return true;
             if (e.stuns && p.stances?.stunner != null && p.stances.stunner.Stunned) return false;
-            HediffDef h = ext.hediff ?? e.hediff;
+            HediffDef h = ext.hediff ?? e.targetHediff;
             if (h != null && Has(p, h)) return false;
             if (e.mentalState && p.InMentalState) return false;
             return true;
@@ -223,7 +160,7 @@ namespace AbilityAI
         public static bool Has(Pawn pawn, HediffDef hediff) => hediff != null && pawn.health?.hediffSet?.HasHediff(hediff) == true;
 
         /// <summary>The pawn itself if the ability accepts it, else the cell it stands on.</summary>
-        public static LocalTargetInfo PawnOrCell(Ability ability, Pawn target)
+        public static LocalTargetInfo PawnOrCell(AIAbility ability, Pawn target)
         {
             var pawnTarget = new LocalTargetInfo(target);
             if (AbilityAIDriver.Valid(ability, pawnTarget)) return pawnTarget;
@@ -271,7 +208,7 @@ namespace AbilityAI
         private static readonly List<bool> affected = new List<bool>();
         private const int MaxTries = 5;
 
-        public override bool TryFindTarget(AbilityAIContext ctx, Ability ability, out LocalTargetInfo target, out LocalTargetInfo dest)
+        public override bool TryFindTarget(AbilityAIContext ctx, AIAbility ability, out LocalTargetInfo target, out LocalTargetInfo dest)
         {
             target = dest = LocalTargetInfo.Invalid;
             if (!Score(ctx, ability, AbilityAIUtility.Range(ability, ext))) return false;
@@ -284,7 +221,7 @@ namespace AbilityAI
             return target.IsValid;
         }
 
-        public override bool TryFindApproachTarget(AbilityAIContext ctx, Ability ability, float reach, out Thing goal)
+        public override bool TryFindApproachTarget(AbilityAIContext ctx, AIAbility ability, float reach, out Thing goal)
         {
             goal = null;
             if (!Score(ctx, ability, reach)) return false;
@@ -298,7 +235,7 @@ namespace AbilityAI
         }
 
         // Fills centres, best first; false when there are none
-        private bool Score(AbilityAIContext ctx, Ability ability, float range)
+        private bool Score(AbilityAIContext ctx, AIAbility ability, float range)
         {
             centres.Clear();
             var enemies = ctx.Enemies;
@@ -367,7 +304,7 @@ namespace AbilityAI
 
         public override bool UsesApproachCell => true;
 
-        public override bool TryFindApproachCell(AbilityAIContext ctx, Ability ability, out IntVec3 cell, out int expected)
+        public override bool TryFindApproachCell(AbilityAIContext ctx, AIAbility ability, out IntVec3 cell, out int expected)
         {
             cell = IntVec3.Invalid;
             expected = 0;
@@ -443,7 +380,7 @@ namespace AbilityAI
             return n;
         }
 
-        public override bool TryFindTarget(AbilityAIContext ctx, Ability ability, out LocalTargetInfo target, out LocalTargetInfo dest)
+        public override bool TryFindTarget(AbilityAIContext ctx, AIAbility ability, out LocalTargetInfo target, out LocalTargetInfo dest)
         {
             target = dest = LocalTargetInfo.Invalid;
             float radius = AbilityAIUtility.Radius(ability, ext);
@@ -504,7 +441,7 @@ namespace AbilityAI
     /// </summary>
     public class AbilityAIWorker_SelfBuff : AbilityAIWorker
     {
-        public override bool TryFindTarget(AbilityAIContext ctx, Ability ability, out LocalTargetInfo target, out LocalTargetInfo dest)
+        public override bool TryFindTarget(AbilityAIContext ctx, AIAbility ability, out LocalTargetInfo target, out LocalTargetInfo dest)
         {
             target = dest = LocalTargetInfo.Invalid;
             if (AbilityAIUtility.Has(ctx.pawn, AbilityAIUtility.Hediff(ability, ext))) return false;
@@ -537,7 +474,7 @@ namespace AbilityAI
         private struct Spot { public IntVec3 cell; public float score; }
         private static readonly List<Spot> spots = new List<Spot>();
 
-        public override bool TryFindTarget(AbilityAIContext ctx, Ability ability, out LocalTargetInfo target, out LocalTargetInfo dest)
+        public override bool TryFindTarget(AbilityAIContext ctx, AIAbility ability, out LocalTargetInfo target, out LocalTargetInfo dest)
         {
             target = dest = LocalTargetInfo.Invalid;
             bool self = AbilityAIUtility.IsSelfCast(ability);
@@ -570,7 +507,7 @@ namespace AbilityAI
         }
 
         // The standable cell next to the enemy nearest the caster that the ability accepts
-        private static bool TryCellNear(AbilityAIContext ctx, Ability ability, Pawn enemy, out IntVec3 best)
+        private static bool TryCellNear(AbilityAIContext ctx, AIAbility ability, Pawn enemy, out IntVec3 best)
         {
             best = IntVec3.Invalid;
             float bestD = float.MaxValue;
@@ -586,7 +523,7 @@ namespace AbilityAI
             return best.IsValid;
         }
 
-        private bool TryEscapeCell(AbilityAIContext ctx, Ability ability, out IntVec3 result)
+        private bool TryEscapeCell(AbilityAIContext ctx, AIAbility ability, out IntVec3 result)
         {
             result = IntVec3.Invalid;
             var enemies = ctx.Enemies;
@@ -640,21 +577,14 @@ namespace AbilityAI
     /// </summary>
     public class AbilityAIWorker_Cover : AbilityAIWorker
     {
-        public override bool TryFindTarget(AbilityAIContext ctx, Ability ability, out LocalTargetInfo target, out LocalTargetInfo dest)
+        public override bool TryFindTarget(AbilityAIContext ctx, AIAbility ability, out LocalTargetInfo target, out LocalTargetInfo dest)
         {
             target = dest = LocalTargetInfo.Invalid;
             Pawn pawn = ctx.pawn;
-            bool smoke = false;
-            ThingDef spawns = null;
-            CompProperties_AbilityWallraise wall = null;
-            var comps = ability.def.comps;
-            if (comps != null)
-                for (int i = 0; i < comps.Count; i++)
-                {
-                    if (comps[i] is CompProperties_AbilitySmokepop) smoke = true;
-                    else if (comps[i] is CompProperties_AbilitySpawn sp && sp.thingDef != null) spawns = sp.thingDef;
-                    else if (comps[i] is CompProperties_AbilityWallraise w) wall = w;
-                }
+            var effects = ability.Effects;
+            bool smoke = effects.smoke;
+            ThingDef spawns = effects.spawns;
+            bool wall = effects.wall;
             if (smoke && pawn.Position.AnyGas(ctx.map, GasType.BlindSmoke)) return false;
             if (spawns != null && SpawnedNear(ctx, spawns, Mathf.Max(AbilityAIUtility.Radius(ability, ext), 1.5f))) return false;
 
@@ -675,7 +605,7 @@ namespace AbilityAI
 
             if (ext.offsetTowardThreat <= 0f || nearest == null)
             {
-                if (wall != null) return false;   // a wall on the caster's own cell would bury it
+                if (wall) return false;   // a wall on the caster's own cell would bury it
                 target = pawn.Position;
                 return true;
             }
@@ -686,7 +616,7 @@ namespace AbilityAI
             {
                 Vector3 off = dir * ext.offsetTowardThreat + side * (s == 0 ? 0f : s == 1 ? 1f : -1f);
                 IntVec3 c = pawn.Position + new IntVec3(Mathf.RoundToInt(off.x), 0, Mathf.RoundToInt(off.z));
-                if (!c.InBounds(ctx.map) || (wall != null && PawnInPattern(ctx.map, c, wall))) continue;
+                if (!c.InBounds(ctx.map) || (wall && PawnInPattern(ctx.map, c, effects.wallPattern))) continue;
                 if (AbilityAIDriver.Valid(ability, c)) { target = c; return true; }
             }
             return false;
@@ -700,12 +630,12 @@ namespace AbilityAI
             return false;
         }
 
-        private static bool PawnInPattern(Map map, IntVec3 c, CompProperties_AbilityWallraise wall)
+        private static bool PawnInPattern(Map map, IntVec3 c, List<IntVec2> pattern)
         {
-            if (wall.pattern == null) return c.GetFirstPawn(map) != null;
-            for (int i = 0; i < wall.pattern.Count; i++)
+            if (pattern == null) return c.GetFirstPawn(map) != null;
+            for (int i = 0; i < pattern.Count; i++)
             {
-                IntVec3 cell = c + new IntVec3(wall.pattern[i].x, 0, wall.pattern[i].z);
+                IntVec3 cell = c + new IntVec3(pattern[i].x, 0, pattern[i].z);
                 if (cell.InBounds(map) && cell.GetFirstPawn(map) != null) return true;
             }
             return false;
@@ -721,7 +651,7 @@ namespace AbilityAI
         protected override AbilityAICombat DefaultCombat => AbilityAICombat.OutOfCombat;
         protected internal override bool ForFleeing => true;
 
-        public override bool TryFindTarget(AbilityAIContext ctx, Ability ability, out LocalTargetInfo target, out LocalTargetInfo dest)
+        public override bool TryFindTarget(AbilityAIContext ctx, AIAbility ability, out LocalTargetInfo target, out LocalTargetInfo dest)
         {
             target = dest = LocalTargetInfo.Invalid;
             Need need = ctx.pawn.needs?.TryGetNeed(ext.need ?? NeedDefOf.Rest);

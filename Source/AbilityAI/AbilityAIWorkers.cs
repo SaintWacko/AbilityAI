@@ -195,13 +195,16 @@ namespace AbilityAI
             return null;
         }
 
-        /// <summary>Standing next to the caster or anyone on its side (Friendlies), so presumably fighting them in
-        /// melee.</summary>
+        /// <summary>Standing next to the caster or anyone on its side (Friendlies, and allies in a hostile break), so
+        /// presumably fighting them in melee.</summary>
         public static bool InMeleeWithSide(AbilityAIContext ctx, Pawn e)
         {
             var side = ctx.Friendlies;
             for (int i = 0; i < side.Count; i++)
                 if (side[i].Position.AdjacentTo8WayOrInside(e.Position)) return true;
+            var broken = ctx.BrokenAllies;
+            for (int i = 0; i < broken.Count; i++)
+                if (broken[i] != e && broken[i].Position.AdjacentTo8WayOrInside(e.Position)) return true;
             return false;
         }
 

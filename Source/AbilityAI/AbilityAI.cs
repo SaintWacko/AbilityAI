@@ -451,10 +451,11 @@ namespace AbilityAI
                 if (!friendliesBuilt)
                 {
                     friendliesBuilt = true;
-                    // An ally in a hostile break is in Allies but not here: BrokenAllies decides whether it is spared
+                    // An ally in a hostile break is in Allies but not here: BrokenAllies decides whether it is spared.
+                    // One that Enemies drops (threat-disabled, invisible) is in neither list, so it stays here.
                     var own = Allies;
                     for (int i = 0; i < own.Count; i++)
-                        if (own[i] == pawn || !IsBrokenAlly(own[i])) friendlies.Add(own[i]);
+                        if (own[i] == pawn || !IsBrokenAlly(own[i]) || !IsEnemy(own[i])) friendlies.Add(own[i]);
                     var all = map.mapPawns.AllPawnsSpawned;
                     for (int i = 0; i < all.Count; i++)
                     {
@@ -829,7 +830,8 @@ namespace AbilityAI
 
         /// <summary>Whether every other AI (vanilla's through Ability.AICanTargetNow, or a host's own fallback) should
         /// leave this pawn and ability alone: whenever Handles is true, and for the player's own pawns (not prisoners)
-        /// whenever the ability has a working extension at all, whatever its autocast mode or the hooks' votes. The
+        /// whenever the ability has a working extension at all, whatever its autocast mode, unless a hook vetoes it for
+        /// that pawn (the veto hands it back to vanilla or the host's fallback). The
         /// player's pawns then only cast an ability this mod has rules for when the player set it to autocast; turning
         /// off Enabled or PlayerAutocast hands them back to vanilla. A pawn in a mental break is out of the player's
         /// hands, so for it only Handles counts: vanilla keeps the break unless BreakCasting has this mod take it

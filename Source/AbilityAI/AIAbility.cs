@@ -98,8 +98,6 @@ namespace AbilityAI
 
         /// <summary>The job that casts it, handed back to the think tree rather than started.</summary>
         public abstract Job MakeCastJob(LocalTargetInfo target, LocalTargetInfo dest);
-
-        public static AIAbility Of(Ability ability) => VanillaAIAbility.Of(ability);
     }
 
     /// <summary>A system of abilities the AI can drive. The core registers vanilla's; a compat assembly registers

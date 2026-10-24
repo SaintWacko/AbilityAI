@@ -848,6 +848,11 @@ namespace AbilityAI
             return AbilityAIAutocast.ModeFor(pawn, a.Def) != AbilityAIAutocastMode.Off && AbilityAIHooks.NotVetoed(pawn, a);
         }
 
+        private static bool PlayerAllowed(Pawn pawn, Ability a)
+        {
+            return AbilityAIAutocast.ModeFor(pawn, a.def) != AbilityAIAutocastMode.Off && AbilityAIHooks.NotVetoed(pawn, a);
+        }
+
         /// <summary>Whether this mod is the one that decides when this pawn casts this ability: the AI is on, the
         /// ability has a working extension, the settings cover the pawn and a hook (or Unclaimed, or the player's
         /// autocast mode) lets it through. Independent of the moment: an ability on cooldown or held back by

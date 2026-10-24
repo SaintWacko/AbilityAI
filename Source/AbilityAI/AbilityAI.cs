@@ -451,7 +451,7 @@ namespace AbilityAI
                 if (!friendliesBuilt)
                 {
                     friendliesBuilt = true;
-                    // An ally in a hostile break is in Allies, and goes either here or in BrokenAllies (which then
+                    // An ally in a hostile break (own faction or a friendly one) goes either here or in BrokenAllies (which then
                     // decides whether it is spared), never both, never neither: one that Enemies drops (threat-disabled,
                     // invisible, missing from the attack-target cache) stays here. Contains runs only for a broken ally.
                     var own = Allies;
@@ -462,7 +462,7 @@ namespace AbilityAI
                     {
                         Pawn p = all[i];
                         if (p.Faction == null || p.Faction == pawn.Faction || p.Dead || p.Downed) continue;
-                        if (!p.HostileTo(pawn)) friendlies.Add(p);
+                        if (!p.HostileTo(pawn) || (IsBrokenAlly(p) && !BrokenAllies.Contains(p))) friendlies.Add(p);
                     }
                 }
                 return friendlies;

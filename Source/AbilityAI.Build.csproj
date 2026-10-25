@@ -21,5 +21,11 @@
     <ProjectReference Include="..\1.7\Source\AbilityAI.csproj">
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
     </ProjectReference>
+    <ProjectReference Include="..\1.6\Source\VEF\AbilityAI.VEF.csproj">
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+    </ProjectReference>
+    <ProjectReference Include="..\1.7\Source\VEF\AbilityAI.VEF.csproj">
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+    </ProjectReference>
   </ItemGroup>
 </Project>

@@ -1,0 +1,76 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <!--
+        RimWorld 1.7 build of the Vanilla Expanded Framework compat assembly. Same shared C# as 1.6/Source/VEF, with
+        RW17 defined and the game referenced the way 1.7/Source/AbilityAI.csproj does it (the Krafs 1.7 package
+        downloaded and referenced by path). Output goes to 1.7/VEF/Assemblies.
+    -->
+    <Import Project="..\..\..\Source\Workshop.props" />
+
+    <PropertyGroup>
+        <OutputType>Library</OutputType>
+        <TargetFramework>net472</TargetFramework>
+        <RootNamespace>AbilityAI.Vef</RootNamespace>
+        <AssemblyName>AbilityAI.VEF</AssemblyName>
+        <LangVersion>latest</LangVersion>
+        <Deterministic>true</Deterministic>
+        <OutputPath>..\..\VEF\Assemblies\</OutputPath>
+        <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+        <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+        <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+        <DefineConstants>$(DefineConstants);RW17</DefineConstants>
+        <Version>1.0.0</Version>
+        <AssemblyVersion>1.0.0.0</AssemblyVersion>
+        <FileVersion>1.0.0.0</FileVersion>
+        <Product>Ability AI</Product>
+        <Authors>SaintWacko</Authors>
+        <!-- Keep in step with 1.7/Source/AbilityAI.csproj -->
+        <RW17RefVersion>1.7.4979-alpha</RW17RefVersion>
+        <RW17Ref>$(NuGetPackageRoot)krafs.rimworld.ref/$(RW17RefVersion)/ref/net10.0/</RW17Ref>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+        <Optimize>true</Optimize>
+        <DebugType>none</DebugType>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
+        <Optimize>false</Optimize>
+        <DebugType>portable</DebugType>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <Compile Include="..\..\..\Source\VEF\*.cs" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+        <PackageDownload Include="Krafs.Rimworld.Ref" Version="[$(RW17RefVersion)]" />
+        <PackageReference Include="Lib.Harmony" Version="2.4.1">
+            <PrivateAssets>all</PrivateAssets>
+            <ExcludeAssets>runtime</ExcludeAssets>
+        </PackageReference>
+    </ItemGroup>
+
+    <ItemGroup>
+        <Reference Include="Assembly-CSharp">
+            <HintPath>$(RW17Ref)Assembly-CSharp.dll</HintPath>
+            <Private>false</Private>
+        </Reference>
+        <Reference Include="UnityEngine">
+            <HintPath>$(RW17Ref)UnityStubs.dll</HintPath>
+            <Private>false</Private>
+        </Reference>
+        <Reference Include="Waylith">
+            <HintPath>$(RW17Ref)Waylith.dll</HintPath>
+            <Private>false</Private>
+        </Reference>
+        <!-- Private=false on both: a copy of AbilityAI.dll or VEF.dll in 1.7/VEF/Assemblies would be loaded a second time -->
+        <ProjectReference Include="..\AbilityAI.csproj">
+            <Private>false</Private>
+        </ProjectReference>
+        <Reference Include="VEF">
+            <HintPath>$(VEFRoot)/1.7/Assemblies/VEF.dll</HintPath>
+            <Private>false</Private>
+        </Reference>
+    </ItemGroup>
+</Project>

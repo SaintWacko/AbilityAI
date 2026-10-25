@@ -1,0 +1,66 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <!--
+        RimWorld 1.6 build of the Vanilla Expanded Framework compat assembly: VEF's abilities as an ability source for
+        the AI, and the stand-down on VEF's own autocast. Shared C# in the mod's top-level Source/VEF folder. Output
+        goes to 1.6/VEF/Assemblies, which LoadFolders.xml loads only on 1.6 with VEF active, so nothing here is ever
+        loaded without VEF.
+
+        Its own folder, not beside 1.6/Source/AbilityAI.csproj: two projects in one folder share obj/ and break restore.
+    -->
+    <Import Project="..\..\..\Source\Workshop.props" />
+
+    <PropertyGroup>
+        <OutputType>Library</OutputType>
+        <TargetFramework>net472</TargetFramework>
+        <RootNamespace>AbilityAI.Vef</RootNamespace>
+        <AssemblyName>AbilityAI.VEF</AssemblyName>
+        <LangVersion>latest</LangVersion>
+        <Deterministic>true</Deterministic>
+        <OutputPath>..\..\VEF\Assemblies\</OutputPath>
+        <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+        <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+        <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+        <DefineConstants>$(DefineConstants);RW16</DefineConstants>
+        <Version>1.0.0</Version>
+        <AssemblyVersion>1.0.0.0</AssemblyVersion>
+        <FileVersion>1.0.0.0</FileVersion>
+        <Product>Ability AI</Product>
+        <Authors>SaintWacko</Authors>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+        <Optimize>true</Optimize>
+        <DebugType>none</DebugType>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
+        <Optimize>false</Optimize>
+        <DebugType>portable</DebugType>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <Compile Include="..\..\..\Source\VEF\*.cs" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Krafs.Rimworld.Ref" Version="1.6.4871">
+            <PrivateAssets>all</PrivateAssets>
+            <ExcludeAssets>runtime</ExcludeAssets>
+        </PackageReference>
+        <PackageReference Include="Lib.Harmony" Version="2.4.1">
+            <PrivateAssets>all</PrivateAssets>
+            <ExcludeAssets>runtime</ExcludeAssets>
+        </PackageReference>
+    </ItemGroup>
+
+    <ItemGroup>
+        <!-- Private=false on both: a copy of AbilityAI.dll or VEF.dll in 1.6/VEF/Assemblies would be loaded a second time -->
+        <ProjectReference Include="..\AbilityAI.csproj">
+            <Private>false</Private>
+        </ProjectReference>
+        <Reference Include="VEF">
+            <HintPath>$(VEFRoot)/1.6/Assemblies/VEF.dll</HintPath>
+            <Private>false</Private>
+        </Reference>
+    </ItemGroup>
+</Project>

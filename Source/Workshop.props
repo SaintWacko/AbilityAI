@@ -1,0 +1,12 @@
+<Project>
+  <!--
+    Where the compat projects find the mods they compile against: Vanilla Expanded Framework (2023507013) and, later,
+    Vanilla Psycasts Expanded (2842502659). Neither is on NuGet, so they are referenced from the Steam Workshop
+    folder, which also means a build compiles against the version players run and API drift shows up here.
+    Override on the command line (-p:WorkshopRoot=...) or in the environment on another machine.
+  -->
+  <PropertyGroup>
+    <WorkshopRoot Condition="'$(WorkshopRoot)' == ''">$(HOME)/Library/Application Support/Steam/steamapps/workshop/content/294100</WorkshopRoot>
+    <VEFRoot>$(WorkshopRoot)/2023507013</VEFRoot>
+  </PropertyGroup>
+</Project>

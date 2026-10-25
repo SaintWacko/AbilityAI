@@ -733,7 +733,7 @@ namespace AbilityAI
             if (!pawn.Spawned || pawn.Dead || pawn.Downed || !pawn.Awake() || pawn.IsBurning()) return false;
             if (pawn.Drafted) return false;
             if (pawn.InMentalState && !pawn.InAggroMentalState && pawn.MentalStateDef != MentalStateDefOf.PanicFlee) return false;
-            if (pawn.CurJob?.ability != null) return false;
+            if (AIAbilitySources.IsCasting(pawn)) return false;
             if (pawn.stances?.stunner?.Stunned == true) return false;
             return true;
         }
@@ -752,7 +752,7 @@ namespace AbilityAI
         private static bool CanActNowPlayer(Pawn pawn, PawnState state)
         {
             if (!pawn.Spawned || pawn.Dead || pawn.Downed || !pawn.Awake() || pawn.IsBurning()) return false;
-            if (pawn.InMentalState || pawn.CurJob?.ability != null) return false;
+            if (pawn.InMentalState || AIAbilitySources.IsCasting(pawn)) return false;
             if (pawn.stances?.stunner?.Stunned == true) return false;
             Job cur = pawn.CurJob;
             if (!pawn.Drafted)
@@ -861,6 +861,32 @@ namespace AbilityAI
                     return pawn.Drafted || (AbilityAISettings.UndraftedAutocast && HasWorker(ability.def, UndraftedReach(pawn)));
                 default: return false;
             }
+        }
+
+        /// <summary>Handles for an ability of any system. A compat assembly asks it before letting the ability's own
+        /// AI cast (VEF's autocast through Pawn.TryGetAttackVerb), so the two never both cast it.</summary>
+        public static bool Handles(Pawn pawn, AIAbility ability)
+        {
+            if (!AbilityAISettings.Enabled || pawn == null || ability == null) return false;
+            if (!HasWorker(ability.Def, PlayerSet.All)) return false;
+            switch (ControlOf(pawn))
+            {
+                case Control.NPC: return AbilityAIHooks.Allowed(pawn, ability);
+                case Control.Player:
+                    if (!PlayerAllowed(pawn, ability)) return false;
+                    return pawn.Drafted || (AbilityAISettings.UndraftedAutocast && HasWorker(ability.Def, UndraftedReach(pawn)));
+                default: return false;
+            }
+        }
+
+        /// <summary>A cast this AI started is running: the current job casts an ability and came from the constant
+        /// tree's root, which vanilla never issues a job from. warmupTicksLeft as IAIAbilitySource.TryGetRunningCast.</summary>
+        internal static bool IsOwnCast(Pawn pawn, out int warmupTicksLeft)
+        {
+            warmupTicksLeft = -1;
+            Job cur = pawn.CurJob;
+            if (cur?.jobGiver == null || cur.jobGiver != pawn.thinker?.ConstantThinkTree?.thinkRoot) return false;
+            return AIAbilitySources.TryGetRunningCast(pawn, out _, out warmupTicksLeft);
         }
 
         /// <summary>Whether every other AI (vanilla's through Ability.AICanTargetNow, or a host's own fallback) should
@@ -990,6 +1016,10 @@ namespace AbilityAI
                     if (!dest.IsValid) dest = target;
                     if (!Valid(a, target)) continue;
                     if (player && !PsycastWithinLimits(a, target)) continue;
+                    // Made before anything is recorded: another system's ability may still refuse at this point
+                    // (VEF runs its extensions' own Valid and PreCast here)
+                    Job cast = a.MakeCastJob(target, dest);
+                    if (cast == null) continue;
 
                     state.nextCastTick = tick + Mathf.RoundToInt(AbilityAISettings.MinGapSeconds * GenTicks.TicksPerRealSecond);
                     if (ext.minGapSeconds > 0f)
@@ -1001,7 +1031,7 @@ namespace AbilityAI
                         Log.Message($"[Ability AI] {pawn.LabelShort} casts {a.Label} ({worker.GetType().Name}) on {target}");
                     AbilityAIHooks.NotifyCast(pawn, a, target, dest);
                     if (player) QueueAfterCast(pawn, state);
-                    return a.MakeCastJob(target, dest);
+                    return cast;
                 }
                 if (!player) return TryApproach(state, false);
                 if (returnDue) return ReturnJob(pawn, state);
@@ -1126,7 +1156,12 @@ namespace AbilityAI
         private static void CheckHome(Pawn pawn, PawnState state, bool player)
         {
             Job cur = pawn.CurJob;
-            if (!player || !pawn.Spawned || !pawn.Drafted || (cur != null && cur.playerForced)) { ClearHome(state); return; }
+            // VEF's cast job marks itself player-forced while it runs, so our own cast doesn't count as an order
+            if (!player || !pawn.Spawned || !pawn.Drafted || (cur != null && cur.playerForced && !IsOwnCast(pawn, out _)))
+            {
+                ClearHome(state);
+                return;
+            }
             if (state.returnJobId < 0) return;
             if (cur != null && cur.loadID == state.returnJobId) return;
             var queue = pawn.jobs.jobQueue;
@@ -1430,10 +1465,10 @@ namespace AbilityAI
             if (job != null && job != pawn.CurJob && !pawn.jobs.jobQueue.Contains(job)) JobMaker.ReturnToPool(job);
         }
 
-        private static bool KeepCast(Pawn pawn, Job cast, Job hostility)
+        private static bool KeepCast(Pawn pawn, Job cast, int warmupTicksLeft, Job hostility)
         {
             if (hostility.def != JobDefOf.FleeAndCower && hostility.def != JobDefOf.Flee) return true;
-            if (pawn.stances?.curStance is Stance_Warmup) return true;
+            if (warmupTicksLeft >= 0) return true;
             return cast.targetA.Thing is Pawn t && t.HostileTo(pawn);
         }
 
@@ -1466,10 +1501,9 @@ namespace AbilityAI
                 // Attacking waits for it. Fleeing waits only once the warmup has begun, or when the cast is aimed at
                 // the threat itself (a berserk friend being calmed): a long walk to calm someone else across the map
                 // shouldn't carry a pawn set to flee into a raid.
-                Job cur = ___pawn.CurJob;
-                if (cur != null && cur.ability != null && cur.jobGiver == root)
+                if (AbilityAIDriver.IsOwnCast(___pawn, out int warmupLeft))
                 {
-                    if (KeepCast(___pawn, cur, __result.Job))
+                    if (KeepCast(___pawn, ___pawn.CurJob, warmupLeft, __result.Job))
                     {
                         Pool(___pawn, __result.Job);
                         __result = ThinkResult.NoJob;

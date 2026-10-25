@@ -347,8 +347,9 @@ namespace AbilityAI
     /// explosive projectile (grenades, launchers), or with minAimSeconds any aim with that long left. Only when more
     /// of the enemy's aim is left than this ability's own warmup. A stun pauses the enemy's aim for its length (it
     /// doesn't cancel it); a mental state or a teleport breaks it. Area abilities centre on the enemy. Nearest first.
-    /// An ally in a hostile break is skipped unless MayHitBrokenAllies.
-    /// Cost: k stance reads, then up to 10 validations.
+    /// Abilities of other systems (VEF's) have no warmup stance: their cast job's own warmup counts, through the
+    /// ability sources. An ally in a hostile break is skipped unless MayHitBrokenAllies.
+    /// Cost: k stance reads and k current-job checks, then up to 10 validations.
     /// </summary>
     public class AbilityAIWorker_Interrupt : AbilityAIWorker
     {
@@ -368,12 +369,19 @@ namespace AbilityAI
             for (int i = 0; i < enemies.Count; i++)
             {
                 Pawn e = enemies[i];
-                if (!(e.stances?.curStance is Stance_Warmup w) || w.verb == null || w.ticksLeft <= ourWarmup) continue;
+                int left;
+                bool danger;
+                if (e.stances?.curStance is Stance_Warmup w && w.verb != null)
+                {
+                    left = w.ticksLeft;
+                    // A non-hostile ability (painblock, focus on its own side) isn't worth a stun
+                    danger = (w.verb is Verb_CastAbility cast && cast.ability?.def != null && cast.ability.def.hostile)
+                        || Explosive(w.verb) || (minAim > 0 && left >= minAim);
+                }
+                else if (AIAbilitySources.TryGetRunningCast(e, out AIAbility running, out left)) danger = running.Hostile;
+                else continue;
+                if (!danger || left <= ourWarmup) continue;
                 if (spareBroken && ctx.IsBrokenAlly(e)) continue;
-                // A non-hostile ability (painblock, focus on its own side) isn't worth a stun
-                bool danger = (w.verb is Verb_CastAbility cast && cast.ability?.def != null && cast.ability.def.hostile)
-                    || Explosive(w.verb) || (minAim > 0 && w.ticksLeft >= minAim);
-                if (!danger) continue;
                 float d = (e.Position - ctx.pawn.Position).LengthHorizontalSquared;
                 if (d > maxSq || !AbilityAIUtility.WouldAffect(ability, ext, e)) continue;
                 cands.Add(new TargetingUtil.Cand { pawn = e, score = -d });

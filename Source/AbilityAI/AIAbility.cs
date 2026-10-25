@@ -78,6 +78,9 @@ namespace AbilityAI
 
         public abstract AIAbilityEffects Effects { get; }
 
+        /// <summary>Meant for enemies: the Interrupt worker only stuns a caster warming up one of these.</summary>
+        public abstract bool Hostile { get; }
+
         /// <summary>Every check a player's cast at this target would pass short of range and line of sight, plus the
         /// effects' own AI vetoes. Under the player rules (AbilityAIDriver.EvaluatingPlayer) vetoes that only exist
         /// to keep vanilla's AI off the player's pawns are replaced by their rule for everyone else.</summary>
@@ -116,6 +119,12 @@ namespace AbilityAI
         /// <summary>Append the pawn's abilities of this kind whose def carries an AbilityAIExtension, each as its
         /// one cached wrapper.</summary>
         void Collect(Pawn pawn, List<AIAbility> into);
+
+        /// <summary>Whether the pawn's current job casts one of this system's abilities, any ability at all, not only
+        /// those with an extension. warmupTicksLeft: ticks until it takes effect once the warmup has begun, -1 while
+        /// the job is still walking up to the target or the system can't tell. Asked for every pawn the driver
+        /// evaluates and for every enemy the Interrupt worker looks at: answer from the current job's def first.</summary>
+        bool TryGetRunningCast(Pawn pawn, out AIAbility ability, out int warmupTicksLeft);
     }
 
     public static class AIAbilitySources
@@ -155,6 +164,21 @@ namespace AbilityAI
                 catch (Exception e) { if (Drop(i, nameof(IAIAbilitySource.Collect), e)) i--; }
             }
         }
+
+        internal static bool TryGetRunningCast(Pawn pawn, out AIAbility ability, out int warmupTicksLeft)
+        {
+            for (int i = 0; i < sources.Count; i++)
+            {
+                try { if (sources[i].TryGetRunningCast(pawn, out ability, out warmupTicksLeft)) return true; }
+                catch (Exception e) { if (Drop(i, nameof(IAIAbilitySource.TryGetRunningCast), e)) i--; }
+            }
+            ability = null;
+            warmupTicksLeft = -1;
+            return false;
+        }
+
+        /// <summary>The pawn's current job casts an ability of any system.</summary>
+        internal static bool IsCasting(Pawn pawn) => TryGetRunningCast(pawn, out _, out _);
 
         // These run on every idle think check of every pawn: a source that throws once would throw every time, so
         // it is dropped for the rest of the session. Vanilla's own source is never dropped.
@@ -209,6 +233,20 @@ namespace AbilityAI
                 for (int i = 0; i < list.Count; i++)
                     if (list[i].def.GetModExtension<AbilityAIExtension>() != null) into.Add(Of(list[i]));
             }
+
+            public bool TryGetRunningCast(Pawn pawn, out AIAbility ability, out int warmupTicksLeft)
+            {
+                Ability running = pawn.CurJob?.ability;
+                if (running == null)
+                {
+                    ability = null;
+                    warmupTicksLeft = -1;
+                    return false;
+                }
+                ability = Of(running);
+                warmupTicksLeft = pawn.stances?.curStance is Stance_Warmup w && w.verb == running.verb ? w.ticksLeft : -1;
+                return true;
+            }
         }
 
         public override Pawn Pawn => ability.pawn;
@@ -251,6 +289,7 @@ namespace AbilityAI
         public override float WarmupSeconds => ability.verb?.verbProps?.warmupTime ?? 0f;
         public override Verb Verb => ability.verb;
         public override AIAbilityEffects Effects => EffectsOf(ability.def);
+        public override bool Hostile => ability.def.hostile;
 
         public override bool ValidIgnoringRange(LocalTargetInfo target)
         {

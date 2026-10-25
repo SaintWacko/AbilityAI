@@ -42,6 +42,9 @@ namespace AbilityAI.Vef
         }
 
         private static readonly Dictionary<VefAbilityDef, DefInfo> infos = new Dictionary<VefAbilityDef, DefInfo>();
+        // Defs the AI doesn't cast, read when TryGetRunningCast wraps an enemy's cast of one (the Interrupt worker
+        // asks it Hostile)
+        private static readonly Dictionary<VefAbilityDef, DefInfo> otherInfos = new Dictionary<VefAbilityDef, DefInfo>();
         // Every JobDef whose driver is VEF's cast driver: how a running VEF cast is recognised from the job alone
         private static readonly HashSet<JobDef> castJobs = new HashSet<JobDef>();
         private static readonly List<Action<VefAbilityDef, AIAbilityEffects>> effectReaders = new List<Action<VefAbilityDef, AIAbilityEffects>>();
@@ -80,19 +83,23 @@ namespace AbilityAI.Vef
                     Log.Warning($"[Ability AI] {def.defName} has an AbilityAIExtension, but {why}, so the AI leaves it to VEF.");
                     continue;
                 }
-                var mode = def.targetModes[0];
-                bool self = mode == AbilityTargetingMode.Self;
-                infos[def] = new DefInfo
-                {
-                    self = self,
-                    touch = !self && def.jobDef?.driverClass != null
-                        && typeof(JobDriver_GotoTargetAndCastAbilityOnce).IsAssignableFrom(def.jobDef.driverClass),
-                    // VEF's own rule (Ability.AICanUseOn) when the def states one; otherwise anything aimed away from
-                    // the caster is taken as an attack
-                    hostile = def.isPositive.HasValue ? !def.isPositive.Value : !self,
-                    targetParams = def.targetingParametersList.Count > 0 ? def.targetingParametersList[0] : null,
-                };
+                infos[def] = MakeInfo(def);
             }
+        }
+
+        private static DefInfo MakeInfo(VefAbilityDef def)
+        {
+            bool self = def.targetModes != null && def.targetModes.Count > 0 && def.targetModes[0] == AbilityTargetingMode.Self;
+            return new DefInfo
+            {
+                self = self,
+                touch = !self && def.jobDef?.driverClass != null
+                    && typeof(JobDriver_GotoTargetAndCastAbilityOnce).IsAssignableFrom(def.jobDef.driverClass),
+                // VEF's own rule (Ability.AICanUseOn) when the def states one; otherwise anything aimed away from the
+                // caster is taken as an attack
+                hostile = def.isPositive.HasValue ? !def.isPositive.Value : !self,
+                targetParams = def.targetingParametersList != null && def.targetingParametersList.Count > 0 ? def.targetingParametersList[0] : null,
+            };
         }
 
         private static string Unsupported(VefAbilityDef def)
@@ -107,7 +114,16 @@ namespace AbilityAI.Vef
             return null;
         }
 
-        private DefInfo Info => infos[ability.def];
+        private DefInfo Info
+        {
+            get
+            {
+                var def = ability.def;
+                if (infos.TryGetValue(def, out var info)) return info;
+                if (!otherInfos.TryGetValue(def, out info)) otherInfos[def] = info = MakeInfo(def);
+                return info;
+            }
+        }
 
         public override Pawn Pawn => ability.pawn;
         public override Def Def => ability.def;
@@ -231,6 +247,9 @@ namespace AbilityAI.Vef
         public override Job MakeCastJob(LocalTargetInfo target, LocalTargetInfo dest)
         {
             Pawn pawn = ability.pawn;
+            // VEF starts its own cast job with the def's keepCarryingThing; a think-tree job can't carry that
+            // override, so the caster would drop what it holds
+            if (ability.def.keepCarryingThing == true && pawn.carryTracker?.CarriedThing != null) return null;
             var targets = new[] { target.ToGlobalTargetInfo(pawn.Map) };
             var exts = ability.AbilityModExtensions;
             for (int i = 0; i < exts.Count; i++)

@@ -837,11 +837,6 @@ namespace AbilityAI
             return AbilityAIAutocast.ModeFor(pawn, a.Def) != AbilityAIAutocastMode.Off && AbilityAIHooks.NotVetoed(pawn, a);
         }
 
-        private static bool PlayerAllowed(Pawn pawn, Ability a)
-        {
-            return AbilityAIAutocast.ModeFor(pawn, a.def) != AbilityAIAutocastMode.Off && AbilityAIHooks.NotVetoed(pawn, a);
-        }
-
         /// <summary>Whether this mod is the one that decides when this pawn casts this ability: the AI is on, the
         /// ability has a working extension, the settings cover the pawn and a hook (or Unclaimed, or the player's
         /// autocast mode) lets it through. Independent of the moment: an ability on cooldown or held back by
@@ -851,23 +846,17 @@ namespace AbilityAI
         /// otherwise the driver never casts it for them, so whatever vanilla or the host would do is left alone.</summary>
         public static bool Handles(Pawn pawn, Ability ability)
         {
+            // The cheap tests before the wrapper lookup: vanilla's stand-down asks this for every ready aiCanUse ability
             if (!AbilityAISettings.Enabled || pawn == null || ability?.def == null) return false;
             if (!HasWorker(ability.def, PlayerSet.All)) return false;
-            switch (ControlOf(pawn))
-            {
-                case Control.NPC: return AbilityAIHooks.Allowed(pawn, ability);
-                case Control.Player:
-                    if (!PlayerAllowed(pawn, ability)) return false;
-                    return pawn.Drafted || (AbilityAISettings.UndraftedAutocast && HasWorker(ability.def, UndraftedReach(pawn)));
-                default: return false;
-            }
+            return Handles(pawn, VanillaAIAbility.Of(ability));
         }
 
         /// <summary>Handles for an ability of any system. A compat assembly asks it before letting the ability's own
         /// AI cast (VEF's autocast through Pawn.TryGetAttackVerb), so the two never both cast it.</summary>
         public static bool Handles(Pawn pawn, AIAbility ability)
         {
-            if (!AbilityAISettings.Enabled || pawn == null || ability == null) return false;
+            if (!AbilityAISettings.Enabled || pawn == null || ability?.Def == null) return false;
             if (!HasWorker(ability.Def, PlayerSet.All)) return false;
             switch (ControlOf(pawn))
             {

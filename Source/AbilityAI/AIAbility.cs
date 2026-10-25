@@ -99,7 +99,9 @@ namespace AbilityAI
         /// isn't a psycast.</summary>
         public abstract float HeatGain { get; }
 
-        /// <summary>The job that casts it, handed back to the think tree rather than started.</summary>
+        /// <summary>The job that casts it, handed back to the think tree rather than started; null when the ability's
+        /// own system refuses the cast at the last moment. It may set up the cast on its system's side (VEF records
+        /// the ability and targets on CompAbilities), so only call it for a job that will be returned.</summary>
         public abstract Job MakeCastJob(LocalTargetInfo target, LocalTargetInfo dest);
     }
 

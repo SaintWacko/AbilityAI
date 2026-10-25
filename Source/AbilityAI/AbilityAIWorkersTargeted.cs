@@ -378,7 +378,8 @@ namespace AbilityAI
                     danger = (w.verb is Verb_CastAbility cast && cast.ability?.def != null && cast.ability.def.hostile)
                         || Explosive(w.verb) || (minAim > 0 && left >= minAim);
                 }
-                else if (AIAbilitySources.TryGetRunningCast(e, out AIAbility running, out left)) danger = running.Hostile;
+                else if (AIAbilitySources.TryGetRunningCast(e, out AIAbility running, out left))
+                    danger = running.Hostile || (minAim > 0 && left >= minAim);
                 else continue;
                 if (!danger || left <= ourWarmup) continue;
                 if (spareBroken && ctx.IsBrokenAlly(e)) continue;

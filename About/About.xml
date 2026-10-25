@@ -22,6 +22,8 @@
     <!-- Optional: only when present. The VEF compat assembly (1.6/VEF, 1.7/VEF) references VEF's types, so VEF's
          assembly has to be loaded first. -->
     <li>OskarPotocki.VanillaFactionsExpanded.Core</li>
+    <!-- Optional, likewise: the VPE compat assembly (1.6/VPE, 1.7/VPE) references VPE's types -->
+    <li>VanillaExpanded.VPsycastsE</li>
   </loadAfter>
   <!-- Hosts load after this mod (their own loadAfter), so their compat patches see our types. Nothing here names
        them: the hosts are optional to us and we are optional to them. -->

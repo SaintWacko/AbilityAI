@@ -35,6 +35,11 @@ namespace AbilityAI
         /// combat (nobody has hit it yet), so these also skip the combat-mode check while it flees.</summary>
         protected internal virtual bool ForFleeing => false;
 
+        /// <summary>The worker casts at enemies. Read by ability systems that can't tell from the def whether an
+        /// ability is an attack (VEF's, when isPositive isn't set), which is what the Interrupt worker asks of an
+        /// enemy's running cast.</summary>
+        public virtual bool TargetsEnemies => false;
+
         /// <summary>A target worth casting at now, or false. The driver runs AbilityAIDriver.Valid on the result
         /// once more, so a worker only needs to call it where it is choosing between candidates.</summary>
         public abstract bool TryFindTarget(AbilityAIContext ctx, AIAbility ability, out LocalTargetInfo target, out LocalTargetInfo dest);
@@ -203,6 +208,7 @@ namespace AbilityAI
     /// </summary>
     public class AbilityAIWorker_AoEHostile : AbilityAIWorker
     {
+        public override bool TargetsEnemies => true;
         private struct Centre { public Pawn pawn; public int count; public float distSq; }
         private static readonly List<Centre> centres = new List<Centre>();
         private static readonly List<bool> affected = new List<bool>();
@@ -514,7 +520,9 @@ namespace AbilityAI
             for (int i = 0; i < 8; i++)
             {
                 IntVec3 c = enemy.Position + GenAdj.AdjacentCells[i];
-                if (!c.InBounds(ctx.map)) continue;
+                // Vanilla's jump verbs refuse a cell nobody can stand on; VEF's location targeting doesn't, and VPE's
+                // Power Leap would land the caster inside a wall
+                if (!c.InBounds(ctx.map) || !c.Standable(ctx.map)) continue;
                 float d = (c - ctx.pawn.Position).LengthHorizontalSquared;
                 if (d >= bestD || !AbilityAIDriver.Valid(ability, c)) continue;
                 bestD = d;
@@ -541,7 +549,7 @@ namespace AbilityAI
                 {
                     float dist = s == 0 ? range - 0.5f : range * 0.6f;
                     IntVec3 c = ctx.pawn.Position + new IntVec3(Mathf.RoundToInt(dir.x * dist), 0, Mathf.RoundToInt(dir.z * dist));
-                    if (!c.InBounds(ctx.map)) continue;
+                    if (!c.InBounds(ctx.map) || !c.Standable(ctx.map)) continue;
                     float score = MinEnemyDist(enemies, c);
                     if (score - now < EscapeMinGain) continue;
                     spots.Add(new Spot { cell = c, score = score });

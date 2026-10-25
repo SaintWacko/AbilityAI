@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ability AI rules for Vanilla Psycasts Expanded's psycasts, first handful (Source/VEF/, Source/VPE/). Only applied
+     when VPE is active; VPE's psycasts are VEF abilities (VEF.Abilities.AbilityDef), so the rules are read by the VEF
+     compat assembly and priced by the VPE one. As for Royalty, NPC psycasters use them only with the "also use
+     abilities no mod claims" setting on, and each rule sits in its own PatchOperationConditional, so a psycast VPE
+     removes or renames costs only its own rule.
+     VPE's walk-up psycasts (Stabilize, the Word of psycasts) have no range of their own: the AI looks within maxRange
+     (20 when unset) and the cast job walks there.
+     The rest of the worker map is in .circinus/handoff/vpe-adapter.md (build step 7). -->
+<Patch>
+  <Operation Class="PatchOperationFindMod">
+    <mods>
+      <li>Vanilla Psycasts Expanded</li>
+    </mods>
+    <match Class="PatchOperationSequence">
+      <operations>
+
+        <!-- Stun: first anyone aiming a grenade, launcher or psycast; otherwise the most dangerous enemy in range.
+             As Royalty's Stun. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Stun"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Stun"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Interrupt</workerClass>
+                <priority>9</priority>
+                <harmless>true</harmless>
+              </li>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
+                <priority>3</priority>
+                <approachDistance>8</approachDistance>
+                <harmless>true</harmless>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Bolt: cheap (2% psyfocus, 8 heat) with burns on a hit and EMP around it, so the plain attack -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Bolt"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Bolt"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
+                <priority>2</priority>
+                <approachDistance>8</approachDistance>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Overshield stops projectiles only, so only for the caster or an ally with two shooters on them (being
+             shot recently counts as one); never for melee. 50 heat. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Overshield"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Overshield"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Defensive</workerClass>
+                <priority>6</priority>
+                <minThreats>2</minThreats>
+                <rangedOnly>true</rangedOnly>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Power Leap: a melee caster closes on its target; anyone badly hurt, fleeing, or a shooter caught in
+             melee jumps clear -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_PowerLeap"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_PowerLeap"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Movement</workerClass>
+                <priority>4</priority>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Stabilize only stops bleeding: a downed ally losing at least 20% blood a day, within 12 tiles (the
+             caster walks up) -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Stabilize"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Stabilize"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Rescue</workerClass>
+                <priority>7</priority>
+                <maxRange>12</maxRange>
+                <minBleedRate>0.2</minBleedRate>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- As Royalty's: the target goes into a psychic coma afterwards, so not for a break with under a minute
+             left, and only for someone close. VPE charges 30/50/70% psyfocus by the break's intensity. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_WordofSerenity"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_WordofSerenity"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Calm</workerClass>
+                <priority>5</priority>
+                <maxRange>8</maxRange>
+                <minBreakSeconds>60</minBreakSeconds>
+              </li>
+            </value>
+          </match>
+        </li>
+
+      </operations>
+    </match>
+  </Operation>
+</Patch>

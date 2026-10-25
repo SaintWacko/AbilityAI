@@ -1,0 +1,82 @@
+using System;
+using RimWorld;
+using RimWorld.Planet;
+using VanillaPsycastsExpanded;
+using Verse;
+using VefAbility = VEF.Abilities.Ability;
+using VefAbilityDef = VEF.Abilities.AbilityDef;
+
+// Vanilla Psycasts Expanded's side of VEF abilities: what a psycast costs and what it does that VEF's own extensions
+// don't say. VPE marks its psycasts with AbilityExtension_Psycast and charges psyfocus and neural heat from it on the
+// vanilla psychic entropy tracker. Psycasts² postfixes both cost methods, so they are always called rather than the
+// extension's fields read.
+namespace AbilityAI.Vpe
+{
+    [StaticConstructorOnStartup]
+    internal static class VpeStartup
+    {
+        static VpeStartup()
+        {
+            Vef.VefAIAbility.RegisterCosts(new VpeCosts());
+            Vef.VefAIAbility.RegisterEffectsReader(ReadEffects);
+        }
+
+        private static void ReadEffects(VefAbilityDef def, AIAbilityEffects e)
+        {
+            var psycast = def.GetModExtension<AbilityExtension_Psycast>();
+            // VPE's ValidateTarget then refuses a target without psychic sensitivity; WouldAffect leaves those out
+            // before the AI gets that far
+            if (psycast != null && psycast.psychic) e.psychic = true;
+        }
+    }
+
+    internal sealed class VpeCosts : Vef.IVefAbilityCosts
+    {
+        public bool Covers(VefAbilityDef def) => def.GetModExtension<AbilityExtension_Psycast>() != null;
+
+        // AbilityExtension_Psycast.IsEnabledForPawn's refusals that build a translated reason, without the reason. The
+        // path lock it also checks hands back a stored string, so that one is left to it.
+        public bool Affordable(VefAbility ability)
+        {
+            var psycast = ability.def.GetModExtension<AbilityExtension_Psycast>();
+            if (psycast == null) return false;
+            Pawn pawn = ability.pawn;
+            var pe = pawn.psychicEntropy;
+            if (pe == null || pe.PsychicSensitivity < float.Epsilon || pawn.Downed) return false;
+            var psycasts = pawn.Psycasts();
+            if (psycasts == null || psycasts.CurrentlyChanneling != null) return false;
+            // Strictly more, as Hediff_PsycastAbilities.SufficientPsyfocusPresent
+            if (!(pe.CurrentPsyfocus > psycast.GetPsyfocusUsedByPawn(pawn))) return false;
+            return !pe.WouldOverflowEntropy(psycast.GetEntropyUsedByPawn(pawn));
+        }
+
+        // Word of Serenity charges by the target's break on top of the base cost, unscaled, as its Cast does
+        public float PsyfocusCost(VefAbility ability, LocalTargetInfo target)
+        {
+            var psycast = ability.def.GetModExtension<AbilityExtension_Psycast>();
+            if (psycast == null) return 0f;
+            float cost = psycast.GetPsyfocusUsedByPawn(ability.pawn);
+            if (psycast is AbilityExtension_PsycastWordOfSerenity serenity)
+            {
+                Map map = ability.pawn.Map;
+                cost += target.IsValid && map != null
+                    ? serenity.PsyfocusCostForTarget(target.ToGlobalTargetInfo(map))
+                    : LeastBreakCost(serenity);
+            }
+            return cost;
+        }
+
+        public float HeatGain(VefAbility ability) =>
+            ability.def.GetModExtension<AbilityExtension_Psycast>()?.GetEntropyUsedByPawn(ability.pawn) ?? 0f;
+
+        // The three per-intensity costs default to -1 (unset); unset ones are left out
+        private static float LeastBreakCost(AbilityExtension_PsycastWordOfSerenity s)
+        {
+            float least = float.MaxValue;
+            if (s.psyfocusCostForMinor >= 0f) least = Math.Min(least, s.psyfocusCostForMinor);
+            if (s.psyfocusCostForMajor >= 0f) least = Math.Min(least, s.psyfocusCostForMajor);
+            if (s.psyfocusCostForExtreme >= 0f) least = Math.Min(least, s.psyfocusCostForExtreme);
+            return least == float.MaxValue ? 0f : least;
+        }
+    }
+}

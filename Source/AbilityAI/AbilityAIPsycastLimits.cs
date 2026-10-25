@@ -7,8 +7,10 @@ using Verse;
 // Per-pawn limits on what autocast may spend on psycasts: a neural heat cap and a psyfocus floor. Set from a gizmo
 // beside vanilla's psyfocus one (design: .circinus/mockups/psycast-limits-gizmo.html, variant A, but
 // without its reset button: dragging the handles to the ends is the reset), stored in the
-// AbilityAIAutocast world component, applied by AbilityAIDriver.PsycastWithinLimits. Only real Psycasts count; Entad's
-// psycast copies are plain Abilities. NPCs get no limits: vanilla already makes them pay psyfocus and respects their
+// AbilityAIAutocast world component, applied by AbilityAIDriver.PsycastWithinLimits. Only abilities their own system
+// calls psycasts count (AIAbility.IsPsycast: vanilla's Psycast, VPE's psycasts through the VEF and VPE compat); Entad's
+// psycast copies are plain Abilities. VPE replaces vanilla's psyfocus gizmo with its own at the same Order (-100), so
+// this one follows either. NPCs get no limits: vanilla already makes them pay psyfocus and respects their
 // heat limit, and there is nothing for the player to manage on a raider.
 namespace AbilityAI
 {
@@ -83,13 +85,19 @@ namespace AbilityAI
             return cachedAnswer;
         }
 
+        private static readonly List<AIAbility> collected = new List<AIAbility>();
+
+        // Every system's abilities with an extension, since only those can have a mode
         private static bool HasAutocastPsycast(Pawn pawn)
         {
-            var abilities = pawn.abilities?.AllAbilitiesForReading;
-            if (abilities == null) return false;
-            for (int i = 0; i < abilities.Count; i++)
-                if (abilities[i] is Psycast && AbilityAIAutocast.ModeFor(pawn, abilities[i].def) != AbilityAIAutocastMode.Off) return true;
-            return false;
+            try
+            {
+                AIAbilitySources.Collect(pawn, collected);
+                for (int i = 0; i < collected.Count; i++)
+                    if (collected[i].IsPsycast && AbilityAIAutocast.ModeFor(pawn, collected[i].Def) != AbilityAIAutocastMode.Off) return true;
+                return false;
+            }
+            finally { collected.Clear(); }
         }
 
         // Label and bar plus the 6 px margin each side (no reset button: dragging both handles to the ends is the reset)

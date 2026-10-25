@@ -20,6 +20,25 @@ using VefAbilityDef = VEF.Abilities.AbilityDef;
 // shape (single target, self-cast, touch) is read once at startup, before anyone has clicked a gizmo.
 namespace AbilityAI.Vef
 {
+    /// <summary>What a compat assembly built on this one (VPE's) knows about paying for VEF abilities: VEF itself has
+    /// no costs, so without one every VEF ability is free and none is a psycast.</summary>
+    public interface IVefAbilityCosts
+    {
+        /// <summary>Abilities of this def are paid for by this system, and are psycasts to the AI (psycast limits,
+        /// psychic immunity). Asked once per def.</summary>
+        bool Covers(VefAbilityDef def);
+
+        /// <summary>The caster can pay for a cast now. Asked before the def's extensions' IsEnabledForPawn, which builds
+        /// a translated reason on every refusal: answer quietly and refuse at least where those would for cost.</summary>
+        bool Affordable(VefAbility ability);
+
+        /// <summary>Psyfocus the cast costs at this target; without one, the least it can cost.</summary>
+        float PsyfocusCost(VefAbility ability, LocalTargetInfo target);
+
+        /// <summary>Neural heat before the caster's PsychicEntropyGain scales it.</summary>
+        float HeatGain(VefAbility ability);
+    }
+
     public sealed class VefAIAbility : AIAbility
     {
         public readonly VefAbility ability;
@@ -39,6 +58,9 @@ namespace AbilityAI.Vef
             public bool self, touch, hostile;
             public TargetingParameters targetParams;
             public AIAbilityEffects effects;
+            // Resolved on first use: a cost system may register after Init
+            public bool costsKnown;
+            public IVefAbilityCosts costs;
         }
 
         private static readonly Dictionary<VefAbilityDef, DefInfo> infos = new Dictionary<VefAbilityDef, DefInfo>();
@@ -48,6 +70,7 @@ namespace AbilityAI.Vef
         // Every JobDef whose driver is VEF's cast driver: how a running VEF cast is recognised from the job alone
         private static readonly HashSet<JobDef> castJobs = new HashSet<JobDef>();
         private static readonly List<Action<VefAbilityDef, AIAbilityEffects>> effectReaders = new List<Action<VefAbilityDef, AIAbilityEffects>>();
+        private static readonly List<IVefAbilityCosts> costSystems = new List<IVefAbilityCosts>();
         // Runtime ability types that declare their own IsEnabledForPawn (VPE's Conjure Heat Pearls, Farskip)
         private static readonly Dictionary<Type, bool> ownEnabledCheck = new Dictionary<Type, bool>();
         private static readonly GlobalTargetInfo[] oneTarget = new GlobalTargetInfo[1];
@@ -64,6 +87,16 @@ namespace AbilityAI.Vef
             effectReaders.Add(reader);
             foreach (var info in infos.Values) info.effects = null;
             foreach (var info in otherInfos.Values) info.effects = null;
+        }
+
+        /// <summary>For a compat assembly built on this one (VPE's): a system that prices VEF abilities. The first
+        /// registered system that covers a def prices it.</summary>
+        public static void RegisterCosts(IVefAbilityCosts costs)
+        {
+            if (costs == null || costSystems.Contains(costs)) return;
+            costSystems.Add(costs);
+            foreach (var info in infos.Values) info.costsKnown = false;
+            foreach (var info in otherInfos.Values) info.costsKnown = false;
         }
 
         internal static void Init()
@@ -96,19 +129,58 @@ namespace AbilityAI.Vef
                 self = self,
                 touch = !self && def.jobDef?.driverClass != null
                     && typeof(JobDriver_GotoTargetAndCastAbilityOnce).IsAssignableFrom(def.jobDef.driverClass),
-                // VEF's own rule (Ability.AICanUseOn) when the def states one; otherwise anything aimed away from the
-                // caster is taken as an attack
-                hostile = def.isPositive.HasValue ? !def.isPositive.Value : !self,
+                hostile = IsHostile(def, self),
                 targetParams = def.targetingParametersList != null && def.targetingParametersList.Count > 0 ? def.targetingParametersList[0] : null,
             };
+        }
+
+        // VEF's own rule (Ability.AICanUseOn) when the def states one. Most VPE psycasts don't, so then our extensions'
+        // workers say (Overshield and Stabilize are aimed at others but aren't attacks), then a goodwill cost (VPE's
+        // "considered a hostile action"), and last anything aimed away from the caster is taken as an attack.
+        private static bool IsHostile(VefAbilityDef def, bool self)
+        {
+            if (def.isPositive.HasValue) return !def.isPositive.Value;
+            var exts = def.modExtensions;
+            bool any = false, enemies = false;
+            if (exts != null)
+                for (int i = 0; i < exts.Count; i++)
+                    if (exts[i] is AbilityAIExtension ext && ext.Worker != null)
+                    {
+                        any = true;
+                        enemies |= ext.Worker.TargetsEnemies;
+                    }
+            if (any) return enemies;
+            if (def.goodwillImpact < 0) return true;
+            return !self;
+        }
+
+        private IVefAbilityCosts Costs
+        {
+            get
+            {
+                var info = Info;
+                if (!info.costsKnown)
+                {
+                    info.costs = null;
+                    for (int i = 0; i < costSystems.Count && info.costs == null; i++)
+                    {
+                        try { if (costSystems[i].Covers(ability.def)) info.costs = costSystems[i]; }
+                        catch (Exception e) { Log.ErrorOnce($"[Ability AI] cost system {costSystems[i].GetType().FullName} threw on {ability.def.defName}: {e}", ability.def.shortHash ^ 0x5C2); }
+                    }
+                    info.costsKnown = true;
+                }
+                return info.costs;
+            }
         }
 
         private static string Unsupported(VefAbilityDef def)
         {
             if (def.targetCount != 1 || def.targetModes == null || def.targetModes.Count == 0) return "it takes more than one target";
             if (def.worldTargeting) return "it targets the world map";
+            // None is a def that gives targetingParameters and no targetMode (VPE's Overshield): VEF targets by the
+            // parameters alone, as ValidIgnoringRange does. A def with neither was made Self when it was loaded.
             var mode = def.targetModes[0];
-            if (mode == AbilityTargetingMode.Tile || mode == AbilityTargetingMode.Random || mode == AbilityTargetingMode.None)
+            if (mode == AbilityTargetingMode.Tile || mode == AbilityTargetingMode.Random)
                 return $"its target mode is {mode}";
             // Its PreCast opens a dialog and holds the job back until the player answers
             if (def.HasModExtension<AbilityExtension_ConfirmationMessage>()) return "it asks for confirmation";
@@ -154,15 +226,17 @@ namespace AbilityAI.Vef
                 own = method != null && method.DeclaringType != typeof(VefAbility);
                 ownEnabledCheck[type] = own;
             }
-            if (own) return ability.IsEnabledForPawn(out _);
             if (ability.cooldown > Find.TickManager.TicksGame) return false;
+            var costs = Costs;
+            if (costs != null && !costs.Affordable(ability)) return false;
+            if (own) return ability.IsEnabledForPawn(out _);
             var exts = ability.AbilityModExtensions;
             for (int i = 0; i < exts.Count; i++)
                 if (!exts[i].IsEnabledForPawn(ability, out _)) return false;
             return ability.def.Satisfied(ability.Hediff);
         }
 
-        public override bool IsPsycast => false;
+        public override bool IsPsycast => Costs != null;
 
         // A walk-up ability (VFEA_GotoTargetAndUseAbility) states a range of 999999: its job walks to the target, so
         // to the workers it is a touch ability
@@ -243,9 +317,9 @@ namespace AbilityAI.Vef
             return ability.CanHitTarget(target);
         }
 
-        public override float PsyfocusCost(LocalTargetInfo target) => 0f;
+        public override float PsyfocusCost(LocalTargetInfo target) => Costs?.PsyfocusCost(ability, target) ?? 0f;
 
-        public override float HeatGain => 0f;
+        public override float HeatGain => Costs?.HeatGain(ability) ?? 0f;
 
         public override Job MakeCastJob(LocalTargetInfo target, LocalTargetInfo dest)
         {

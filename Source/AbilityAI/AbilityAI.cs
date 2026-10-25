@@ -212,6 +212,12 @@ namespace AbilityAI
         public float minPain;
         /// <summary>Rescue: only allies downed by pain alone.</summary>
         public bool painShockOnly;
+        /// <summary>Rescue: only allies bleeding at least this much per day (1 = 100%/day; 0 = any). For abilities
+        /// that only stop bleeding (VPE's Stabilize).</summary>
+        public float minBleedRate;
+        /// <summary>Defensive: only shooters count as trouble (minThreats), not melee or low health. For protection
+        /// that only stops projectiles (VPE's Overshield).</summary>
+        public bool rangedOnly;
         /// <summary>Calm: any mental state, not only aggressive ones.</summary>
         public bool anyMentalState;
         /// <summary>Calm: skip a break that will end by itself within this many seconds.</summary>
@@ -248,6 +254,8 @@ namespace AbilityAI
             if (reserveCharges < 0) yield return "reserveCharges can't be negative";
             if (minTargets < 1) yield return "minTargets must be at least 1";
             if (approachDistance < 0f) yield return "approachDistance can't be negative";
+            if (minBleedRate < 0f) yield return "minBleedRate can't be negative";
+            if (rangedOnly && minThreats < 1) yield return "rangedOnly needs minThreats of at least 1";
         }
     }
 

@@ -71,6 +71,7 @@ namespace AbilityAI
     /// </summary>
     public class AbilityAIWorker_TargetHostile : AbilityAIWorker
     {
+        public override bool TargetsEnemies => true;
         private static readonly List<TargetingUtil.Cand> cands = new List<TargetingUtil.Cand>();
 
         public override bool TryFindTarget(AbilityAIContext ctx, AIAbility ability, out LocalTargetInfo target, out LocalTargetInfo dest)
@@ -168,7 +169,8 @@ namespace AbilityAI
     /// <summary>
     /// Defensive: protect the caster or an ally who is in trouble (Invisibility). In trouble = health under
     /// healthThreshold with an enemy within 15 tiles, or hurt in melee in the last 10 seconds, or at least minThreats
-    /// ranged enemies aiming at them (being shot recently counts as one). Skips anyone with the ability's hediff.
+    /// ranged enemies aiming at them (being shot recently counts as one); with rangedOnly only the last of those.
+    /// Skips anyone with the ability's hediff.
     /// The caster first (x1.5), then whoever is worst hurt. Cost: a × k distance checks at worst (only for allies
     /// under the health threshold), plus one pass over the enemies' targets.
     /// </summary>
@@ -202,10 +204,10 @@ namespace AbilityAI
 
         private bool InTrouble(AbilityAIContext ctx, Pawn p, float health)
         {
-            if (AbilityAIUtility.InMelee(ctx, p)) return true;
+            if (!ext.rangedOnly && AbilityAIUtility.InMelee(ctx, p)) return true;
             // minThreats 0 would count every ally in range as in trouble: treat it as "threats don't count"
             if (ext.minThreats > 0 && ctx.AimedAtCount(p) + (ctx.RecentlyShot(p) ? 1 : 0) >= ext.minThreats) return true;
-            if (health >= ext.healthThreshold) return false;
+            if (ext.rangedOnly || health >= ext.healthThreshold) return false;
             var enemies = ctx.Enemies;
             for (int i = 0; i < enemies.Count; i++)
                 if (enemies[i].Position.InHorDistOf(p.Position, DangerRange)) return true;
@@ -215,8 +217,9 @@ namespace AbilityAI
 
     /// <summary>
     /// Rescue: help a downed ally (Painblock gets a pawn downed by pain alone back on its feet). Downed allies in
-    /// range without the ability's hediff, painShockOnly limiting it to pain shock; nearest first. Any time, in
-    /// combat or not. Cost: one pass over downed allies.
+    /// range without the ability's hediff, painShockOnly limiting it to pain shock and minBleedRate to those
+    /// bleeding that fast (cached on the hediff set); nearest first. Any time, in combat or not. Cost: one pass over
+    /// downed allies.
     /// </summary>
     public class AbilityAIWorker_Rescue : AbilityAIWorker
     {
@@ -238,6 +241,7 @@ namespace AbilityAI
                 float d = (p.Position - ctx.pawn.Position).LengthHorizontalSquared;
                 if (d > maxSq || AbilityAIUtility.Has(p, hediff)) continue;
                 if (ext.painShockOnly && p.health?.InPainShock != true) continue;
+                if (ext.minBleedRate > 0f && (p.health?.hediffSet?.BleedRateTotal ?? 0f) < ext.minBleedRate) continue;
                 cands.Add(new TargetingUtil.Cand { pawn = p, score = -d });
             }
             return TargetingUtil.FirstValid(cands, ability, out target);
@@ -353,6 +357,7 @@ namespace AbilityAI
     /// </summary>
     public class AbilityAIWorker_Interrupt : AbilityAIWorker
     {
+        public override bool TargetsEnemies => true;
         private const int MarginTicks = 6;
         private static readonly List<TargetingUtil.Cand> cands = new List<TargetingUtil.Cand>();
 

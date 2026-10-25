@@ -21,6 +21,8 @@
         <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
         <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
         <DefineConstants>$(DefineConstants);RW16</DefineConstants>
+        <!-- VPE's 1.6 assembly is built for .NET Framework 4.8; RimWorld's Mono runs both, and we only name its types -->
+        <ResolveAssemblyReferenceIgnoreTargetFrameworkAttributeVersionMismatch>true</ResolveAssemblyReferenceIgnoreTargetFrameworkAttributeVersionMismatch>
         <Version>1.0.0</Version>
         <AssemblyVersion>1.0.0.0</AssemblyVersion>
         <FileVersion>1.0.0.0</FileVersion>

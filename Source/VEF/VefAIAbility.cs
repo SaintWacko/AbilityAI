@@ -63,6 +63,7 @@ namespace AbilityAI.Vef
             if (reader == null || effectReaders.Contains(reader)) return;
             effectReaders.Add(reader);
             foreach (var info in infos.Values) info.effects = null;
+            foreach (var info in otherInfos.Values) info.effects = null;
         }
 
         internal static void Init()
@@ -135,6 +136,8 @@ namespace AbilityAI.Vef
             {
                 Pawn pawn = ability.pawn;
                 if (pawn?.Map == null || ability.verb == null || !infos.ContainsKey(ability.def)) return false;
+                // MakeCastJob would refuse it (see there): don't pay for the target search first
+                if (ability.def.keepCarryingThing == true && pawn.carryTracker?.CarriedThing != null) return false;
                 return EnabledForPawn();
             }
         }

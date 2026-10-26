@@ -24,7 +24,7 @@
   <AAI_Who_Desc>Your own colonists, slaves, ghouls and mechs only use abilities you set to autocast. Prisoners never use any.</AAI_Who_Desc>
   <AAI_Unclaimed>Also use abilities no mod claims</AAI_Unclaimed>
   <AAI_Unclaimed_Desc>Such as a raider psycaster's own psycasts. Rules marked off for NPCs stay off.</AAI_Unclaimed_Desc>
-  <AAI_Unclaimed_Tip>Mods built on Ability AI (such as Entad Framework and Bastle Framework) claim the abilities their own gear and traits give. With this on, a pawn also uses any other ability that is set up for this mod, such as a raider psycaster's own psycasts (most combat psycasts from Royalty are). Off: only claimed abilities.</AAI_Unclaimed_Tip>
+  <AAI_Unclaimed_Tip>Mods built on Ability AI (such as Entad Framework and Bastle Framework) claim the abilities their own gear and traits give. With this on, a pawn also uses any other ability that is set up for this mod, such as a raider psycaster's own psycasts (most combat psycasts from Royalty and Vanilla Psycasts Expanded are). Off: only claimed abilities.</AAI_Unclaimed_Tip>
   <AAI_VanillaStandDown>Replace vanilla's casting for abilities this mod handles</AAI_VanillaStandDown>
   <AAI_VanillaStandDown_Tip>Some abilities also have vanilla's simple casting turned on, so they still get used when this mod is missing, and Vanilla Expanded Framework casts its abilities for NPCs at random in place of an attack. With this on, both stay out of the way of any ability Ability AI is deciding for, so two AIs never use the same ability. Off: both may cast it.</AAI_VanillaStandDown_Tip>
   <AAI_Approach>Walk into range to use an ability</AAI_Approach>

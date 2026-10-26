@@ -1772,7 +1772,7 @@ namespace AbilityAI
         public static bool NonHostiles = true;
         public static bool Animals = true;
         public static bool Mechs = true;
-        public static bool Unclaimed;
+        public static bool Unclaimed = true;
         public static bool Approach = true;
         public static bool PlayerAutocast = true;
         public static bool BreakCasting;
@@ -1823,8 +1823,7 @@ namespace AbilityAI
                     DebugLog = false;
                     break;
                 case Tab.OtherFactions:
-                    Hostiles = NonHostiles = Animals = Mechs = Approach = true;
-                    Unclaimed = false;
+                    Hostiles = NonHostiles = Animals = Mechs = Approach = Unclaimed = true;
                     break;
                 case Tab.YourPawns:
                     PlayerAutocast = UndraftedAutocast = ShowMarker = true;
@@ -1853,7 +1852,7 @@ namespace AbilityAI
             Scribe_Values.Look(ref NonHostiles, "abilityAI_nonHostiles", true);
             Scribe_Values.Look(ref Animals, "abilityAI_animals", true);
             Scribe_Values.Look(ref Mechs, "abilityAI_mechs", true);
-            Scribe_Values.Look(ref Unclaimed, "abilityAI_unclaimed", false);
+            Scribe_Values.Look(ref Unclaimed, "abilityAI_unclaimed", true);
             Scribe_Values.Look(ref VanillaStandDown, "abilityAI_vanillaStandDown", true);
             Scribe_Values.Look(ref Approach, "abilityAI_approach", true);
             Scribe_Values.Look(ref PlayerAutocast, "abilityAI_playerAutocast", true);

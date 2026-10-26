@@ -405,6 +405,16 @@ namespace AbilityAI.Vef
                         case AbilityExtension_Spawn sp when sp.thing != null:
                             e.spawns = sp.thing;
                             break;
+                        case AbilityExtension_Projectile p when p.projectile != null && !e.hasEffectRadius:
+                            // A chaining bolt (VPE's Chain Bolt) reaches whatever stands within its bounce range of
+                            // the first target
+                            var chain = p.projectile.GetModExtension<VEF.Weapons.TeslaChainingProps>();
+                            if (chain != null && chain.bounceRange > 0f)
+                            {
+                                e.hasEffectRadius = true;
+                                e.effectRadius = chain.bounceRange;
+                            }
+                            break;
                         case AbilityExtension_Building b when b.building != null:
                             e.spawns = b.building;
                             break;

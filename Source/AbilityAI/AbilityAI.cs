@@ -166,7 +166,7 @@ namespace AbilityAI
         Ranged,
     }
 
-    /// <summary>Which pawns a rule may target or count.</summary>
+    /// <summary>Which pawns (and, named, turrets) a rule may target or count.</summary>
     [Flags]
     public enum AbilityAITargetKinds
     {
@@ -176,7 +176,11 @@ namespace AbilityAI
         Mechanoid = 4,
         /// <summary>Anything else: entities, and races that are none of the above.</summary>
         Other = 8,
+        /// <summary>Every kind of pawn. Turrets are not in it: a rule that should hit them names Turret.</summary>
         All = Humanlike | Animal | Mechanoid | Other,
+        /// <summary>Turrets (Haywire). Only the hostile area workers (AoE hostile, AoE hostile around the caster)
+        /// target and count them; in allyKinds, avoidAllies also keeps clear of friendly turrets.</summary>
+        Turret = 16,
     }
 
     /// <summary>Recovery: the health conditions a rule treats.</summary>
@@ -340,6 +344,12 @@ namespace AbilityAI
         public AbilityAIRequires requires;
         /// <summary>Which pawns the rule may target or count; others are ignored (Haywire: Mechanoid).</summary>
         public AbilityAITargetKinds targetKinds = AbilityAITargetKinds.All;
+        /// <summary>Which of the caster's side avoidAllies keeps clear of: those the effect would harm (Haywire:
+        /// Mechanoid, Turret; it doesn't touch people). Default every pawn.</summary>
+        public AbilityAITargetKinds allyKinds = AbilityAITargetKinds.All;
+        /// <summary>Only while the light on the caster's cell is at most this (0-1; Obscure, Shadow Focus: 0.3).
+        /// 1 = any light.</summary>
+        public float maxLight = 1f;
         /// <summary>Recovery: the health conditions it treats. None = the need rule alone.</summary>
         public AbilityAIHealth health;
         /// <summary>AoE hostile: never centre the area within its radius of the caster, for areas that hit the caster
@@ -430,6 +440,8 @@ namespace AbilityAI
             if (minBleedRate < 0f) yield return "minBleedRate can't be negative";
             if (rangedOnly && minThreats < 1) yield return "rangedOnly needs minThreats of at least 1";
             if (targetKinds == AbilityAITargetKinds.None) yield return "targetKinds is empty: the rule could never target anyone";
+            if (avoidAllies && allyKinds == AbilityAITargetKinds.None) yield return "allyKinds is empty: avoidAllies would avoid nobody";
+            if (maxLight < 0f) yield return "maxLight can't be negative";
         }
     }
 
@@ -450,6 +462,9 @@ namespace AbilityAI
         private readonly List<Pawn> allies = new List<Pawn>();
         private readonly List<Pawn> downedAllies = new List<Pawn>();
         private readonly Dictionary<Pawn, int> aimedAt = new Dictionary<Pawn, int>();
+        private readonly List<Thing> enemyTurrets = new List<Thing>();
+        private readonly List<Thing> friendlyTurrets = new List<Thing>();
+        private bool friendlyTurretsBuilt;
         private Thing enemyTarget;
         private bool enemyTargetKnown;
         private Def approachAbility;
@@ -469,11 +484,14 @@ namespace AbilityAI
             approachAbility = walkingFor;
             approachExpected = expected;
             combatKnown = enemiesBuilt = alliesBuilt = aimsBuilt = friendliesBuilt = brokenBuilt = supportBuilt = enemyTargetKnown = false;
+            friendlyTurretsBuilt = false;
         }
 
         internal void End()
         {
             enemies.Clear();
+            enemyTurrets.Clear();
+            friendlyTurrets.Clear();
             allies.Clear();
             downedAllies.Clear();
             aimedAt.Clear();
@@ -560,9 +578,16 @@ namespace AbilityAI
                             || (ModsConfig.IdeologyActive && SlaveRebellionUtility.IsRebelling(pawn)));
                         var targets = map.attackTargetsCache.GetPotentialTargetsFor(pawn);
                         for (int i = 0; i < targets.Count; i++)
-                            if (targets[i].Thing is Pawn p && IsEnemy(p)
-                                && ((p.MentalState == null && p.Faction != null && !casterBreaking) || !enemies.Contains(p)))
-                                enemies.Add(p);
+                        {
+                            if (targets[i].Thing is Pawn p)
+                            {
+                                if (IsEnemy(p) && ((p.MentalState == null && p.Faction != null && !casterBreaking) || !enemies.Contains(p)))
+                                    enemies.Add(p);
+                            }
+                            // Collected in the same pass, since the cache list can't be asked for twice cheaply
+                            else if (targets[i] is Building_Turret turret && turret.Spawned && !turret.ThreatDisabled(pawn) && turret.HostileTo(pawn))
+                                enemyTurrets.Add(turret);
+                        }
                     }
                 }
                 return enemies;
@@ -690,6 +715,35 @@ namespace AbilityAI
                     }
                 }
                 return friendlies;
+            }
+        }
+
+        /// <summary>Hostile turrets that are a threat now (powered, manned where they need it), from the same
+        /// attack-target pass as Enemies. Empty for a caster with no faction.</summary>
+        public List<Thing> EnemyTurrets
+        {
+            get
+            {
+                _ = Enemies;
+                return enemyTurrets;
+            }
+        }
+
+        /// <summary>Spawned turrets of the caster's faction or of one not hostile to it, for avoidAllies with Turret
+        /// in allyKinds. Built only when such a rule asks: one pass over the map's attack targets (pawns and
+        /// turrets).</summary>
+        public List<Thing> FriendlyTurrets
+        {
+            get
+            {
+                if (!friendlyTurretsBuilt)
+                {
+                    friendlyTurretsBuilt = true;
+                    var list = map.listerThings.ThingsInGroup(ThingRequestGroup.AttackTarget);
+                    for (int i = 0; i < list.Count; i++)
+                        if (list[i] is Building_Turret t && t.Spawned && t.Faction != null && !t.HostileTo(pawn)) friendlyTurrets.Add(t);
+                }
+                return friendlyTurrets;
             }
         }
 
@@ -1225,7 +1279,7 @@ namespace AbilityAI
                         }
                         if (!ready) break;
                         if (ext.reserveCharges > 0 && a.UsesCharges && a.RemainingCharges <= ext.reserveCharges) continue;
-                        if (!Equipped(ext)) continue;
+                        if (!CasterSuits(ext)) continue;
                         int at = candidates.Count;
                         while (at > 0 && candidates[at - 1].ext.priority < ext.priority) at--;
                         candidates.Insert(at, new Candidate { ability = a, ext = ext });
@@ -1413,8 +1467,10 @@ namespace AbilityAI
             state.returnTries = 0;
         }
 
-        private static bool Equipped(AbilityAIExtension ext)
+        // requires (the caster's weapon) and maxLight (the light where it stands)
+        private static bool CasterSuits(AbilityAIExtension ext)
         {
+            if (ext.maxLight < 1f && ctx.map.glowGrid.GroundGlowAt(ctx.pawn.Position) > ext.maxLight) return false;
             switch (ext.requires)
             {
                 case AbilityAIRequires.Melee: return !ctx.UsesRanged;

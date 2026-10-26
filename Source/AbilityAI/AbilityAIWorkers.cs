@@ -109,6 +109,10 @@ namespace AbilityAI
         /// psychic sensitivity (or a mech, for some), and with skipAffected a pawn already stunned by a stunning
         /// ability, already carrying its hediff, or already in a mental state from a mental-state one is skipped.
         /// Cost: a few field reads, plus a cached stat read for psycasts.</summary>
+        /// <summary>WouldAffect for a pawn; a turret only by targetKinds (Turret named).</summary>
+        public static bool WouldAffect(AIAbility ability, AbilityAIExtension ext, Thing t) =>
+            t is Pawn p ? WouldAffect(ability, ext, p) : Fits(ext, t);
+
         public static bool WouldAffect(AIAbility ability, AbilityAIExtension ext, Pawn p)
         {
             if (!Fits(ext, p)) return false;
@@ -183,6 +187,51 @@ namespace AbilityAI
         public static bool Fits(AbilityAIExtension ext, Pawn p) =>
             ext.targetKinds == AbilityAITargetKinds.All || (ext.targetKinds & KindOf(p)) != 0;
 
+        public static bool Fits(AbilityAIExtension ext, Thing t)
+        {
+            if (t is Pawn p) return Fits(ext, p);
+            return t is Building_Turret && (ext.targetKinds & AbilityAITargetKinds.Turret) != 0;
+        }
+
+        public static bool WantsTurrets(AbilityAIExtension ext) => (ext.targetKinds & AbilityAITargetKinds.Turret) != 0;
+
+        /// <summary>What a hostile area rule may hit: ctx.Enemies, plus ctx.EnemyTurrets when it names Turret.</summary>
+        public static void CollectHostiles(AbilityAIContext ctx, AbilityAIExtension ext, List<Thing> into)
+        {
+            var enemies = ctx.Enemies;
+            for (int i = 0; i < enemies.Count; i++) into.Add(enemies[i]);
+            if (WantsTurrets(ext)) into.AddRange(ctx.EnemyTurrets);
+        }
+
+        /// <summary>avoidAllies: anyone of the caster's side within r2 of c, of the kinds the rule's allyKinds names:
+        /// Friendlies, the allies in a hostile break when they are spared, and with Turret friendly turrets. The
+        /// caster counts unless skipCaster (an area around the caster). Cost: a distance check per pawn, one
+        /// KindOf more for a rule with allyKinds set; the turret list only for Turret.</summary>
+        public static bool AllyWithin(AbilityAIContext ctx, AbilityAIExtension ext, IntVec3 c, float r2, bool spareBroken, bool skipCaster)
+        {
+            var kinds = ext.allyKinds;
+            Pawn skip = skipCaster ? ctx.pawn : null;
+            if (AnyOfKindWithin(ctx.Friendlies, kinds, c, r2, skip)) return true;
+            if (spareBroken && AnyOfKindWithin(ctx.BrokenAllies, kinds, c, r2, skip)) return true;
+            if ((kinds & AbilityAITargetKinds.Turret) == 0) return false;
+            var turrets = ctx.FriendlyTurrets;
+            for (int i = 0; i < turrets.Count; i++)
+                if ((turrets[i].Position - c).LengthHorizontalSquared <= r2) return true;
+            return false;
+        }
+
+        private static bool AnyOfKindWithin(List<Pawn> pawns, AbilityAITargetKinds kinds, IntVec3 c, float r2, Pawn skip)
+        {
+            bool all = (kinds & AbilityAITargetKinds.All) == AbilityAITargetKinds.All;
+            for (int i = 0; i < pawns.Count; i++)
+            {
+                Pawn p = pawns[i];
+                if (p == skip || (p.Position - c).LengthHorizontalSquared > r2) continue;
+                if (all || (kinds & KindOf(p)) != 0) return true;
+            }
+            return false;
+        }
+
         /// <summary>A building on this cell that the caster's side would not want burnt or broken: its own faction's,
         /// or a faction's not hostile to it.</summary>
         public static bool FriendlyBuildingAt(AbilityAIContext ctx, IntVec3 c)
@@ -209,8 +258,8 @@ namespace AbilityAI
             return false;
         }
 
-        /// <summary>The pawn itself if the ability accepts it, else the cell it stands on.</summary>
-        public static LocalTargetInfo PawnOrCell(AIAbility ability, Pawn target)
+        /// <summary>The pawn (or turret) itself if the ability accepts it, else the cell it stands on.</summary>
+        public static LocalTargetInfo PawnOrCell(AIAbility ability, Thing target)
         {
             var pawnTarget = new LocalTargetInfo(target);
             if (AbilityAIDriver.Valid(ability, pawnTarget)) return pawnTarget;
@@ -250,15 +299,17 @@ namespace AbilityAI
     /// break counts as an ally (never counted, never a centre, avoided with avoidAllies) unless MayHitBrokenAllies. The best five are checked
     /// against the verb (line of sight). Approach: the same scoring out to range + approachDistance, without the verb.
     /// avoidSelf: no centre within the radius of the caster (an area that hits its caster); avoidBuildings: no centre
-    /// with a friendly building inside.
+    /// with a friendly building inside. A rule naming Turret in targetKinds also counts and centres on hostile
+    /// turrets (Haywire); allyKinds narrows who avoidAllies keeps clear of (AbilityAIUtility.AllyWithin).
     /// Cost: k WouldAffect checks and k² distance checks, then up to 10 target validations; with avoidBuildings a
     /// pass over the cells in the radius for each of the five.
     /// </summary>
     public class AbilityAIWorker_AoEHostile : AbilityAIWorker
     {
         public override bool TargetsEnemies => true;
-        private struct Centre { public Pawn pawn; public int count; public float distSq; }
+        private struct Centre { public Thing thing; public int count; public float distSq; }
         private static readonly List<Centre> centres = new List<Centre>();
+        private static readonly List<Thing> targets = new List<Thing>();
         private static readonly List<bool> affected = new List<bool>();
         private const int MaxTries = 5;
 
@@ -269,8 +320,8 @@ namespace AbilityAI
             float radius = AbilityAIUtility.Radius(ability, ext);
             for (int i = 0; i < centres.Count && i < MaxTries; i++)
             {
-                if (ext.avoidBuildings && AbilityAIUtility.FriendlyBuildingWithin(ctx, centres[i].pawn.Position, radius)) continue;
-                target = AbilityAIUtility.PawnOrCell(ability, centres[i].pawn);
+                if (ext.avoidBuildings && AbilityAIUtility.FriendlyBuildingWithin(ctx, centres[i].thing.Position, radius)) continue;
+                target = AbilityAIUtility.PawnOrCell(ability, centres[i].thing);
                 if (target.IsValid) break;
             }
             centres.Clear();
@@ -283,7 +334,7 @@ namespace AbilityAI
             if (!Score(ctx, ability, reach)) return false;
             for (int i = 0; i < centres.Count && i < MaxTries; i++)
             {
-                Pawn p = centres[i].pawn;
+                Thing p = centres[i].thing;
                 if (AbilityAIDriver.ValidIgnoringRange(ability, p) || AbilityAIDriver.ValidIgnoringRange(ability, p.Position)) { goal = p; break; }
             }
             centres.Clear();
@@ -294,8 +345,9 @@ namespace AbilityAI
         private bool Score(AbilityAIContext ctx, AIAbility ability, float range)
         {
             centres.Clear();
-            var enemies = ctx.Enemies;
-            if (enemies.Count < ext.minTargets) return false;
+            targets.Clear();
+            AbilityAIUtility.CollectHostiles(ctx, ext, targets);
+            if (targets.Count < ext.minTargets) { targets.Clear(); return false; }
             float radius = AbilityAIUtility.Radius(ability, ext);
             float r2 = radius * radius;
             float maxSq = range * range, minSq = ext.minRange * ext.minRange;
@@ -304,39 +356,34 @@ namespace AbilityAI
             bool spareBroken = !AbilityAIUtility.MayHitBrokenAllies(ext);
             affected.Clear();
             int affectable = 0;
-            for (int i = 0; i < enemies.Count; i++)
+            for (int i = 0; i < targets.Count; i++)
             {
-                bool a = (!spareBroken || !ctx.IsBrokenAlly(enemies[i])) && AbilityAIUtility.WouldAffect(ability, ext, enemies[i]);
+                bool a = (!spareBroken || !(targets[i] is Pawn p) || !ctx.IsBrokenAlly(p)) && AbilityAIUtility.WouldAffect(ability, ext, targets[i]);
                 affected.Add(a);
                 if (a) affectable++;
             }
-            if (affectable < ext.minTargets) return false;
+            if (affectable < ext.minTargets) { targets.Clear(); return false; }
 
-            for (int i = 0; i < enemies.Count; i++)
+            for (int i = 0; i < targets.Count; i++)
             {
-                Pawn e = enemies[i];
+                Thing e = targets[i];
                 float d = (e.Position - from).LengthHorizontalSquared;
                 if (d > maxSq || d < minSq) continue;
                 if (ext.avoidSelf && d <= r2) continue;
-                if (spareBroken && !affected[i] && ctx.IsBrokenAlly(e)) continue;
+                if (spareBroken && !affected[i] && e is Pawn ep && ctx.IsBrokenAlly(ep)) continue;
                 int count = 0;
-                for (int j = 0; j < enemies.Count; j++)
-                    if (affected[j] && (j == i || (enemies[j].Position - e.Position).LengthHorizontalSquared <= r2)) count++;
+                for (int j = 0; j < targets.Count; j++)
+                    if (affected[j] && (j == i || (targets[j].Position - e.Position).LengthHorizontalSquared <= r2)) count++;
                 if (count < ext.minTargets) continue;
-                if (ext.avoidAllies && radius > 0f && AnyAllyNear(ctx, e.Position, r2, spareBroken)) continue;
-                centres.Add(new Centre { pawn = e, count = count, distSq = d });
+                // Anyone on the caster's side, colonists included when the caster is a friendly visitor, and the
+                // ones in a hostile break when they are to be spared
+                if (ext.avoidAllies && radius > 0f && AbilityAIUtility.AllyWithin(ctx, ext, e.Position, r2, spareBroken, false)) continue;
+                centres.Add(new Centre { thing = e, count = count, distSq = d });
             }
+            targets.Clear();
             // Most enemies caught first, then the nearest (more likely to be in sight)
             centres.Sort((a, b) => a.count != b.count ? b.count.CompareTo(a.count) : a.distSq.CompareTo(b.distSq));
             return centres.Count > 0;
-        }
-
-        // Anyone on the caster's side, colonists included when the caster is a friendly visitor, and the ones in a
-        // hostile break when they are to be spared
-        private static bool AnyAllyNear(AbilityAIContext ctx, IntVec3 c, float r2, bool spareBroken)
-        {
-            if (TargetingUtil.AnyWithin(ctx.Friendlies, c, r2)) return true;
-            return spareBroken && TargetingUtil.AnyWithin(ctx.BrokenAllies, c, r2);
         }
     }
 
@@ -662,6 +709,12 @@ namespace AbilityAI
             }
             if (threats < ext.minThreats) return false;
             if (!smoke && spawns == null && nearest != null && CoverUtility.CalculateOverallBlockChance(pawn, nearest.Position, ctx.map) >= 0.5f) return false;
+            // Cover the ability shapes around its caster itself (Ice Wall's ring)
+            if (AbilityAIUtility.IsSelfCast(ability))
+            {
+                target = pawn;
+                return true;
+            }
 
             if (ext.offsetTowardThreat <= 0f || nearest == null)
             {
@@ -781,54 +834,156 @@ namespace AbilityAI
 
     /// <summary>
     /// AoE hostile around the caster: an area centred on the caster itself (psychic drone, static pulse, an animal's
-    /// roar). Counts the enemies within the radius of the caster that the ability would affect (WouldAffect, allies
-    /// in a hostile break left out unless MayHitBrokenAllies) and casts with at least minTargets. avoidAllies: not
-    /// with anyone else on the caster's side inside (Friendlies, and spared allies in a hostile break);
-    /// avoidBuildings: not with a friendly building inside. Targets the caster, or the cell it stands on for an
-    /// ability that wants a location. No walk into range: ranged pawns keep their distance, melee ones close in anyway.
+    /// roar). Counts the targets within the radius of the caster that the ability would affect (WouldAffect, allies
+    /// in a hostile break left out unless MayHitBrokenAllies; turrets too when targetKinds names Turret) and casts
+    /// with at least minTargets. Not while the caster already has the ability's hediff (a lasting aura). avoidAllies:
+    /// not with anyone else on the caster's side inside, of allyKinds (AbilityAIUtility.AllyWithin); avoidBuildings:
+    /// not with a friendly building inside. Targets the caster, or the cell it stands on for an ability that wants a
+    /// location.
+    /// Approach (self-cast only, ranged casters): for each target within approachDistance + radius, and the midpoint
+    /// of each pair within two radii of each other, the cell on the way to it from which it sits at 70% of the
+    /// radius; the standable cell within approachDistance that catches the most, nearest on a tie, more than the
+    /// caster catches where it stands, passing avoidAllies there and avoidBuildings, reachable (best four tried).
+    /// During the walk the pawn casts early only once its cell catches as many as the chosen one.
     /// Cost: k distance checks and WouldAffect for those inside; with avoidBuildings one pass over the radius's cells.
+    /// Approach: m targets nearby give m²/2 cells × m distance checks, once per 2 s while no spot is found.
     /// </summary>
     public class AbilityAIWorker_AoEHostileSelf : AbilityAIWorker
     {
         public override bool TargetsEnemies => true;
+        private struct Spot { public IntVec3 cell; public int count; public float dist; }
+        private static readonly List<Thing> targets = new List<Thing>();
+        private static readonly List<Thing> near = new List<Thing>();
+        private static readonly List<Spot> spots = new List<Spot>();
+        private const int MaxReachTries = 4;
+        private const float ApproachDepth = 0.7f;
+
+        public override bool UsesApproachCell => true;
 
         public override bool TryFindTarget(AbilityAIContext ctx, AIAbility ability, out LocalTargetInfo target, out LocalTargetInfo dest)
         {
             target = dest = LocalTargetInfo.Invalid;
             float radius = AbilityAIUtility.Radius(ability, ext);
             if (radius <= 0f) return false;
-            var enemies = ctx.Enemies;
-            if (enemies.Count < ext.minTargets) return false;
-            float r2 = radius * radius;
             Pawn pawn = ctx.pawn;
+            if (AuraRunning(ability, pawn)) return false;
+            float r2 = radius * radius;
             IntVec3 c = pawn.Position;
             bool spareBroken = !AbilityAIUtility.MayHitBrokenAllies(ext);
-            int count = 0;
-            for (int i = 0; i < enemies.Count; i++)
-            {
-                Pawn e = enemies[i];
-                if ((e.Position - c).LengthHorizontalSquared > r2) continue;
-                if (spareBroken && ctx.IsBrokenAlly(e)) continue;
-                if (AbilityAIUtility.WouldAffect(ability, ext, e)) count++;
-            }
+            Collect(ctx, ability, c, r2, spareBroken);
+            int count = near.Count;
+            near.Clear();
             if (count < ext.minTargets) return false;
-            if (ext.avoidAllies)
-            {
-                var side = ctx.Friendlies;
-                for (int i = 0; i < side.Count; i++)
-                    if (side[i] != pawn && (side[i].Position - c).LengthHorizontalSquared <= r2) return false;
-                if (spareBroken && TargetingUtil.AnyWithin(ctx.BrokenAllies, c, r2)) return false;
-            }
+            // Walking to a better spot: not on the way unless this cell is already as good
+            if (ctx.ApproachExpected(ability) > count) return false;
+            if (ext.avoidAllies && AbilityAIUtility.AllyWithin(ctx, ext, c, r2, spareBroken, true)) return false;
             if (ext.avoidBuildings && AbilityAIUtility.FriendlyBuildingWithin(ctx, c, radius)) return false;
             target = AbilityAIUtility.IsSelfCast(ability) ? new LocalTargetInfo(pawn) : AbilityAIUtility.PawnOrCell(ability, pawn);
             return target.IsValid;
+        }
+
+        public override bool TryFindApproachCell(AbilityAIContext ctx, AIAbility ability, out IntVec3 cell, out int expected)
+        {
+            cell = IntVec3.Invalid;
+            expected = 0;
+            if (!AbilityAIUtility.IsSelfCast(ability)) return false;
+            float radius = AbilityAIUtility.Radius(ability, ext);
+            if (radius <= 0f || AuraRunning(ability, ctx.pawn)) return false;
+            float r2 = radius * radius;
+            Pawn pawn = ctx.pawn;
+            IntVec3 from = pawn.Position;
+            bool spareBroken = !AbilityAIUtility.MayHitBrokenAllies(ext);
+            float look = ext.approachDistance + radius;
+            Collect(ctx, ability, from, look * look, spareBroken);
+            int here = CountNear(from, r2);
+            int floor = Mathf.Max(ext.minTargets, here + 1);
+            if (near.Count < floor) { near.Clear(); return false; }
+
+            spots.Clear();
+            float maxSq = ext.approachDistance * ext.approachDistance;
+            float keep = radius * ApproachDepth;
+            float pair2 = 4f * r2;
+            for (int i = 0; i < near.Count; i++)
+            {
+                IntVec3 a = near[i].Position;
+                AddSpot(ctx, Toward(from, a, keep), from, maxSq, r2, floor, spareBroken);
+                for (int j = i + 1; j < near.Count; j++)
+                {
+                    IntVec3 b = near[j].Position;
+                    if ((a - b).LengthHorizontalSquared > pair2) continue;
+                    AddSpot(ctx, Toward(from, new IntVec3((a.x + b.x) / 2, 0, (a.z + b.z) / 2), keep), from, maxSq, r2, floor, spareBroken);
+                }
+            }
+            near.Clear();
+            if (spots.Count == 0) return false;
+            spots.Sort((x, y) => x.count != y.count ? y.count.CompareTo(x.count) : x.dist.CompareTo(y.dist));
+            int tries = 0;
+            for (int i = 0; i < spots.Count && tries < MaxReachTries; i++)
+            {
+                if (ext.avoidBuildings && AbilityAIUtility.FriendlyBuildingWithin(ctx, spots[i].cell, radius)) continue;
+                tries++;
+                if (!pawn.CanReach(spots[i].cell, PathEndMode.OnCell, Danger.Some)) continue;
+                cell = spots[i].cell;
+                expected = spots[i].count;
+                break;
+            }
+            spots.Clear();
+            return cell.IsValid;
+        }
+
+        // A lasting aura on the caster (psychic drone) isn't cast again while it runs
+        private bool AuraRunning(AIAbility ability, Pawn pawn) =>
+            AbilityAIUtility.IsSelfCast(ability) && AbilityAIUtility.Has(pawn, AbilityAIUtility.Hediff(ability, ext));
+
+        // Fills near with the targets within r2 of c the cast would affect
+        private void Collect(AbilityAIContext ctx, AIAbility ability, IntVec3 c, float r2, bool spareBroken)
+        {
+            near.Clear();
+            targets.Clear();
+            AbilityAIUtility.CollectHostiles(ctx, ext, targets);
+            for (int i = 0; i < targets.Count; i++)
+            {
+                Thing t = targets[i];
+                if ((t.Position - c).LengthHorizontalSquared > r2) continue;
+                if (spareBroken && t is Pawn p && ctx.IsBrokenAlly(p)) continue;
+                if (AbilityAIUtility.WouldAffect(ability, ext, t)) near.Add(t);
+            }
+            targets.Clear();
+        }
+
+        // The cell on the way from the caster to the point at which the point sits keep tiles away
+        private static IntVec3 Toward(IntVec3 from, IntVec3 to, float keep)
+        {
+            float d = (to - from).LengthHorizontal;
+            if (d <= keep) return from;
+            float f = (d - keep) / d;
+            return new IntVec3(from.x + Mathf.RoundToInt((to.x - from.x) * f), 0, from.z + Mathf.RoundToInt((to.z - from.z) * f));
+        }
+
+        private void AddSpot(AbilityAIContext ctx, IntVec3 c, IntVec3 from, float maxSq, float r2, int floor, bool spareBroken)
+        {
+            float d = (c - from).LengthHorizontalSquared;
+            if (d > maxSq || c == from || !c.InBounds(ctx.map) || !c.Standable(ctx.map)) return;
+            int n = CountNear(c, r2);
+            if (n < floor) return;
+            if (ext.avoidAllies && AbilityAIUtility.AllyWithin(ctx, ext, c, r2, spareBroken, true)) return;
+            spots.Add(new Spot { cell = c, count = n, dist = d });
+        }
+
+        private static int CountNear(IntVec3 c, float r2)
+        {
+            int n = 0;
+            for (int i = 0; i < near.Count; i++)
+                if ((near[i].Position - c).LengthHorizontalSquared <= r2) n++;
+            return n;
         }
     }
 
     /// <summary>
     /// Cone hostile: a cone or line from the caster (fire spew, a breath). The shape is rebuilt from its numbers
     /// rather than read from the effect's own cells, which test line of sight from every cell in range: length = the
-    /// effect's cone length, else the ability's range, capped by maxRange; width at the far end = coneWidth, else the
+    /// effect's cone length, else the ability's range (maxRange only limits how far off an aim may stand, since the
+    /// shape reaches its full length whatever the aim's distance); width at the far end = coneWidth, else the
     /// effect's, else 1 (a line). As vanilla's fire spew, the cone reaches its full length whatever the distance to
     /// the target, and covers the straight line to its end. Each affectable enemy between minRange and the length is
     /// an aim, scored by the affectable enemies inside (WouldAffect), at least minTargets. An aim with anyone on the
@@ -836,7 +991,7 @@ namespace AbilityAI
     /// avoidBuildings one with a friendly building inside. Walls are ignored, so an ally behind one still blocks. The
     /// best five are validated. Approach: the same aims out to the length + approachDistance.
     /// Cost: k WouldAffect checks and k² point tests, k×a for the allies; with avoidBuildings a pass over the cells
-    /// in reach for each of the five.
+    /// of the cone's bounding box for each of the five.
     /// </summary>
     public class AbilityAIWorker_ConeHostile : AbilityAIWorker
     {

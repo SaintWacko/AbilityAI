@@ -16,7 +16,7 @@ using Verse;
 // Only abilities with an AbilityAIExtension get the menu: the extension is what tells the AI how to use them.
 //
 // Another ability system's gizmos (VEF's) are hooked by its compat assembly, which calls Offers, OpenMenu and
-// DrawBadge here so both systems get the same menu and badge.
+// Patch_CommandAbility_Autocast.DrawBadge here so both systems get the same menu and badge.
 namespace AbilityAI
 {
     public enum AbilityAIAutocastMode

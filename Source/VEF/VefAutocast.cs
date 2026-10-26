@@ -89,7 +89,7 @@ namespace AbilityAI.Vef
                 if (AbilityAISettings.ShowMarker && AutocastMarker.Offers(VefAIAbility.Of(ability))) AutocastMarker.Draw(button, shrunk, true);
                 return;
             }
-            AbilityAIAutocast.DrawBadge(button, mode, shrunk, true);
+            Patch_CommandAbility_Autocast.DrawBadge(button, mode, shrunk, true);
         }
     }
 

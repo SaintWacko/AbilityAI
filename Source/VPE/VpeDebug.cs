@@ -30,7 +30,7 @@ namespace AbilityAI.Vpe
 
         // One entry per VPE path, giving every psycast of it that has an Ability AI rule, to try a path's rules on
         // raiders without a psycaster of that path turning up
-        [DebugAction("Ability AI", "Give VPE path psycasts...", allowedGameStates = AllowedGameStates.PlayingOnMap, requiresRoyalty = true)]
+        [DebugAction("Ability AI", "Give VPE path psycasts", allowedGameStates = AllowedGameStates.PlayingOnMap, requiresRoyalty = true)]
         private static List<DebugActionNode> GivePathPsycasts()
         {
             var nodes = new List<DebugActionNode>();
@@ -89,7 +89,7 @@ namespace AbilityAI.Vpe
             sb.AppendLine();
             foreach (var ability in learned)
             {
-                if (!RuledPsycasts.Contains(ability.def.defName)) continue;
+                if (!ability.def.HasModExtension<AbilityAIExtension>()) continue;
                 var psycast = ability.def.GetModExtension<AbilityExtension_Psycast>();
                 string cost = psycast == null ? ""
                     : $" ({psycast.GetPsyfocusUsedByPawn(pawn):P0} psyfocus, {psycast.GetEntropyUsedByPawn(pawn):F0} heat)";

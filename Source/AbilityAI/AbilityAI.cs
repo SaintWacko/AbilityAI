@@ -229,7 +229,7 @@ namespace AbilityAI
             catch (Exception e)
             {
                 // The block is left out (the rule applies to these casters unchanged) rather than the whole def
-                errors.Add($"<{xmlRoot.Name}> could not be read, so it is ignored: {e.InnerException ?? e}");
+                errors.Add($"<{xmlRoot.Name}> could not be read, so it is ignored: {(e.InnerException ?? e).Message}");
                 return;
             }
             foreach (XmlNode child in xmlRoot.ChildNodes)
@@ -383,9 +383,9 @@ namespace AbilityAI
             if (role == AbilityAIRole.Player || (npc == null && friendlyNpc == null)) return this;
             if (!rulesBuilt)
             {
-                rulesBuilt = true;
                 npcRule = npc != null ? npc.ApplyTo(this) : this;
                 friendlyNpcRule = friendlyNpc != null ? friendlyNpc.ApplyTo(npcRule) : npcRule;
+                rulesBuilt = true;
             }
             return role == AbilityAIRole.Npc ? npcRule : friendlyNpcRule;
         }
@@ -403,14 +403,18 @@ namespace AbilityAI
         public override IEnumerable<string> ConfigErrors()
         {
             foreach (var e in base.ConfigErrors()) yield return e;
-            foreach (var e in RuleErrors()) yield return e;
+            var own = new List<string>(RuleErrors());
+            foreach (var e in own) yield return e;
             if (npc != null) foreach (var e in npc.errors) yield return e;
             if (friendlyNpc != null) foreach (var e in friendlyNpc.errors) yield return e;
-            // Cross-references are resolved by now, so the versions can be built and checked as they will run
+            // Cross-references are resolved by now, so the versions can be built and checked as they will run. Only
+            // what a block brought in is reported; the rule's own errors are above.
             var npcVersion = For(AbilityAIRole.Npc);
-            if (npcVersion != this) foreach (var e in npcVersion.RuleErrors()) yield return "<npc>: " + e;
+            if (npcVersion != this)
+                foreach (var e in npcVersion.RuleErrors()) if (!own.Contains(e)) yield return "<npc>: " + e;
             var friendlyVersion = For(AbilityAIRole.FriendlyNpc);
-            if (friendlyVersion != npcVersion) foreach (var e in friendlyVersion.RuleErrors()) yield return "<friendlyNpc>: " + e;
+            if (friendlyVersion != npcVersion)
+                foreach (var e in friendlyVersion.RuleErrors()) if (!own.Contains(e)) yield return "<friendlyNpc>: " + e;
         }
 
         private IEnumerable<string> RuleErrors()

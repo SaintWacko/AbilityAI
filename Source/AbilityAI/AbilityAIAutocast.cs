@@ -103,7 +103,11 @@ namespace AbilityAI
         /// <summary>Run once per loaded or new game, on its first tick: a compat assembly converts its system's own
         /// autocast flags into modes here (VEF's).</summary>
         internal static event Action WorldReady;
-        private bool readyPending;
+        private bool readyPending, ready;
+
+        /// <summary>This world's first tick has run WorldReady. Before it a compat assembly leaves its system's flags as
+        /// saved, so a WorldReady handler sees them unconverted.</summary>
+        internal static bool Ready => Instance?.ready ?? false;
 
         /// <summary>The player switched AbilityAISettings.BetterAutocastOwns. Raised from the settings page, in a game
         /// or at the main menu.</summary>
@@ -207,16 +211,20 @@ namespace AbilityAI
         public override void FinalizeInit(bool fromLoad)
         {
             base.FinalizeInit(fromLoad);
-            readyPending = WorldReady != null;
+            readyPending = true;
         }
 
         public override void WorldComponentTick()
         {
             if (!readyPending) return;
             readyPending = false;
-            var ready = WorldReady;
-            if (ready == null) return;
-            foreach (Action a in ready.GetInvocationList())
+            ready = true;
+            // Without the bridge (Better Autocasting removed, or VPE) Ability AI owns everything, so a later return of
+            // Better Autocasting is a switch to carry over
+            if (!AbilityAISettings.BetterAutocastActive) betterAutocastOwned = false;
+            var handlers = WorldReady;
+            if (handlers == null) return;
+            foreach (Action a in handlers.GetInvocationList())
             {
                 try { a(); }
                 catch (Exception e) { Log.Error($"[Ability AI] {a.Method.DeclaringType?.FullName}.{a.Method.Name} threw on world load: {e}"); }

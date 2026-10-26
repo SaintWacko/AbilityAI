@@ -38,7 +38,10 @@ namespace AbilityAI.Vef
         /// CanAutoCast.</summary>
         internal static bool Convert(VefAbility ability)
         {
-            if (!ability.autoCast || ability.pawn == null || !ability.pawn.IsColonist || !Owns(ability)) return false;
+            if (!ability.autoCast || ability.pawn == null || !ability.pawn.IsColonist) return false;
+            // Before the first tick ConvertAll hasn't run, and the Better Autocasting bridge's load-time carry (run
+            // from it) has to see the flags as saved; a gizmo drawn on load would otherwise clear them first
+            if (!AbilityAIAutocast.Ready || !Owns(ability)) return false;
             if (AbilityAIAutocast.ModeFor(ability.pawn, ability.def) == AbilityAIAutocastMode.Off)
                 AbilityAIAutocast.SetMode(ability.pawn, ability.def, AbilityAIAutocastMode.Stationary);
             ability.autoCast = false;
@@ -114,6 +117,9 @@ namespace AbilityAI.Vef
             yield return AccessTools.PropertyGetter(typeof(VefAbility), nameof(VefAbility.CanAutoCast));
             foreach (Type t in typeof(VefAbility).AllSubclasses())
             {
+                // A getter on an open generic type can't be patched, and the throw would take the base getter's
+                // patch down with it
+                if (t.ContainsGenericParameters) continue;
                 MethodInfo getter = AccessTools.DeclaredPropertyGetter(t, nameof(VefAbility.CanAutoCast));
                 if (getter != null && !getter.IsAbstract) yield return getter;
             }

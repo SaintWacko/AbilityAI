@@ -65,6 +65,7 @@ namespace AbilityAI.Vpe
 
         // BA's loop only gets here for an ability whose raw flag is set. Where we own it, that is a flag from before
         // we took it over (or before a switch) that nothing has converted yet: convert it now instead of casting.
+        // Skipping the original is the point; no other mod patches this internal method.
         private static bool HandleAbilityPrefix(VefAbility ability, ref bool __result)
         {
             if (ability == null || AbilityAISettings.BetterAutocastOwns || !VefAutocast.Owns(ability)) return true;
@@ -73,10 +74,12 @@ namespace AbilityAI.Vpe
             return false;
         }
 
-        // From the settings page; at the main menu there is nothing to carry yet, and WorldReady catches it on load
+        // From the settings page. At the main menu there is nothing to carry yet, and before the first tick the load
+        // carry hasn't run: WorldReady does both, and checking the world's last owner keeps a switch and a switch
+        // back from carrying twice.
         private static void OwnerChanged()
         {
-            if (Current.ProgramState == ProgramState.Playing && Find.World != null) Carry(AbilityAISettings.BetterAutocastOwns);
+            if (Current.ProgramState == ProgramState.Playing && Find.World != null && AbilityAIAutocast.Ready) WorldReady();
         }
 
         private static void WorldReady()
@@ -85,8 +88,8 @@ namespace AbilityAI.Vpe
         }
 
         // To BA: every handled ability with one of our modes gets VEF's flag (the mode stays, unused, for a switch
-        // back). To us: a set flag becomes a mode as on first load (Convert), and a cleared one turns the mode off,
-        // since the player switched it off while BA had it.
+        // back). To us: a set flag becomes a mode as Convert does, and a cleared one turns the mode off, since the
+        // player switched it off while BA had it. Offers rather than Owns: a colonist in a break is carried too.
         private static void Carry(bool toBetterAutocast)
         {
             var pawns = PawnsFinder.AllMapsCaravansAndTravellingTransporters_Alive_OfPlayerFaction;
@@ -104,10 +107,15 @@ namespace AbilityAI.Vpe
                     {
                         if (AbilityAIAutocast.ModeFor(p, a.def) != AbilityAIAutocastMode.Off) a.autoCast = true;
                     }
-                    else if (VefAutocast.Owns(a))
+                    else if (AbilityAIAutocast.Offers(VefAIAbility.Of(a)))
                     {
-                        if (a.autoCast) VefAutocast.Convert(a);
-                        else AbilityAIAutocast.SetMode(p, a.def, AbilityAIAutocastMode.Off);
+                        if (!a.autoCast) AbilityAIAutocast.SetMode(p, a.def, AbilityAIAutocastMode.Off);
+                        else
+                        {
+                            if (AbilityAIAutocast.ModeFor(p, a.def) == AbilityAIAutocastMode.Off)
+                                AbilityAIAutocast.SetMode(p, a.def, AbilityAIAutocastMode.Stationary);
+                            a.autoCast = false;
+                        }
                     }
                 }
             }

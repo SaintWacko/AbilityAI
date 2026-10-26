@@ -236,7 +236,7 @@ namespace AbilityAI.Vef
             return ability.def.Satisfied(ability.Hediff);
         }
 
-        public override bool Supported => infos.ContainsKey(ability.def);
+        public override bool Drivable => infos.ContainsKey(ability.def);
 
         public override bool IsTouch => Info.touch;
 

@@ -50,7 +50,7 @@ namespace AbilityAI
 
         /// <summary>The driver can cast it: some systems' abilities carry an AbilityAIExtension in a shape the AI
         /// can't target (VEF's multi-target abilities), and those stay with their own system.</summary>
-        public virtual bool Supported => true;
+        public virtual bool Drivable => true;
 
         /// <summary>A touch ability: it needs a target but has no range, and its cast job walks the caster up to it
         /// (the Word psycasts). The autocast menu calls its in-place mode plain "Autocast".</summary>

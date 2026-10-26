@@ -312,7 +312,7 @@ namespace AbilityAI
         /// <summary>Offers for an ability of any system. For VEF's this also says whether Ability AI owns the
         /// ability, which hides VEF's own autocast toggle.</summary>
         internal static bool Offers(AIAbility ability) =>
-            ability != null && ability.Supported && Offers(ability.Pawn, ability.Def) && AbilityAIHooks.NotVetoed(ability.Pawn, ability);
+            ability != null && ability.Drivable && Offers(ability.Pawn, ability.Def) && AbilityAIHooks.NotVetoed(ability.Pawn, ability);
 
         private static bool Offers(Pawn p, Def def)
         {

@@ -245,6 +245,26 @@ namespace AbilityAI.Vef
             return ability.def.Satisfied(ability.Hediff);
         }
 
+        // The reason strings Ability.IsEnabledForPawn builds are fine here: only the dev log asks
+        public override string NotReadyReason
+        {
+            get
+            {
+                Pawn pawn = ability.pawn;
+                if (pawn?.Map == null || ability.verb == null) return "not on a map";
+                if (!infos.ContainsKey(ability.def)) return "its shape isn't supported";
+                if (ability.def.keepCarryingThing == true && pawn.carryTracker?.CarriedThing != null) return "carrying something";
+                int left = ability.cooldown - Find.TickManager.TicksGame;
+                if (left > 0) return $"on cooldown ({left / 60f:0.#} s)";
+                bool enabled = ability.IsEnabledForPawn(out string reason);
+                var costs = Costs;
+                if (costs != null && !costs.Affordable(ability))
+                    return "can't pay its cost" + (reason.NullOrEmpty() ? "" : $" ({reason})");
+                if (!enabled && !reason.NullOrEmpty()) return reason;
+                return "its own checks refused it";
+            }
+        }
+
         public override bool Drivable => infos.ContainsKey(ability.def);
 
         public override bool IsTouch => Info.touch;

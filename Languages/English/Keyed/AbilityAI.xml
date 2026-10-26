@@ -44,21 +44,21 @@
   <AAI_BlockedJobs_GroupOff>Other jobs that can be interrupted</AAI_BlockedJobs_GroupOff>
   <AAI_BlockedJobs_Reset>Reset to defaults</AAI_BlockedJobs_Reset>
   <AAI_ShowMarker>Mark abilities that can autocast</AAI_ShowMarker>
-  <AAI_ShowMarker_Tip>Draws a small grey ring on the button of every ability your pawn could autocast but isn't set to. Once you pick a mode, the "auto" or "auto+" badge takes its place.</AAI_ShowMarker_Tip>
+  <AAI_ShowMarker_Tip>Draws a small grey ring on the button of every ability your pawn could autocast but isn't set to.</AAI_ShowMarker_Tip>
   <AAI_Autocast_Hint>Right-click to set autocast (now: {0}).</AAI_Autocast_Hint>
-  <AAI_AutocastOwner>Psycasts Better Autocasting also handles</AAI_AutocastOwner>
+  <AAI_AutocastOwner>With Better Autocasting also installed, priority is given to:</AAI_AutocastOwner>
   <AAI_AutocastOwner_Tip>Better Autocasting for Vanilla Psycasts Expanded has its own autocast for about forty VPE psycasts. Where Ability AI also has rules for one (Overshield, Word of Serenity, ...), only one of the two mods casts it for your colonists, and its gizmo has one autocast toggle. Switching keeps each colonist's on or off choice. Mechs, animals and NPCs always use Ability AI's rules.</AAI_AutocastOwner_Tip>
   <AAI_AutocastOwner_AbilityAI>Ability AI</AAI_AutocastOwner_AbilityAI>
   <AAI_AutocastOwner_AbilityAI_Tip>Right-click menu with Autocast and Full Autocast, Ability AI's targeting and your psycast limits. Better Autocasting's settings for these psycasts have no effect.</AAI_AutocastOwner_AbilityAI_Tip>
   <AAI_AutocastOwner_BetterAutocast>Better Autocasting</AAI_AutocastOwner_BetterAutocast>
   <AAI_AutocastOwner_BetterAutocast_Tip>VEF's autocast toggle and Better Autocasting's own targeting settings. Ability AI leaves these psycasts alone for colonists.</AAI_AutocastOwner_BetterAutocast_Tip>
-  <AAI_ReturnTo>After a "Full Autocast" cast</AAI_ReturnTo>
-  <AAI_ReturnTo_Tip>Where a drafted pawn goes after walking a few tiles to cast an ability set to "Full Autocast".</AAI_ReturnTo_Tip>
+  <AAI_ReturnTo>After moving to cast an ability:</AAI_ReturnTo>
+  <AAI_ReturnTo_Tip>Where a drafted pawn goes after moving to cast an ability set to "Full Autocast".</AAI_ReturnTo_Tip>
   <AAI_ReturnTo_Original>Walk back to original position</AAI_ReturnTo_Original>
   <AAI_ReturnTo_Original_Tip>The pawn walks back to the exact spot it was standing on before it set off.</AAI_ReturnTo_Original_Tip>
   <AAI_ReturnTo_Cover>Find new cover from the ending position</AAI_ReturnTo_Cover>
   <AAI_ReturnTo_Cover_Tip>The pawn looks for a spot within 6 tiles of where it ended up that has cover from the nearest enemy and that it can shoot from, and goes there. It stays put if its own spot already has good cover. If there is none, it walks back to its original position.</AAI_ReturnTo_Cover_Tip>
-  <AAI_CalmBreaks>Your pawns' calming abilities end</AAI_CalmBreaks>
+  <AAI_CalmBreaks>Your pawns will use calming abilities on:</AAI_CalmBreaks>
   <AAI_CalmBreaks_Tip>Which of an ally's mental breaks your pawns end by themselves with an ability set to autocast. Word of serenity also puts the target into a psychic coma for a few hours and costs more psyfocus for a worse break (30% minor, 50% major, 70% extreme). Breaks that will end on their own within a minute are left alone. Raiders and visitors only ever calm aggressive breaks.</AAI_CalmBreaks_Tip>
   <AAI_CalmBreaks_Aggressive>Aggressive breaks only</AAI_CalmBreaks_Aggressive>
   <AAI_CalmBreaks_Aggressive_Tip>Berserk, murderous rage and other breaks where the pawn attacks people.</AAI_CalmBreaks_Aggressive_Tip>
@@ -70,7 +70,7 @@
   <AAI_CalmRange_Tip>Measured in a straight line, so the walk itself can be longer. How far an undrafted pawn goes to use a calming ability it has to touch the target with. Drafted pawns keep the ability's own reach (8 tiles for word of serenity), so they don't walk far from where you put them.</AAI_CalmRange_Tip>
   <AAI_BreakCasting>Your pawns use abilities during mental breaks</AAI_BreakCasting>
   <AAI_BreakCasting_Tip>A pawn of yours in a mental break (a colonist, or an animal gone manhunter) is out of your control, so your autocast choices don't apply. With this on, a pawn in an aggressive break uses its abilities the way a raider would, treating your other pawns as enemies, and a panicking one may use movement abilities to flee. Off: the game's own AI decides, as it would without this mod.</AAI_BreakCasting_Tip>
-  <AAI_BrokenAllies>Enemy abilities on allies in a break</AAI_BrokenAllies>
+  <AAI_BrokenAllies>Hostile abilities on allies in a break</AAI_BrokenAllies>
   <AAI_BrokenAllies_Tip>A berserk colonist or a tame animal gone manhunter attacks its own side. This decides whether its friends use their enemy abilities on it. It applies to every caster: your pawns on autocast, raiders and visitors alike. Calming abilities are not affected; they have their own setting.</AAI_BrokenAllies_Tip>
   <AAI_BrokenAllies_Never>Never</AAI_BrokenAllies_Never>
   <AAI_BrokenAllies_Never_Tip>Allies in a break are treated as friends: never targeted, and kept out of area abilities that avoid allies.</AAI_BrokenAllies_Never_Tip>

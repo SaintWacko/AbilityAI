@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Text;
 using System.Xml;
 using HarmonyLib;
 using RimWorld;
@@ -848,6 +849,12 @@ namespace AbilityAI
             public int returnJobId = -1;
             public IntVec3 returnCell = IntVec3.Invalid;
             public int returnTries;
+
+            // The dev log's "casts nothing" line: when the next may be written, and the last one, so an unchanged
+            // reason isn't repeated every few seconds
+            public int nextWhyNotTick;
+            public string lastWhyNot;
+            public int lastWhyNotTick;
         }
 
         /// <summary>Which workers a player's pawn may use at the moment.</summary>
@@ -881,6 +888,12 @@ namespace AbilityAI
         // The pawn's abilities with an extension, from every source; filled and emptied by TryGiveJob
         private static readonly List<AIAbility> collected = new List<AIAbility>();
         private static bool evaluating;
+        // Set for one evaluation when the dev log is on and the pawn is due a "casts nothing" line; null otherwise, so
+        // with the log off no reason is ever worked out
+        private static StringBuilder whyNot;
+        private static readonly StringBuilder whyNotBuffer = new StringBuilder();
+        private const int WhyNotIntervalTicks = 600;
+        private const int WhyNotRepeatTicks = 2500;
         // The set of workers the pawn being evaluated may use (All for NPCs)
         private static PlayerSet curSet = PlayerSet.All;
         // The pawn being evaluated is under the player rules (Control.Player). A player pawn in a break run by the
@@ -1213,6 +1226,79 @@ namespace AbilityAI
         internal static Job TryGiveJob(Pawn pawn, Control control)
         {
             if (evaluating) return null;
+            Job job = Evaluate(pawn, control);
+            if (whyNot != null)
+            {
+                if (job == null && whyNot.Length > 0) LogWhyNot(pawn, control);
+                whyNot = null;
+            }
+            return job;
+        }
+
+        private static void LogWhyNot(Pawn pawn, Control control)
+        {
+            int tick = Find.TickManager.TicksGame;
+            var state = states.GetValue(pawn, _ => new PawnState());
+            state.nextWhyNotTick = tick + WhyNotIntervalTicks;
+            string text = whyNot.ToString();
+            if (text == state.lastWhyNot && tick < state.lastWhyNotTick + WhyNotRepeatTicks) return;
+            state.lastWhyNot = text;
+            state.lastWhyNotTick = tick;
+            string who = control == Control.Player ? (pawn.Drafted ? "player, drafted" : "player, undrafted")
+                : pawn.HostileTo(Faction.OfPlayer) ? "hostile NPC" : "friendly NPC";
+            Log.Message($"[Ability AI] {pawn.LabelShort} ({who}) casts nothing: {text}");
+        }
+
+        private static void WhyNot(AIAbility a, AbilityAIExtension ext, string reason)
+        {
+            if (whyNot == null) return;
+            if (whyNot.Length > 0) whyNot.Append("; ");
+            if (a != null)
+            {
+                whyNot.Append(a.Label);
+                if (ext != null) whyNot.Append(" (").Append(ext.Worker != null ? ext.Worker.GetType().Name : ext.workerClass?.Name).Append(')');
+                whyNot.Append(": ");
+            }
+            whyNot.Append(reason);
+        }
+
+        // The first of the ready checks in Evaluate that failed, in the same order
+        private static string NotReadyWhy(Pawn pawn, AIAbility a, PawnState state, int tick, bool player)
+        {
+            if (!a.CanCastNow) return a.NotReadyReason;
+            if (state.abilityNext != null && state.abilityNext.TryGetValue(a.Def, out int next) && tick < next)
+                return $"waiting out its minGapSeconds ({(next - tick) / 60f:0.#} s)";
+            if (player)
+            {
+                if (AbilityAIAutocast.ModeFor(pawn, a.Def) == AbilityAIAutocastMode.Off) return "autocast is off";
+                if (a.PlayerAutocastElsewhere) return "Better Autocasting decides it";
+                if (!AbilityAIHooks.NotVetoed(pawn, a)) return "a hook vetoed it";
+                return "over this pawn's psycast limits";
+            }
+            if (!AbilityAIHooks.NotVetoed(pawn, a)) return "a hook vetoed it";
+            return "no mod claims it and \"Also use abilities no mod claims\" is off";
+        }
+
+        // The first of CanActNow's or CanActNowPlayer's checks that failed, roughly in their order
+        private static string CantActWhy(Pawn pawn, bool player)
+        {
+            if (!pawn.Spawned || pawn.Dead) return "not on the map";
+            if (pawn.Downed) return "downed";
+            if (!pawn.Awake()) return "asleep";
+            if (pawn.IsBurning()) return "on fire";
+            if (pawn.stances?.stunner?.Stunned == true) return "stunned";
+            if (AIAbilitySources.IsCasting(pawn)) return "already casting";
+            if (pawn.InMentalState) return $"in a mental state ({pawn.MentalStateDef.defName})";
+            if (!player) return "drafted";
+            if (pawn.Drafted) return "moving, or on a drafted order other than holding or shooting";
+            if (!AbilityAISettings.UndraftedAutocast) return "undrafted casting is off";
+            if (pawn.GetPosture() != PawnPosture.Standing) return "lying down";
+            if (pawn.carryTracker?.CarriedThing != null) return "carrying something";
+            return $"busy with a job it shouldn't drop ({pawn.CurJob?.def.defName})";
+        }
+
+        private static Job Evaluate(Pawn pawn, Control control)
+        {
             int tick = Find.TickManager.TicksGame;
             var state = states.GetValue(pawn, _ => new PawnState());
             bool player = control == Control.Player;
@@ -1243,7 +1329,12 @@ namespace AbilityAI
             int interval = quick ? EvalIntervalTicks : Math.Max(EvalIntervalTicks, AbilityAISettings.UndraftedIntervalTicks);
             state.slowEval = interval > EvalIntervalTicks;
             state.nextEvalTick = tick + interval;
-            if (player ? !CanActNowPlayer(pawn, state) : !CanActNow(pawn)) return null;
+            whyNot = AbilityAISettings.DebugLog && Prefs.DevMode && tick >= state.nextWhyNotTick ? whyNotBuffer.Clear() : null;
+            if (player ? !CanActNowPlayer(pawn, state) : !CanActNow(pawn))
+            {
+                if (whyNot != null) WhyNot(null, null, CantActWhy(pawn, player));
+                return null;
+            }
             bool drafted = pawn.Drafted;
 
             evaluating = true;
@@ -1272,7 +1363,16 @@ namespace AbilityAI
                     {
                         if (!(exts[j] is AbilityAIExtension rule)) continue;
                         var ext = rule.For(role);
-                        if (ext.Worker == null || !InSet(ext.Worker, curSet)) continue;
+                        if (ext.Worker == null)
+                        {
+                            WhyNot(a, ext, ext.enabled ? "its worker class is missing" : $"rule is off for {role}");
+                            continue;
+                        }
+                        if (!InSet(ext.Worker, curSet))
+                        {
+                            WhyNot(a, ext, curSet == PlayerSet.Fleeing ? "not used while fleeing" : "not used undrafted outside a fight");
+                            continue;
+                        }
                         if (!checkedReady)
                         {
                             checkedReady = true;
@@ -1280,9 +1380,21 @@ namespace AbilityAI
                                 && (state.abilityNext == null || !state.abilityNext.TryGetValue(a.Def, out int next) || tick >= next)
                                 && (player ? PlayerAllowed(pawn, a) && PsycastWithinLimits(a, LocalTargetInfo.Invalid) : AbilityAIHooks.Allowed(pawn, a));
                         }
-                        if (!ready) break;
-                        if (ext.reserveCharges > 0 && a.UsesCharges && a.RemainingCharges <= ext.reserveCharges) continue;
-                        if (!CasterSuits(ext)) continue;
+                        if (!ready)
+                        {
+                            if (whyNot != null) WhyNot(a, null, NotReadyWhy(pawn, a, state, tick, player));
+                            break;
+                        }
+                        if (ext.reserveCharges > 0 && a.UsesCharges && a.RemainingCharges <= ext.reserveCharges)
+                        {
+                            WhyNot(a, ext, "keeping its last charges");
+                            continue;
+                        }
+                        if (!CasterSuits(ext))
+                        {
+                            if (whyNot != null) WhyNot(a, ext, CasterSuitsWhy(ext));
+                            continue;
+                        }
                         int at = candidates.Count;
                         while (at > 0 && candidates[at - 1].ext.priority < ext.priority) at--;
                         candidates.Insert(at, new Candidate { ability = a, ext = ext });
@@ -1295,16 +1407,36 @@ namespace AbilityAI
                     AIAbility a = candidates[i].ability;
                     var ext = candidates[i].ext;
                     var worker = ext.Worker;
-                    if (!CombatAllows(worker)) continue;
+                    if (!CombatAllows(worker))
+                    {
+                        WhyNot(a, ext, worker.Combat == AbilityAICombat.InCombat ? "not in combat" : "in combat");
+                        continue;
+                    }
                     exclusiveDef = worker.Exclusive ? a.Def : null;
-                    if (!worker.TryFindTarget(ctx, a, out LocalTargetInfo target, out LocalTargetInfo dest)) continue;
+                    if (!worker.TryFindTarget(ctx, a, out LocalTargetInfo target, out LocalTargetInfo dest))
+                    {
+                        WhyNot(a, ext, "no target");
+                        continue;
+                    }
                     if (!dest.IsValid) dest = target;
-                    if (!Valid(a, target)) continue;
-                    if (player && !PsycastWithinLimits(a, target)) continue;
+                    if (!Valid(a, target))
+                    {
+                        WhyNot(a, ext, $"the ability refused {target}");
+                        continue;
+                    }
+                    if (player && !PsycastWithinLimits(a, target))
+                    {
+                        WhyNot(a, ext, $"over this pawn's psycast limits for {target}");
+                        continue;
+                    }
                     // Made before anything is recorded: another system's ability may still refuse at this point
                     // (VEF runs its extensions' own Valid and PreCast here)
                     Job cast = a.MakeCastJob(target, dest);
-                    if (cast == null) continue;
+                    if (cast == null)
+                    {
+                        WhyNot(a, ext, $"refused when its cast job was made, at {target}");
+                        continue;
+                    }
 
                     state.nextCastTick = tick + Mathf.RoundToInt(AbilityAISettings.MinGapSeconds * GenTicks.TicksPerRealSecond);
                     if (ext.minGapSeconds > 0f)
@@ -1480,6 +1612,12 @@ namespace AbilityAI
                 case AbilityAIRequires.Ranged: return ctx.UsesRanged;
                 default: return true;
             }
+        }
+
+        private static string CasterSuitsWhy(AbilityAIExtension ext)
+        {
+            if (ext.maxLight < 1f && ctx.map.glowGrid.GroundGlowAt(ctx.pawn.Position) > ext.maxLight) return "too bright where it stands";
+            return ext.requires == AbilityAIRequires.Melee ? "needs a melee weapon" : "needs a ranged weapon";
         }
 
         private static bool CombatAllows(AbilityAIWorker worker)

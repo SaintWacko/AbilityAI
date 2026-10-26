@@ -72,6 +72,9 @@ namespace AbilityAI
         /// pay (a psycast the pawn has the psyfocus for).</summary>
         public abstract bool CanCastNow { get; }
 
+        /// <summary>Why CanCastNow is false, for the dev log; only asked when it is.</summary>
+        public virtual string NotReadyReason => "not castable now";
+
         public virtual bool UsesCharges => false;
         public virtual int RemainingCharges => 0;
 
@@ -277,6 +280,21 @@ namespace AbilityAI
         public override Ability Vanilla => ability;
 
         public override bool CanCastNow => ability.verb != null && ability.CanCast && PsycastAffordable();
+
+        public override string NotReadyReason
+        {
+            get
+            {
+                if (ability.verb == null) return "it has no verb";
+                AcceptanceReport report = ability.CanCast;
+                if (!report.Accepted)
+                {
+                    if (!report.Reason.NullOrEmpty()) return report.Reason;
+                    return ability.OnCooldown ? "on cooldown" : "vanilla refused it";
+                }
+                return "not enough psyfocus";
+            }
+        }
 
         // Checked up front because Verb_CastPsycast.ValidateTarget posts its "not enough psyfocus" and similar
         // messages whatever showMessages says, and Psycast.CanCast only checks psyfocus for psycasts without neural

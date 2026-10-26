@@ -1226,13 +1226,17 @@ namespace AbilityAI
         internal static Job TryGiveJob(Pawn pawn, Control control)
         {
             if (evaluating) return null;
-            Job job = Evaluate(pawn, control);
-            if (whyNot != null)
+            try
             {
-                if (job == null && whyNot.Length > 0) LogWhyNot(pawn, control);
+                Job job = Evaluate(pawn, control);
+                if (job == null && whyNot != null && whyNot.Length > 0) LogWhyNot(pawn, control);
+                return job;
+            }
+            finally
+            {
+                // The postfix catches a throw: a buffer left set would be logged under the next pawn's name
                 whyNot = null;
             }
-            return job;
         }
 
         private static void LogWhyNot(Pawn pawn, Control control)
@@ -1288,8 +1292,9 @@ namespace AbilityAI
             if (pawn.IsBurning()) return "on fire";
             if (pawn.stances?.stunner?.Stunned == true) return "stunned";
             if (AIAbilitySources.IsCasting(pawn)) return "already casting";
+            if (!player)
+                return pawn.Drafted ? "drafted" : $"in a mental state ({pawn.MentalStateDef?.defName})";
             if (pawn.InMentalState) return $"in a mental state ({pawn.MentalStateDef.defName})";
-            if (!player) return "drafted";
             if (pawn.Drafted) return "moving, or on a drafted order other than holding or shooting";
             if (!AbilityAISettings.UndraftedAutocast) return "undrafted casting is off";
             if (pawn.GetPosture() != PawnPosture.Standing) return "lying down";
@@ -1365,7 +1370,7 @@ namespace AbilityAI
                         var ext = rule.For(role);
                         if (ext.Worker == null)
                         {
-                            WhyNot(a, ext, ext.enabled ? "its worker class is missing" : $"rule is off for {role}");
+                            if (whyNot != null) WhyNot(a, ext, ext.enabled ? "its worker class is missing" : $"rule is off for {role}");
                             continue;
                         }
                         if (!InSet(ext.Worker, curSet))
@@ -1421,12 +1426,12 @@ namespace AbilityAI
                     if (!dest.IsValid) dest = target;
                     if (!Valid(a, target))
                     {
-                        WhyNot(a, ext, $"the ability refused {target}");
+                        if (whyNot != null) WhyNot(a, ext, $"the ability refused {target}");
                         continue;
                     }
                     if (player && !PsycastWithinLimits(a, target))
                     {
-                        WhyNot(a, ext, $"over this pawn's psycast limits for {target}");
+                        if (whyNot != null) WhyNot(a, ext, $"over this pawn's psycast limits for {target}");
                         continue;
                     }
                     // Made before anything is recorded: another system's ability may still refuse at this point
@@ -1434,7 +1439,7 @@ namespace AbilityAI
                     Job cast = a.MakeCastJob(target, dest);
                     if (cast == null)
                     {
-                        WhyNot(a, ext, $"refused when its cast job was made, at {target}");
+                        if (whyNot != null) WhyNot(a, ext, $"refused when its cast job was made, at {target}");
                         continue;
                     }
 

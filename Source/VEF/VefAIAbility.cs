@@ -259,7 +259,7 @@ namespace AbilityAI.Vef
                 bool enabled = ability.IsEnabledForPawn(out string reason);
                 var costs = Costs;
                 if (costs != null && !costs.Affordable(ability))
-                    return "can't pay its cost" + (reason.NullOrEmpty() ? "" : $" ({reason})");
+                    return "can't pay its cost" + (enabled || reason.NullOrEmpty() ? "" : $" ({reason})");
                 if (!enabled && !reason.NullOrEmpty()) return reason;
                 return "its own checks refused it";
             }

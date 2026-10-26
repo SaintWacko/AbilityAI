@@ -95,7 +95,7 @@
   <AAI_MinGap>Least time between one pawn's casts: {0} s</AAI_MinGap>
   <AAI_MinGap_Desc>Stops a pawn with several abilities from using them all in the same moment. Each ability's own cooldown and charges still apply.</AAI_MinGap_Desc>
   <AAI_DebugLog>Log ability AI decisions</AAI_DebugLog>
-  <AAI_DebugLog_Tip>Writes a line to the log each time a pawn decides to cast something, naming the rule it used.</AAI_DebugLog_Tip>
+  <AAI_DebugLog_Tip>Writes a line to the log each time a pawn decides to cast something, naming the rule it used. When a pawn with abilities set up for this mod checks and casts nothing, it also writes why, at most once every 10 seconds per pawn.</AAI_DebugLog_Tip>
   <AAI_Reset>Reset all</AAI_Reset>
   <AAI_Reset_Confirm>Reset every Ability AI setting, on every tab, to its default?</AAI_Reset_Confirm>
   <AAI_ResetTab>Reset this tab</AAI_ResetTab>

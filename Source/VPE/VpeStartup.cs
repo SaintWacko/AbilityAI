@@ -1,6 +1,8 @@
 using System;
+using System.Collections.Generic;
 using RimWorld;
 using VanillaPsycastsExpanded;
+using VanillaPsycastsExpanded.Skipmaster;
 using Verse;
 using VefAbility = VEF.Abilities.Ability;
 using VefAbilityDef = VEF.Abilities.AbilityDef;
@@ -27,6 +29,29 @@ namespace AbilityAI.Vpe
             // VPE's ValidateTarget then refuses a target without psychic sensitivity; WouldAffect leaves those out
             // before the AI gets that far
             if (psycast != null && psycast.psychic) e.psychic = true;
+            // The Cover worker keeps walls off pawns and off the caster's own cell
+            var wallraise = def.GetModExtension<AbilityExtension_Wallraise>();
+            if (wallraise?.pattern != null)
+            {
+                e.wall = true;
+                e.wallPattern = wallraise.pattern;
+            }
+            else if (def.abilityClass != null && typeof(Ability_IceBlock).IsAssignableFrom(def.abilityClass))
+            {
+                e.wall = true;
+                e.wallPattern = IceBlockPattern;
+            }
+        }
+
+        // Ability_IceBlock.Cast: 20 random cells of the 5x5 square centred on the target. Any of the 25 may get ice.
+        private static readonly List<IntVec2> IceBlockPattern = Square(2);
+
+        private static List<IntVec2> Square(int half)
+        {
+            var cells = new List<IntVec2>();
+            for (int x = -half; x <= half; x++)
+                for (int z = -half; z <= half; z++) cells.Add(new IntVec2(x, z));
+            return cells;
         }
     }
 

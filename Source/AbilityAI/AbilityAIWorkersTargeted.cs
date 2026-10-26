@@ -156,7 +156,7 @@ namespace AbilityAI
                 bool isSelf = a == ctx.pawn;
                 if (isSelf ? !self : onlySelf) continue;
                 float d = (a.Position - ctx.pawn.Position).LengthHorizontalSquared;
-                if (d > maxSq || AbilityAIUtility.Has(a, hediff)) continue;
+                if (d > maxSq || AbilityAIUtility.Has(a, hediff) || !AbilityAIUtility.Fits(ext, a)) continue;
                 float pain = a.health?.hediffSet?.PainTotal ?? 0f;
                 if (ext.minPain > 0f ? pain < ext.minPain : !TargetingUtil.Fighting(ctx, a)) continue;
                 float score = (1f + pain) * (isSelf ? 1.5f : 1f) / (1f + Mathf.Sqrt(d) / Mathf.Max(range, 1f));
@@ -194,7 +194,8 @@ namespace AbilityAI
                 Pawn a = allies[i];
                 bool isSelf = a == ctx.pawn;
                 if (isSelf ? !self : onlySelf) continue;
-                if ((a.Position - ctx.pawn.Position).LengthHorizontalSquared > maxSq || AbilityAIUtility.Has(a, hediff)) continue;
+                if ((a.Position - ctx.pawn.Position).LengthHorizontalSquared > maxSq || AbilityAIUtility.Has(a, hediff)
+                    || !AbilityAIUtility.Fits(ext, a)) continue;
                 float health = a.health?.summaryHealth?.SummaryHealthPercent ?? 1f;
                 if (!InTrouble(ctx, a, health)) continue;
                 cands.Add(new TargetingUtil.Cand { pawn = a, score = (2f - health) * (isSelf ? 1.5f : 1f) });
@@ -239,7 +240,7 @@ namespace AbilityAI
             {
                 Pawn p = downed[i];
                 float d = (p.Position - ctx.pawn.Position).LengthHorizontalSquared;
-                if (d > maxSq || AbilityAIUtility.Has(p, hediff)) continue;
+                if (d > maxSq || AbilityAIUtility.Has(p, hediff) || !AbilityAIUtility.Fits(ext, p)) continue;
                 if (ext.painShockOnly && p.health?.InPainShock != true) continue;
                 if (ext.minBleedRate > 0f && (p.health?.hediffSet?.BleedRateTotal ?? 0f) < ext.minBleedRate) continue;
                 cands.Add(new TargetingUtil.Cand { pawn = p, score = -d });
@@ -273,7 +274,7 @@ namespace AbilityAI
             for (int i = 0; i < allies.Count; i++)
             {
                 Pawn p = allies[i];
-                if (p == ctx.pawn || !Wants(p, player)) continue;
+                if (p == ctx.pawn || !Wants(p, player) || !AbilityAIUtility.Fits(ext, p)) continue;
                 float d = (p.Position - ctx.pawn.Position).LengthHorizontalSquared;
                 if (d > maxSq) continue;
                 if (ext.minBreakSeconds > 0f && TicksLeft(p.MentalState) < ext.minBreakSeconds * GenTicks.TicksPerRealSecond) continue;
@@ -288,7 +289,7 @@ namespace AbilityAI
                 {
                     Pawn p = downed[i];
                     float d = (p.Position - ctx.pawn.Position).LengthHorizontalSquared;
-                    if (d > maxSq || p.health?.hediffSet?.HasHediff(HediffDefOf.CatatonicBreakdown) != true) continue;
+                    if (d > maxSq || p.health?.hediffSet?.HasHediff(HediffDefOf.CatatonicBreakdown) != true || !AbilityAIUtility.Fits(ext, p)) continue;
                     cands.Add(new TargetingUtil.Cand { pawn = p, score = -d });
                 }
             }
@@ -415,7 +416,9 @@ namespace AbilityAI
     /// Firefighting: put out fire on or next to the caster's side (Waterskip). Burning allies (weight 3, downed 4) and fires
     /// within 2.5 tiles of an ally (weight 1, at most 60 fires looked at, fires on other pawns left out), within reach
     /// of the caster; the spot whose effect radius covers the most weight wins, best five validated. Water breaks
-    /// invisibility, so a spot that would reach an invisible ally is skipped unless someone there is burning. Any time.
+    /// invisibility, so a spot that would reach an invisible ally is skipped unless someone there is burning. A
+    /// self-cast ability (an area around the caster) only looks within its radius, and casts when what it covers
+    /// weighs at least minTargets. Any time.
     /// Cost: nothing while the map has no fire; otherwise at most 60 × a distance checks, then a few validations.
     /// </summary>
     public class AbilityAIWorker_Firefighting : AbilityAIWorker
@@ -431,7 +434,9 @@ namespace AbilityAI
             target = dest = LocalTargetInfo.Invalid;
             var fires = ctx.map.listerThings.ThingsOfDef(ThingDefOf.Fire);
             if (fires.Count == 0) return false;
-            float range = TargetingUtil.Reach(ability, ext);
+            bool self = AbilityAIUtility.IsSelfCast(ability);
+            // Reach gives a rangeless ability 20 tiles to walk; a self-cast one only covers what is around it
+            float range = self ? 0f : TargetingUtil.Reach(ability, ext);
             float radius = Mathf.Max(AbilityAIUtility.Radius(ability, ext), 0.9f);
             float reachSq = (range + radius) * (range + radius);
             IntVec3 from = ctx.pawn.Position;
@@ -459,6 +464,17 @@ namespace AbilityAI
             if (spots.Count == 0) return false;
 
             float r2 = radius * radius;
+            if (self)
+            {
+                float covered = 0f;
+                for (int i = 0; i < spots.Count; i++) covered += spots[i].weight;
+                spots.Clear();
+                if (covered < ext.minTargets) return false;
+                if (InvisibleAllyNear(allies, from, r2) && !BurningAllyNear(allies, ctx.pawn, from, r2)
+                    && !BurningAllyNear(downed, ctx.pawn, from, r2)) return false;
+                target = ctx.pawn;
+                return true;
+            }
             for (int i = 0; i < spots.Count; i++)
             {
                 float s = 0f;

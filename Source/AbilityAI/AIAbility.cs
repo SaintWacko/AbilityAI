@@ -31,6 +31,10 @@ namespace AbilityAI
         public ThingDef spawns;
         public bool wall;
         public List<IntVec2> wallPattern;
+        /// <summary>A cone from the caster (fire spew): its length and its width at the far end. Read by the cone
+        /// worker; a host states its own through AbilityAIInfo.RegisterCone.</summary>
+        public bool cone;
+        public float coneRange, coneWidth;
     }
 
     public abstract class AIAbility
@@ -407,6 +411,24 @@ namespace AbilityAI
                         if (e.targetHediff == null) e.targetHediff = info.AIHediff;
                         if (e.anyHediff == null) e.anyHediff = info.AIHediff;
                         if (!e.hasEffectRadius) { e.hasEffectRadius = true; e.effectRadius = info.AIRadius; }
+                    }
+                    if (!e.cone && AbilityAIInfo.TryGetCone(c, out float coneRange, out float coneWidth))
+                    {
+                        e.cone = true;
+                        e.coneRange = coneRange;
+                        e.coneWidth = coneWidth;
+                    }
+                    else if (!e.cone && c is CompProperties_AbilityFireSpew spew)
+                    {
+                        e.cone = true;
+                        e.coneRange = spew.range;
+                        e.coneWidth = spew.lineWidthEnd;
+                    }
+                    // The target cell and the cells around it furthest from the caster: about a disc of that many cells
+                    if (c is CompProperties_AbilitySprayLiquid spray && !e.hasEffectRadius)
+                    {
+                        e.hasEffectRadius = true;
+                        e.effectRadius = spray.numCellsToHit < 10 ? 1.5f : GenRadial.RadiusOfNumCells(spray.numCellsToHit);
                     }
                     if (c.compClass != null && typeof(CompAbilityEffect_Stun).IsAssignableFrom(c.compClass)) e.stuns = true;
                     if (c is CompProperties_AbilityGiveHediff give && give.hediffDef != null)

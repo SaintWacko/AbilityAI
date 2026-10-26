@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Xml;
 using HarmonyLib;
 using RimWorld;
 using UnityEngine;
@@ -155,6 +157,89 @@ namespace AbilityAI
         Both = GapClose | Escape,
     }
 
+    /// <summary>What the caster must be fighting with for a rule to apply (Blade Focus: melee).</summary>
+    public enum AbilityAIRequires
+    {
+        None,
+        /// <summary>No ranged weapon or verb: a melee weapon, or fists.</summary>
+        Melee,
+        Ranged,
+    }
+
+    /// <summary>Which pawns a rule may target or count.</summary>
+    [Flags]
+    public enum AbilityAITargetKinds
+    {
+        None = 0,
+        Humanlike = 1,
+        Animal = 2,
+        Mechanoid = 4,
+        /// <summary>Anything else: entities, and races that are none of the above.</summary>
+        Other = 8,
+        All = Humanlike | Animal | Mechanoid | Other,
+    }
+
+    /// <summary>Recovery: the health conditions a rule treats.</summary>
+    [Flags]
+    public enum AbilityAIHealth
+    {
+        None = 0,
+        /// <summary>Injuries that are still healing, with summary health under healthThreshold.</summary>
+        Injured = 1,
+        /// <summary>A disease the pawn isn't yet immune to (plague, flu, infection...).</summary>
+        Disease = 2,
+        /// <summary>A missing body part not replaced by a prosthetic.</summary>
+        MissingParts = 4,
+    }
+
+    /// <summary>Whose version of a rule applies: the extension as written for the player's pawns, its npc block for
+    /// everyone else, and its friendlyNpc block on top of that for casters not hostile to the player.</summary>
+    internal enum AbilityAIRole : byte
+    {
+        Player,
+        Npc,
+        FriendlyNpc,
+    }
+
+    /// <summary>
+    /// An extension's &lt;npc&gt; or &lt;friendlyNpc&gt; block: any of the extension's own fields, replacing the rule's
+    /// values for those casters only (&lt;enabled&gt;false&lt;/enabled&gt; keeps them off the rule). Parsed with the
+    /// game's own loader, so def references, flags and lists read as they do at the top level; which fields the
+    /// block named is kept, so only those change. The rule versions are built once, on first use.
+    /// </summary>
+    public class AbilityAIOverride
+    {
+        private AbilityAIExtension values;
+        private readonly List<FieldInfo> fields = new List<FieldInfo>();
+        internal readonly List<string> errors = new List<string>();
+
+        public void LoadDataFromXmlCustom(XmlNode xmlRoot)
+        {
+            values = DirectXmlToObject.ObjectFromXml<AbilityAIExtension>(xmlRoot, false);
+            foreach (XmlNode child in xmlRoot.ChildNodes)
+            {
+                if (child.NodeType != XmlNodeType.Element) continue;
+                // An unknown name has already been reported by the loader
+                var field = typeof(AbilityAIExtension).GetField(child.Name, BindingFlags.Public | BindingFlags.Instance);
+                if (field == null) continue;
+                if (field.FieldType == typeof(AbilityAIOverride))
+                {
+                    errors.Add($"<{xmlRoot.Name}> can't hold <{child.Name}>");
+                    continue;
+                }
+                fields.Add(field);
+            }
+        }
+
+        internal AbilityAIExtension ApplyTo(AbilityAIExtension rule)
+        {
+            var copy = rule.CopyForRole();
+            if (values != null)
+                for (int i = 0; i < fields.Count; i++) fields[i].SetValue(copy, fields[i].GetValue(values));
+            return copy;
+        }
+    }
+
     /// <summary>Put on an AbilityDef to let the AI cast it. Only workerClass is required; the rest are tuning a
     /// worker reads if it cares (see each worker's notes in AbilityAIWorkers.cs). An ability may carry several, each
     /// with its own worker and priority (Stun: interrupt first, any enemy otherwise); they are tried in priority order
@@ -232,22 +317,71 @@ namespace AbilityAI
         /// for every worker but the two that cast at enemies for damage (Target hostile, AoE hostile), where piling on
         /// one enemy is the point. Set it on a hostile rule whose effect doesn't stack (a stun keeps the longer of two).</summary>
         public bool? exclusive;
+        /// <summary>Off: the rule does nothing. Meant for an npc or friendlyNpc block, to keep those casters off a rule
+        /// the player's pawns keep (Ability AI still stands vanilla's and VEF's own AI down for them).</summary>
+        public bool enabled = true;
+        /// <summary>Only while the caster fights with this (Blade Focus: Melee).</summary>
+        public AbilityAIRequires requires;
+        /// <summary>Which pawns the rule may target or count; others are ignored (Haywire: Mechanoid).</summary>
+        public AbilityAITargetKinds targetKinds = AbilityAITargetKinds.All;
+        /// <summary>Recovery: the health conditions it treats. None = the need rule alone.</summary>
+        public AbilityAIHealth health;
+        /// <summary>AoE hostile: never centre the area within its radius of the caster, for areas that hit the caster
+        /// too (berserk pulse). Unlike a fixed minRange it follows the radius when a stat or another mod scales it.</summary>
+        public bool avoidSelf;
+        /// <summary>Hostile area and cone workers: not when a building of the caster's side, or of a faction not
+        /// hostile to it, is inside (incendiaries cast by visitors near the player's base).</summary>
+        public bool avoidBuildings;
+        /// <summary>Cone hostile: width at the far end of the cone; negative = read it from the effects, else 1 (a line).</summary>
+        public float coneWidth = -1f;
+        /// <summary>Changes to this rule for every caster that isn't the player's own pawn.</summary>
+        public AbilityAIOverride npc;
+        /// <summary>Further changes, over npc, for casters not hostile to the player (visitors, traders, allied
+        /// soldiers, wild animals): usually on the player's map.</summary>
+        public AbilityAIOverride friendlyNpc;
 
         [Unsaved] private AbilityAIWorker worker;
+        [Unsaved] private AbilityAIExtension npcRule, friendlyNpcRule;
+        [Unsaved] private bool rulesBuilt;
 
         // One instance per extension. Psycast copies share their source's extension list by reference, so one worker
-        // serves every copy: workers must keep no per-pawn state.
+        // serves every copy: workers must keep no per-pawn state. A rule switched off has none, which every caller
+        // already reads as "not an AI rule".
         public AbilityAIWorker Worker
         {
             get
             {
-                if (worker == null && workerClass != null && typeof(AbilityAIWorker).IsAssignableFrom(workerClass) && !workerClass.IsAbstract)
+                if (worker == null && enabled && workerClass != null && typeof(AbilityAIWorker).IsAssignableFrom(workerClass) && !workerClass.IsAbstract)
                 {
                     worker = (AbilityAIWorker)Activator.CreateInstance(workerClass);
                     worker.ext = this;
                 }
                 return worker;
             }
+        }
+
+        /// <summary>The version of this rule for the role; the extension itself without npc or friendlyNpc blocks.
+        /// Each version has its own worker, so the workers read their own ext as usual.</summary>
+        internal AbilityAIExtension For(AbilityAIRole role)
+        {
+            if (role == AbilityAIRole.Player || (npc == null && friendlyNpc == null)) return this;
+            if (!rulesBuilt)
+            {
+                rulesBuilt = true;
+                npcRule = npc != null ? npc.ApplyTo(this) : this;
+                friendlyNpcRule = friendlyNpc != null ? friendlyNpc.ApplyTo(npcRule) : npcRule;
+            }
+            return role == AbilityAIRole.Npc ? npcRule : friendlyNpcRule;
+        }
+
+        internal AbilityAIExtension CopyForRole()
+        {
+            var copy = (AbilityAIExtension)MemberwiseClone();
+            copy.worker = null;
+            copy.npc = copy.friendlyNpc = null;
+            copy.npcRule = copy.friendlyNpcRule = null;
+            copy.rulesBuilt = false;
+            return copy;
         }
 
         public override IEnumerable<string> ConfigErrors()
@@ -261,6 +395,9 @@ namespace AbilityAI
             if (approachDistance < 0f) yield return "approachDistance can't be negative";
             if (minBleedRate < 0f) yield return "minBleedRate can't be negative";
             if (rangedOnly && minThreats < 1) yield return "rangedOnly needs minThreats of at least 1";
+            if (targetKinds == AbilityAITargetKinds.None) yield return "targetKinds is empty: the rule could never target anyone";
+            if (npc != null) foreach (var e in npc.errors) yield return e;
+            if (friendlyNpc != null) foreach (var e in friendlyNpc.errors) yield return e;
         }
     }
 
@@ -1029,6 +1166,9 @@ namespace AbilityAI
                 AIAbilitySources.Collect(pawn, abilities);
                 curSet = player && !drafted ? UndraftedSetNow(pawn) : PlayerSet.All;
                 curPlayer = player;
+                // Only extensions with an npc or friendlyNpc block care, but the hostility test is once per evaluation
+                var role = player ? AbilityAIRole.Player
+                    : pawn.HostileTo(Faction.OfPlayer) ? AbilityAIRole.Npc : AbilityAIRole.FriendlyNpc;
 
                 // Ready abilities with a worker, highest priority first (insertion sort: a pawn holds a handful). An
                 // ability with several extensions is a candidate once per extension.
@@ -1041,8 +1181,9 @@ namespace AbilityAI
                     bool checkedReady = false, ready = false;
                     for (int j = 0; j < exts.Count; j++)
                     {
-                        if (!(exts[j] is AbilityAIExtension ext) || ext.Worker == null) continue;
-                        if (!InSet(ext.Worker, curSet)) continue;
+                        if (!(exts[j] is AbilityAIExtension rule)) continue;
+                        var ext = rule.For(role);
+                        if (ext.Worker == null || !InSet(ext.Worker, curSet)) continue;
                         if (!checkedReady)
                         {
                             checkedReady = true;
@@ -1052,6 +1193,7 @@ namespace AbilityAI
                         }
                         if (!ready) break;
                         if (ext.reserveCharges > 0 && a.UsesCharges && a.RemainingCharges <= ext.reserveCharges) continue;
+                        if (!Equipped(ext)) continue;
                         int at = candidates.Count;
                         while (at > 0 && candidates[at - 1].ext.priority < ext.priority) at--;
                         candidates.Insert(at, new Candidate { ability = a, ext = ext });
@@ -1237,6 +1379,16 @@ namespace AbilityAI
             state.returnJobId = -1;
             state.returnCell = IntVec3.Invalid;
             state.returnTries = 0;
+        }
+
+        private static bool Equipped(AbilityAIExtension ext)
+        {
+            switch (ext.requires)
+            {
+                case AbilityAIRequires.Melee: return !ctx.UsesRanged;
+                case AbilityAIRequires.Ranged: return ctx.UsesRanged;
+                default: return true;
+            }
         }
 
         private static bool CombatAllows(AbilityAIWorker worker)

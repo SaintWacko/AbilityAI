@@ -1139,8 +1139,10 @@
           </match>
         </li>
 
-        <!-- Static pulse: an EMP 50.9 tiles around the caster, harmless to flesh. Only worth it against mechs and
-             turrets: three or more of them, and no mech or turret of ours inside. Never for visitors or allies. -->
+        <!-- Static pulse: an EMP 50.9 tiles around the caster, harmless to flesh. Only worth it against mechs,
+             turrets and raised shields: three or more of them, and no mech or turret of ours inside. Our own shield
+             belts don't hold it back (operator's call): at that radius one is nearly always in range, and the pulse
+             breaks them too. Never for visitors or allies. -->
         <li Class="PatchOperationConditional">
           <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_StaticPulse"]</xpath>
           <match Class="PatchOperationAddModExtension">
@@ -1150,7 +1152,7 @@
                 <workerClass>AbilityAI.AbilityAIWorker_AoEHostileSelf</workerClass>
                 <priority>4</priority>
                 <minTargets>3</minTargets>
-                <targetKinds>Mechanoid, Turret</targetKinds>
+                <targetKinds>Mechanoid, Turret, Shielded</targetKinds>
                 <avoidAllies>true</avoidAllies>
                 <allyKinds>Mechanoid, Turret</allyKinds>
                 <friendlyNpc>

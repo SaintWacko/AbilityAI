@@ -642,8 +642,9 @@
           </match>
         </li>
 
-        <!-- Ice wall: a ring of ice walls 5 to 5.9 tiles around the caster when two shooters are on it; not while one
-             stands that close. The walls only melt in heat, so never for visitors or allies. -->
+        <!-- Ice wall: a ring of ice walls 5 to 5.9 tiles around the caster (fixed in VPE's code, so the radius is
+             stated) when two shooters are on it; not with an enemy inside the ring or one already standing. The walls
+             only melt in heat, so never for visitors or allies. -->
         <li Class="PatchOperationConditional">
           <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_IceWall"]</xpath>
           <match Class="PatchOperationAddModExtension">
@@ -652,6 +653,7 @@
               <li Class="AbilityAI.AbilityAIExtension">
                 <workerClass>AbilityAI.AbilityAIWorker_Cover</workerClass>
                 <priority>5</priority>
+                <radius>5.9</radius>
                 <minThreats>2</minThreats>
                 <friendlyNpc>
                   <enabled>false</enabled>

@@ -715,12 +715,12 @@ namespace AbilityAI
             }
             if (threats < ext.minThreats) return false;
             if (!smoke && spawns == null && nearest != null && CoverUtility.CalculateOverallBlockChance(pawn, nearest.Position, ctx.map) >= 0.5f) return false;
-            // Cover the ability shapes around its caster itself (Ice Wall's ring): only with the nearest threat
-            // outside it, or the ring would shut the shooter in with the caster
+            // Cover the ability shapes around its caster itself (Ice Wall's ring): only with every enemy outside it,
+            // or the ring would shut a shooter or a charging melee enemy in with the caster
             if (AbilityAIUtility.IsSelfCast(ability))
             {
                 float ring = AbilityAIUtility.Radius(ability, ext);
-                if (nearest != null && nearestD <= ring * ring) return false;
+                if (ring > 0f && TargetingUtil.AnyWithin(enemies, pawn.Position, ring * ring)) return false;
                 target = pawn;
                 return true;
             }

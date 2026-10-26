@@ -176,7 +176,7 @@
         </li>
 
         <!-- Mind break: turns one humanlike enemy within 2.9 tiles into a thrall of the caster's faction, for good.
-             60% psyfocus, so last in line and not again for a minute. -->
+             60% psyfocus, so last in line and not again for a minute. Not for NPCs, who would thrall colonists. -->
         <li Class="PatchOperationConditional">
           <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_MindBreak"]</xpath>
           <match Class="PatchOperationAddModExtension">
@@ -189,6 +189,9 @@
                 <minGapSeconds>60</minGapSeconds>
                 <targetKinds>Humanlike</targetKinds>
                 <exclusive>true</exclusive>
+                <npc>
+                  <enabled>false</enabled>
+                </npc>
               </li>
             </value>
           </match>
@@ -601,7 +604,7 @@
         </li>
 
         <!-- Ice block: up to 20 ice walls in a 5x5 square four tiles toward the nearest shooter, when two are on the
-             caster. The walls only melt in heat, so never for visitors or allies. -->
+             caster. The walls melt, so visitors and allies may use it as they do Wallraise. -->
         <li Class="PatchOperationConditional">
           <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_IceBlock"]</xpath>
           <match Class="PatchOperationAddModExtension">
@@ -612,9 +615,6 @@
                 <priority>4</priority>
                 <offsetTowardThreat>4</offsetTowardThreat>
                 <minThreats>2</minThreats>
-                <friendlyNpc>
-                  <enabled>false</enabled>
-                </friendlyNpc>
               </li>
             </value>
           </match>

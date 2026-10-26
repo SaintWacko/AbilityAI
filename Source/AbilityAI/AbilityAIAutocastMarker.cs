@@ -30,30 +30,53 @@ namespace AbilityAI
             public bool offers;
         }
 
-        private static readonly Dictionary<Ability, Entry> cache = new Dictionary<Ability, Entry>();
+        // Keyed by the ability object of whichever system it belongs to (RimWorld.Ability, VEF's Ability)
+        private static readonly Dictionary<object, Entry> cache = new Dictionary<object, Entry>();
         private static readonly Texture2D RingTex = MakeRing();
 
         internal static void ClearCache() => cache.Clear();
 
         internal static bool Offers(Ability ability)
         {
+            if (TryCached(ability, out bool offers)) return offers;
+            return Store(ability, AbilityAIAutocast.Offers(ability));
+        }
+
+        internal static bool Offers(AIAbility ability)
+        {
+            if (TryCached(ability.Raw, out bool offers)) return offers;
+            return Store(ability.Raw, AbilityAIAutocast.Offers(ability));
+        }
+
+        private static bool TryCached(object key, out bool offers)
+        {
             int now = Time.frameCount;
-            if (cache.TryGetValue(ability, out Entry e) && now - e.frame < RefreshFrames && now >= e.frame) return e.offers;
+            if (cache.TryGetValue(key, out Entry e) && now - e.frame < RefreshFrames && now >= e.frame)
+            {
+                offers = e.offers;
+                return true;
+            }
+            offers = false;
+            return false;
+        }
+
+        private static bool Store(object key, bool offers)
+        {
             if (cache.Count >= MaxEntries) cache.Clear();
-            bool offers = AbilityAIAutocast.Offers(ability);
-            cache[ability] = new Entry { frame = now, offers = offers };
+            cache[key] = new Entry { frame = Time.frameCount, offers = offers };
             return offers;
         }
 
         // Where the badge goes: full size on the second text line at the left (the hotkey has the first), shrunk at
-        // the bottom left
-        internal static void Draw(Rect button, bool shrunk)
+        // the bottom left, or bottom right with rightEdge (AbilityAIAutocast.DrawBadge)
+        internal static void Draw(Rect button, bool shrunk, bool rightEdge = false)
         {
             float size = shrunk ? 9f : 12f;
             Text.Font = GameFont.Tiny;
             float y = shrunk ? button.yMax - size - 2f : button.y + 3f + Text.LineHeight + 1f;
             Text.Font = GameFont.Small;
-            GUI.DrawTexture(new Rect(button.x + 4f, y, size, size), RingTex);
+            float x = shrunk && rightEdge ? button.xMax - 4f - size : button.x + 4f;
+            GUI.DrawTexture(new Rect(x, y, size, size), RingTex);
         }
 
         private static Texture2D MakeRing()

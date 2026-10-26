@@ -1,8 +1,12 @@
 using System;
+using System.Runtime.CompilerServices;
 using HarmonyLib;
 using RimWorld;
 using UnityEngine;
 using Verse;
+
+// The VEF compat assembly hooks VEF's gizmos into the same autocast menu, badge and marker, which stay internal here
+[assembly: InternalsVisibleTo("AbilityAI.VEF")]
 
 namespace AbilityAI
 {

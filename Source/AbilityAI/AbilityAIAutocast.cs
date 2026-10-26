@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using HarmonyLib;
 using RimWorld;
@@ -13,6 +14,9 @@ using Verse;
 // caught here before vanilla's button sees it, on any Command_Ability (Command_Psycast doesn't override GizmoOnGUI).
 //
 // Only abilities with an AbilityAIExtension get the menu: the extension is what tells the AI how to use them.
+//
+// Another ability system's gizmos (VEF's) are hooked by its compat assembly, which calls Offers, OpenMenu and
+// DrawBadge here so both systems get the same menu and badge.
 namespace AbilityAI
 {
     public enum AbilityAIAutocastMode
@@ -39,6 +43,24 @@ namespace AbilityAI
             {
                 Scribe_References.Look(ref pawn, "pawn");
                 Scribe_Defs.Look(ref def, "def");
+                Scribe_Values.Look(ref mode, "mode");
+            }
+        }
+
+        // A mode for another ability system's def (VEF's). Saved by the def's database type and name, since the core
+        // can't name those types: once that system is gone the type doesn't resolve and the entry is dropped on load.
+        private class OtherEntry : IExposable
+        {
+            public Pawn pawn;
+            public string defType;
+            public string defName;
+            public AbilityAIAutocastMode mode;
+
+            public void ExposeData()
+            {
+                Scribe_References.Look(ref pawn, "pawn");
+                Scribe_Values.Look(ref defType, "defType");
+                Scribe_Values.Look(ref defName, "defName");
                 Scribe_Values.Look(ref mode, "mode");
             }
         }
@@ -73,7 +95,15 @@ namespace AbilityAI
         private readonly Dictionary<Pawn, Dictionary<Def, AbilityAIAutocastMode>> modes = new Dictionary<Pawn, Dictionary<Def, AbilityAIAutocastMode>>();
         private readonly Dictionary<Pawn, Limits> limits = new Dictionary<Pawn, Limits>();
         private List<Entry> saved;
+        private List<OtherEntry> savedOther;
         private List<LimitsEntry> savedLimits;
+        // A def's runtime type to the type whose DefDatabase holds it (a def with a Class attribute is a subclass)
+        private static readonly Dictionary<Type, Type> databaseTypes = new Dictionary<Type, Type>();
+
+        /// <summary>Run once per loaded or new game, on its first tick: a compat assembly converts its system's own
+        /// autocast flags into modes here (VEF's).</summary>
+        internal static event Action WorldReady;
+        private bool readyPending;
 
         /// <summary>Goes up on every mode change, so a cached answer built from the modes knows it is stale.</summary>
         internal static int Version { get; private set; }
@@ -150,19 +180,55 @@ namespace AbilityAI
             else inst.limits[pawn] = new Limits { heatCap = heatCap, focusFloor = focusFloor };
         }
 
+        // World.FinalizeInit runs before the loader resolves references and before the maps load, so the saved
+        // pawns aren't there yet: the hooks wait for the first tick
+        public override void FinalizeInit(bool fromLoad)
+        {
+            base.FinalizeInit(fromLoad);
+            readyPending = WorldReady != null;
+        }
+
+        public override void WorldComponentTick()
+        {
+            if (!readyPending) return;
+            readyPending = false;
+            var ready = WorldReady;
+            if (ready == null) return;
+            foreach (Action a in ready.GetInvocationList())
+            {
+                try { a(); }
+                catch (Exception e) { Log.Error($"[Ability AI] {a.Method.DeclaringType?.FullName}.{a.Method.Name} threw on world load: {e}"); }
+            }
+        }
+
+        private static Type DatabaseType(Def def)
+        {
+            Type type = def.GetType();
+            if (databaseTypes.TryGetValue(type, out Type db)) return db;
+            for (Type t = type; t != null && t != typeof(Def); t = t.BaseType)
+                if (GenDefDatabase.GetDefSilentFail(t, def.defName, false) == def) { db = t; break; }
+            databaseTypes[type] = db;
+            return db;
+        }
+
         public override void ExposeData()
         {
             base.ExposeData();
             if (Scribe.mode == LoadSaveMode.Saving)
             {
                 saved = new List<Entry>();
+                savedOther = new List<OtherEntry>();
                 foreach (var kv in modes)
                 {
                     // A discarded pawn is gone for good; a dead one may still be resurrected
                     if (kv.Key == null || kv.Key.Discarded) continue;
                     foreach (var m in kv.Value)
-                        if (m.Key is AbilityDef def && m.Value != AbilityAIAutocastMode.Off)
-                            saved.Add(new Entry { pawn = kv.Key, def = def, mode = m.Value });
+                    {
+                        if (m.Value == AbilityAIAutocastMode.Off) continue;
+                        if (m.Key is AbilityDef def) saved.Add(new Entry { pawn = kv.Key, def = def, mode = m.Value });
+                        else if (DatabaseType(m.Key) is Type db)
+                            savedOther.Add(new OtherEntry { pawn = kv.Key, defType = db.FullName, defName = m.Key.defName, mode = m.Value });
+                    }
                 }
             }
             if (Scribe.mode == LoadSaveMode.Saving)
@@ -173,6 +239,7 @@ namespace AbilityAI
                         savedLimits.Add(new LimitsEntry { pawn = kv.Key, heatCap = kv.Value.heatCap, focusFloor = kv.Value.focusFloor });
             }
             Scribe_Collections.Look(ref saved, "abilityAutocast", LookMode.Deep);
+            Scribe_Collections.Look(ref savedOther, "otherAutocast", LookMode.Deep);
             Scribe_Collections.Look(ref savedLimits, "psycastLimits", LookMode.Deep);
             if (Scribe.mode == LoadSaveMode.PostLoadInit)
             {
@@ -180,6 +247,15 @@ namespace AbilityAI
                 if (saved != null)
                     foreach (var e in saved)
                         if (e?.pawn != null && e.def != null) SetMode(e.pawn, e.def, e.mode);
+                if (savedOther != null)
+                    foreach (var e in savedOther)
+                    {
+                        if (e?.pawn == null || e.defType.NullOrEmpty() || e.defName.NullOrEmpty()) continue;
+                        Type type = GenTypes.GetTypeInAnyAssembly(e.defType);
+                        if (type == null || !typeof(Def).IsAssignableFrom(type)) continue;
+                        Def def = GenDefDatabase.GetDefSilentFail(type, e.defName, false);
+                        if (def != null) SetMode(e.pawn, def, e.mode);
+                    }
                 limits.Clear();
                 if (savedLimits != null)
                     foreach (var e in savedLimits)
@@ -188,11 +264,12 @@ namespace AbilityAI
             if (Scribe.mode == LoadSaveMode.Saving || Scribe.mode == LoadSaveMode.PostLoadInit)
             {
                 saved = null;
+                savedOther = null;
                 savedLimits = null;
             }
         }
 
-        private static bool CanApproach(AbilityDef def)
+        private static bool CanApproach(Def def)
         {
             var exts = def.modExtensions;
             if (exts == null) return false;
@@ -214,12 +291,14 @@ namespace AbilityAI
             return v != null && v.range <= 0f && v.targetable && def.targetRequired;
         }
 
-        internal static string Label(AbilityAIAutocastMode mode, AbilityDef def)
+        internal static string Label(AbilityAIAutocastMode mode, AbilityDef def) => Label(mode, IsTouch(def));
+
+        internal static string Label(AbilityAIAutocastMode mode, bool touch)
         {
             switch (mode)
             {
                 case AbilityAIAutocastMode.Stationary:
-                    return IsTouch(def) ? "AAI_Mode_Touch".Translate() : "AAI_Mode_Stationary".Translate();
+                    return touch ? "AAI_Mode_Touch".Translate() : "AAI_Mode_Stationary".Translate();
                 case AbilityAIAutocastMode.Full: return "AAI_Mode_Full".Translate();
                 default: return "AAI_Mode_Off".Translate();
             }
@@ -227,15 +306,22 @@ namespace AbilityAI
 
         /// <summary>Whether this gizmo gets the autocast menu: the player's own pawn, an ability the AI knows how to
         /// use, and no hook vetoes it (an Entad trait not identified yet, an item bound to someone else).</summary>
-        internal static bool Offers(Ability ability)
+        internal static bool Offers(Ability ability) =>
+            ability != null && Offers(ability.pawn, ability.def) && AbilityAIHooks.NotVetoed(ability.pawn, ability);
+
+        /// <summary>Offers for an ability of any system. For VEF's this also says whether Ability AI owns the
+        /// ability, which hides VEF's own autocast toggle.</summary>
+        internal static bool Offers(AIAbility ability) =>
+            ability != null && ability.Supported && Offers(ability.Pawn, ability.Def) && AbilityAIHooks.NotVetoed(ability.Pawn, ability);
+
+        private static bool Offers(Pawn p, Def def)
         {
             if (!AbilityAISettings.Enabled || !AbilityAISettings.PlayerAutocast) return false;
-            Pawn p = ability?.pawn;
-            if (p == null || p.Faction == null || !p.Faction.IsPlayer || p.IsPrisoner) return false;
+            if (p == null || def == null || p.Faction == null || !p.Faction.IsPlayer || p.IsPrisoner) return false;
             // A pawn that can't be drafted (most animals) only ever autocasts undrafted, where it uses every worker
             // while fighting back (AbilityAIDriver.FightsUndrafted). Without undrafted autocast it never would.
             if (p.drafter == null && !AbilityAISettings.UndraftedAutocast) return false;
-            return AbilityAIDriver.HasWorker(ability.def, AbilityAIDriver.PlayerSet.All) && AbilityAIHooks.NotVetoed(p, ability);
+            return AbilityAIDriver.HasWorker(def, AbilityAIDriver.PlayerSet.All);
         }
 
         // A def with groupAbility draws one button for every selected pawn whose gizmo is shown (drafted, or the def
@@ -251,17 +337,24 @@ namespace AbilityAI
                     // The same checks vanilla uses to show the gizmo; includeTemporary for implant and gear abilities
                     if (o is Pawn p && p != clicked.pawn && (p.Drafted ? def.showWhenDrafted : def.displayGizmoWhileUndrafted)
                         && p.abilities?.GetAbility(def, true) is Ability a && a.GizmosVisible() && Offers(a)) pawns.Add(p);
-            AbilityAIAutocastMode current = ModeFor(clicked.pawn, def);
+            OpenMenu(clicked.pawn, def, IsTouch(def), pawns, title);
+        }
+
+        /// <summary>The menu for any system's ability. pawns: everyone the clicked button stands for, the clicked
+        /// pawn first; the chosen mode is set for all of them.</summary>
+        internal static void OpenMenu(Pawn clicked, Def def, bool touch, List<Pawn> pawns, string title)
+        {
+            AbilityAIAutocastMode current = ModeFor(clicked, def);
 
             var options = new List<FloatMenuOption>();
             // Full only adds the walk into range: drafted pawns, abilities set up with an approachDistance. Elsewhere
             // it would act as Stationary, so it isn't offered (a Full set earlier stays, and shows as current; picking
             // it again on a pawn that can't be drafted stores Stationary, which is what it was doing anyway).
-            bool full = clicked.pawn.drafter != null && CanApproach(def);
+            bool full = clicked.drafter != null && CanApproach(def);
             foreach (AbilityAIAutocastMode mode in Modes)
             {
                 if (mode == AbilityAIAutocastMode.Full && !full && current != AbilityAIAutocastMode.Full) continue;
-                string label = Label(mode, def);
+                string label = Label(mode, touch);
                 if (mode == current) label = "AAI_Mode_Current".Translate(label);
                 AbilityAIAutocastMode m = mode;
                 options.Add(new FloatMenuOption(label, () =>
@@ -323,15 +416,22 @@ namespace AbilityAI
             }
             // A mode left on an ability a hook now vetoes (an item since bound to someone else) doesn't cast: no badge
             if (!AbilityAIHooks.NotVetoed(ability.pawn, ability)) return;
-            // Left edge. Full size, vanilla's top text line holds the hotkey (left), cooldown countdown (centre) and
-            // charges (right), and the label runs along the bottom, so the badge goes on the second line. Shrunk there
-            // is no label or countdown, so bottom left, clear of the hotkey.
+            DrawBadge(button, mode, shrunk, false);
+        }
+
+        /// <summary>The mode badge. Left edge by default. Full size, vanilla's top text line holds the hotkey (left),
+        /// cooldown countdown (centre) and charges (right), and the label runs along the bottom, so the badge goes on
+        /// the second line. Shrunk there is no label or countdown, so bottom left, clear of the hotkey; rightEdge puts
+        /// it bottom right instead, for gizmos where another mod draws in the bottom-left corner.</summary>
+        internal static void DrawBadge(Rect button, AbilityAIAutocastMode mode, bool shrunk, bool rightEdge)
+        {
             string text = mode == AbilityAIAutocastMode.Full ? "AAI_Badge_Full".Translate() : "AAI_Badge_Stationary".Translate();
             Text.Font = GameFont.Tiny;
             Vector2 size = Text.CalcSize(text);
             float y = shrunk ? button.yMax - size.y - 1f : button.y + 3f + Text.LineHeight;
             // A long translation stays inside the button rather than spilling onto the next gizmo
-            var r = new Rect(button.x + 3f, y, Mathf.Min(size.x + 4f, button.width - 6f), size.y);
+            float width = Mathf.Min(size.x + 4f, button.width - 6f);
+            var r = new Rect(rightEdge ? button.xMax - 3f - width : button.x + 3f, y, width, size.y);
             GUI.DrawTexture(r, TexUI.GrayTextBG);
             GUI.color = BadgeColor;
             Widgets.Label(new Rect(r.x + 2f, r.y, r.width - 2f, size.y), text.Truncate(r.width - 2f));

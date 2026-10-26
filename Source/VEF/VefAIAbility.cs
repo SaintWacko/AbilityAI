@@ -236,6 +236,10 @@ namespace AbilityAI.Vef
             return ability.def.Satisfied(ability.Hediff);
         }
 
+        public override bool Supported => infos.ContainsKey(ability.def);
+
+        public override bool IsTouch => Info.touch;
+
         public override bool IsPsycast => Costs != null;
 
         // A walk-up ability (VFEA_GotoTargetAndUseAbility) states a range of 999999: its job walks to the target, so

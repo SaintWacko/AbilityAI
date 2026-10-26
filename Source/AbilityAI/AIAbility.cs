@@ -48,6 +48,14 @@ namespace AbilityAI
 
         public string Label => Def.label;
 
+        /// <summary>The driver can cast it: some systems' abilities carry an AbilityAIExtension in a shape the AI
+        /// can't target (VEF's multi-target abilities), and those stay with their own system.</summary>
+        public virtual bool Supported => true;
+
+        /// <summary>A touch ability: it needs a target but has no range, and its cast job walks the caster up to it
+        /// (the Word psycasts). The autocast menu calls its in-place mode plain "Autocast".</summary>
+        public virtual bool IsTouch => false;
+
         /// <summary>Castable this moment by its own system's rules: cooldown, charges, comps, and the cost it would
         /// pay (a psycast the pawn has the psyfocus for).</summary>
         public abstract bool CanCastNow { get; }
@@ -269,6 +277,7 @@ namespace AbilityAI
             return ability.def.PsyfocusCost <= pe.CurrentPsyfocus + Pawn_PsychicEntropyTracker.PsyfocusCostTolerance;
         }
 
+        public override bool IsTouch => AbilityAIAutocast.IsTouch(ability.def);
         public override bool UsesCharges => ability.UsesCharges;
         public override int RemainingCharges => ability.RemainingCharges;
         public override bool IsPsycast => ability is Psycast;

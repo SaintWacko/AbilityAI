@@ -410,11 +410,12 @@ namespace AbilityAI
             // Cross-references are resolved by now, so the versions can be built and checked as they will run. Only
             // what a block brought in is reported; the rule's own errors are above.
             var npcVersion = For(AbilityAIRole.Npc);
+            var npcErrors = npcVersion != this ? new List<string>(npcVersion.RuleErrors()) : own;
             if (npcVersion != this)
-                foreach (var e in npcVersion.RuleErrors()) if (!own.Contains(e)) yield return "<npc>: " + e;
+                foreach (var e in npcErrors) if (!own.Contains(e)) yield return "<npc>: " + e;
             var friendlyVersion = For(AbilityAIRole.FriendlyNpc);
             if (friendlyVersion != npcVersion)
-                foreach (var e in friendlyVersion.RuleErrors()) if (!own.Contains(e)) yield return "<friendlyNpc>: " + e;
+                foreach (var e in friendlyVersion.RuleErrors()) if (!own.Contains(e) && !npcErrors.Contains(e)) yield return "<friendlyNpc>: " + e;
         }
 
         private IEnumerable<string> RuleErrors()

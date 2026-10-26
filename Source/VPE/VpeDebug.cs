@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using LudeonTK;
@@ -24,7 +25,29 @@ namespace AbilityAI.Vpe
 
         [DebugAction("Ability AI", "Give VPE test psycasts", actionType = DebugActionType.ToolMapForPawns,
             allowedGameStates = AllowedGameStates.PlayingOnMap, requiresRoyalty = true)]
-        private static void GiveTestPsycasts(Pawn pawn)
+        private static void GiveTestPsycasts(Pawn pawn) =>
+            Give(pawn, RuledPsycasts.Select(n => DefDatabase<VefAbilityDef>.GetNamedSilentFail(n)).Where(d => d != null));
+
+        // One entry per VPE path, giving every psycast of it that has an Ability AI rule, to try a path's rules on
+        // raiders without a psycaster of that path turning up
+        [DebugAction("Ability AI", "Give VPE path psycasts...", allowedGameStates = AllowedGameStates.PlayingOnMap, requiresRoyalty = true)]
+        private static List<DebugActionNode> GivePathPsycasts()
+        {
+            var nodes = new List<DebugActionNode>();
+            var ruled = DefDatabase<VefAbilityDef>.AllDefsListForReading
+                .Where(d => d.HasModExtension<AbilityAIExtension>() && d.GetModExtension<AbilityExtension_Psycast>()?.path != null)
+                .GroupBy(d => d.GetModExtension<AbilityExtension_Psycast>().path)
+                .OrderBy(g => g.Key.label);
+            foreach (var group in ruled)
+            {
+                var defs = group.ToList();
+                nodes.Add(new DebugActionNode($"{group.Key.LabelCap} ({defs.Count})", DebugActionType.ToolMapForPawns,
+                    pawnAction: p => Give(p, defs)));
+            }
+            return nodes;
+        }
+
+        private static void Give(Pawn pawn, IEnumerable<VefAbilityDef> defs)
         {
             var comp = pawn.GetComp<CompAbilities>();
             if (comp == null || !pawn.RaceProps.Humanlike)
@@ -43,10 +66,7 @@ namespace AbilityAI.Vpe
             }
             if (psycasts.level < TestLevel) psycasts.ChangeLevel(TestLevel - psycasts.level, sendLetter: false);
 
-            var given = RuledPsycasts
-                .Select(n => DefDatabase<VefAbilityDef>.GetNamedSilentFail(n))
-                .Where(d => d != null)
-                .ToList();
+            var given = defs.ToList();
             foreach (var def in given) comp.GiveAbility(def);
             pawn.psychicEntropy?.OffsetPsyfocusDirectly(1f);
 

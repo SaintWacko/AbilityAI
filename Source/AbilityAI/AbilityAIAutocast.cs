@@ -431,7 +431,7 @@ namespace AbilityAI
             float y = shrunk ? button.yMax - size.y - 1f : button.y + 3f + Text.LineHeight;
             // A long translation stays inside the button rather than spilling onto the next gizmo
             float width = Mathf.Min(size.x + 4f, button.width - 6f);
-            var r = new Rect(rightEdge ? button.xMax - 3f - width : button.x + 3f, y, width, size.y);
+            var r = new Rect(shrunk && rightEdge ? button.xMax - 3f - width : button.x + 3f, y, width, size.y);
             GUI.DrawTexture(r, TexUI.GrayTextBG);
             GUI.color = BadgeColor;
             Widgets.Label(new Rect(r.x + 2f, r.y, r.width - 2f, size.y), text.Truncate(r.width - 2f));

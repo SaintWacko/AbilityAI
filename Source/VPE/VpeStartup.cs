@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using RimWorld;
 using VanillaPsycastsExpanded;
 using VanillaPsycastsExpanded.Skipmaster;
+using VanillaPsycastsExpanded.Technomancer;
 using Verse;
 using VefAbility = VEF.Abilities.Ability;
 using VefAbilityDef = VEF.Abilities.AbilityDef;
@@ -44,7 +45,12 @@ namespace AbilityAI.Vpe
             // VPE's smokepop makes its smoke in code, with no extension saying so: the Cover worker then doesn't cast
             // it again while the caster already stands in smoke
             if (def.abilityClass != null && typeof(Ability_Smokepop).IsAssignableFrom(def.abilityClass)) e.smoke = true;
+            // Haywire marks a turret in VPE's own set rather than with a hediff, so skipAffected asks the set
+            if (def.abilityClass != null && typeof(Ability_AffectMechs).IsAssignableFrom(def.abilityClass))
+                e.thingAffected = IsHaywire;
         }
+
+        private static readonly Func<Thing, bool> IsHaywire = t => HaywireManager.HaywireThings.Contains(t);
 
         // Ability_IceBlock.Cast: 20 random cells of the 5x5 square centred on the target. Any of the 25 may get ice.
         private static readonly List<IntVec2> IceBlockPattern = Square(2);

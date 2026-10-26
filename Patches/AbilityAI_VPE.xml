@@ -1152,8 +1152,9 @@
           </match>
         </li>
 
-        <!-- Vortex: for about 40 s everyone within 18.9 tiles of it is slowed and mechs are stunned. Its range is
-             18.9 too, so it always reaches the caster and no spot clears the caster's side: five or more enemies. -->
+        <!-- Vortex: for about 40 s everyone within 18.9 tiles of it (VPE's code; the def's radius of 22.9 is only
+             drawn) is slowed and mechs are stunned. Its range is 18.9 too, so it always reaches the caster and no spot
+             clears the caster's side: five or more enemies. -->
         <li Class="PatchOperationConditional">
           <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Vortex"]</xpath>
           <match Class="PatchOperationAddModExtension">

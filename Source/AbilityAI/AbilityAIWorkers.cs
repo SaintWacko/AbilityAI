@@ -109,10 +109,6 @@ namespace AbilityAI
         /// psychic sensitivity (or a mech, for some), and with skipAffected a pawn already stunned by a stunning
         /// ability, already carrying its hediff, or already in a mental state from a mental-state one is skipped.
         /// Cost: a few field reads, plus a cached stat read for psycasts.</summary>
-        /// <summary>WouldAffect for a pawn; a turret only by targetKinds (Turret named).</summary>
-        public static bool WouldAffect(AIAbility ability, AbilityAIExtension ext, Thing t) =>
-            t is Pawn p ? WouldAffect(ability, ext, p) : Fits(ext, t);
-
         public static bool WouldAffect(AIAbility ability, AbilityAIExtension ext, Pawn p)
         {
             if (!Fits(ext, p)) return false;
@@ -130,6 +126,16 @@ namespace AbilityAI
             if (h != null && Has(p, h)) return false;
             if (e.mentalState && p.InMentalState) return false;
             return true;
+        }
+
+        /// <summary>WouldAffect for a pawn; a turret by targetKinds (Turret named), and with skipAffected not one the
+        /// effect is already on (AIAbilityEffects.thingAffected: a turret already gone haywire).</summary>
+        public static bool WouldAffect(AIAbility ability, AbilityAIExtension ext, Thing t)
+        {
+            if (t is Pawn p) return WouldAffect(ability, ext, p);
+            if (!Fits(ext, t)) return false;
+            var affected = ability.Effects.thingAffected;
+            return !ext.skipAffected || affected == null || !affected(t);
         }
 
         /// <summary>A ranged enemy (mechs and animals by their own verbs) whose fight target or current attack job
@@ -709,9 +715,12 @@ namespace AbilityAI
             }
             if (threats < ext.minThreats) return false;
             if (!smoke && spawns == null && nearest != null && CoverUtility.CalculateOverallBlockChance(pawn, nearest.Position, ctx.map) >= 0.5f) return false;
-            // Cover the ability shapes around its caster itself (Ice Wall's ring)
+            // Cover the ability shapes around its caster itself (Ice Wall's ring): only with the nearest threat
+            // outside it, or the ring would shut the shooter in with the caster
             if (AbilityAIUtility.IsSelfCast(ability))
             {
+                float ring = AbilityAIUtility.Radius(ability, ext);
+                if (nearest != null && nearestD <= ring * ring) return false;
                 target = pawn;
                 return true;
             }

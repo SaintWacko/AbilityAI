@@ -35,6 +35,9 @@ namespace AbilityAI
         /// worker; a host states its own through AbilityAIInfo.RegisterCone.</summary>
         public bool cone;
         public float coneRange, coneWidth;
+        /// <summary>For a thing that isn't a pawn (a turret): whether the ability's effect is already on it, which
+        /// skipAffected then leaves alone. Pawns go by targetHediff. Null = never.</summary>
+        public Func<Thing, bool> thingAffected;
     }
 
     public abstract class AIAbility

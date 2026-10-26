@@ -440,6 +440,9 @@ namespace AbilityAI
             if (minBleedRate < 0f) yield return "minBleedRate can't be negative";
             if (rangedOnly && minThreats < 1) yield return "rangedOnly needs minThreats of at least 1";
             if (targetKinds == AbilityAITargetKinds.None) yield return "targetKinds is empty: the rule could never target anyone";
+            else if ((targetKinds & AbilityAITargetKinds.All) == 0 && workerClass != null
+                && !typeof(AbilityAIWorker_AoEHostile).IsAssignableFrom(workerClass) && !typeof(AbilityAIWorker_AoEHostileSelf).IsAssignableFrom(workerClass))
+                yield return $"targetKinds names only Turret, which {workerClass.Name} never targets: the rule could never target anyone";
             if (avoidAllies && allyKinds == AbilityAITargetKinds.None) yield return "allyKinds is empty: avoidAllies would avoid nobody";
             if (maxLight < 0f) yield return "maxLight can't be negative";
         }

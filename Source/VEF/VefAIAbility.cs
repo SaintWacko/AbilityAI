@@ -269,7 +269,9 @@ namespace AbilityAI.Vef
         {
             get
             {
-                if (!ability.def.hasAoE && !Info.self) return 0f;
+                // Not gated on hasAoE, which only draws VEF's targeting ring: VPE leaves it off for many area psycasts
+                // (Eye Blast, Thunderbolt, Meteor Shower, Flashstorm) whose radius is still their area. Only the area
+                // workers ask, and they ask because the rule says the ability is an area.
                 float r = ability.GetRadiusForPawn();
                 return r > 0f && r < 500f ? r : 0f;
             }

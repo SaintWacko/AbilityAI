@@ -191,7 +191,52 @@ namespace AbilityAI
 
         /// <summary>The rule's targetKinds lets it target or count this pawn. One field read for a rule open to all.</summary>
         public static bool Fits(AbilityAIExtension ext, Pawn p) =>
-            ext.targetKinds == AbilityAITargetKinds.All || (ext.targetKinds & KindOf(p)) != 0;
+            ext.targetKinds == AbilityAITargetKinds.All || IsOfKind(ext.targetKinds, p);
+
+        public static bool IsOfKind(AbilityAITargetKinds kinds, Pawn p) =>
+            (kinds & KindOf(p)) != 0 || ((kinds & AbilityAITargetKinds.Shielded) != 0 && ShieldUp(p));
+
+        /// <summary>A worn shield (vanilla CompShield on apparel) that is up now.</summary>
+        public static bool ShieldUp(Pawn p)
+        {
+            var worn = p.apparel?.WornApparel;
+            if (worn == null) return false;
+            for (int i = 0; i < worn.Count; i++)
+            {
+                var shield = worn[i].GetComp<CompShield>();
+                if (shield != null && shield.ShieldState == ShieldState.Active) return true;
+            }
+            return false;
+        }
+
+        /// <summary>auraKinds: enough enemies of those kinds (and turrets, named) within the radius of the bearer,
+        /// and with avoidAllies none of the caster's side of allyKinds but the bearer. True for a rule without
+        /// auraKinds. Cost: a distance check per enemy, the turret list only for Turret.</summary>
+        public static bool AuraWorthIt(AbilityAIContext ctx, AIAbility ability, AbilityAIExtension ext, Pawn bearer)
+        {
+            var kinds = ext.auraKinds;
+            if (kinds == AbilityAITargetKinds.None) return true;
+            float r = Radius(ability, ext);
+            float r2 = r * r;
+            IntVec3 c = bearer.Position;
+            bool spareBroken = !MayHitBrokenAllies(ext);
+            int count = 0;
+            var enemies = ctx.Enemies;
+            for (int i = 0; i < enemies.Count && count < ext.auraMin; i++)
+            {
+                Pawn e = enemies[i];
+                if ((e.Position - c).LengthHorizontalSquared > r2 || (spareBroken && ctx.IsBrokenAlly(e))) continue;
+                if (IsOfKind(kinds, e)) count++;
+            }
+            if (count < ext.auraMin && (kinds & AbilityAITargetKinds.Turret) != 0)
+            {
+                var turrets = ctx.EnemyTurrets;
+                for (int i = 0; i < turrets.Count && count < ext.auraMin; i++)
+                    if ((turrets[i].Position - c).LengthHorizontalSquared <= r2) count++;
+            }
+            if (count < ext.auraMin) return false;
+            return !ext.avoidAllies || !AllyWithin(ctx, ext, c, r2, spareBroken, bearer);
+        }
 
         public static bool Fits(AbilityAIExtension ext, Thing t)
         {
@@ -213,10 +258,13 @@ namespace AbilityAI
         /// Friendlies, the allies in a hostile break when they are spared, and with Turret friendly turrets. The
         /// caster counts unless skipCaster (an area around the caster). Cost: a distance check per pawn, one
         /// KindOf more for a rule with allyKinds set; the turret list only for Turret.</summary>
-        public static bool AllyWithin(AbilityAIContext ctx, AbilityAIExtension ext, IntVec3 c, float r2, bool spareBroken, bool skipCaster)
+        public static bool AllyWithin(AbilityAIContext ctx, AbilityAIExtension ext, IntVec3 c, float r2, bool spareBroken, bool skipCaster) =>
+            AllyWithin(ctx, ext, c, r2, spareBroken, skipCaster ? ctx.pawn : null);
+
+        /// <summary>AllyWithin, leaving out one pawn (an aura's bearer, which its own aura spares).</summary>
+        public static bool AllyWithin(AbilityAIContext ctx, AbilityAIExtension ext, IntVec3 c, float r2, bool spareBroken, Pawn skip)
         {
             var kinds = ext.allyKinds;
-            Pawn skip = skipCaster ? ctx.pawn : null;
             if (AnyOfKindWithin(ctx.Friendlies, kinds, c, r2, skip)) return true;
             if (spareBroken && AnyOfKindWithin(ctx.BrokenAllies, kinds, c, r2, skip)) return true;
             if ((kinds & AbilityAITargetKinds.Turret) == 0) return false;
@@ -233,7 +281,7 @@ namespace AbilityAI
             {
                 Pawn p = pawns[i];
                 if (p == skip || (p.Position - c).LengthHorizontalSquared > r2) continue;
-                if (all || (kinds & KindOf(p)) != 0) return true;
+                if (all || IsOfKind(kinds, p)) return true;
             }
             return false;
         }
@@ -548,7 +596,8 @@ namespace AbilityAI
 
     /// <summary>
     /// Self buff: cast on the caster while an enemy is within maxRange (default 30) and the caster doesn't already
-    /// have the ability's hediff. Cost: k distance checks.
+    /// have the ability's hediff; with auraKinds, only when the aura would reach enough of them
+    /// (AbilityAIUtility.AuraWorthIt). Cost: k distance checks.
     /// </summary>
     public class AbilityAIWorker_SelfBuff : AbilityAIWorker
     {
@@ -558,6 +607,7 @@ namespace AbilityAI
             if (AbilityAIUtility.Has(ctx.pawn, AbilityAIUtility.Hediff(ability, ext))) return false;
             float reach = ext.maxRange >= 0f ? ext.maxRange : 30f;
             if (ctx.NearestEnemy(out float d) == null || d > reach * reach) return false;
+            if (!AbilityAIUtility.AuraWorthIt(ctx, ability, ext, ctx.pawn)) return false;
             target = ctx.pawn;
             return true;
         }

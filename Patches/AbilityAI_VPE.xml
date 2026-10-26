@@ -1100,8 +1100,10 @@
           </match>
         </li>
 
-        <!-- Static aura: 30 s of an aura that EMPs whatever comes at its bearer, on an ally fighting now or the
-             caster -->
+        <!-- Static aura: 30 s of an aura that EMPs everything within 6 tiles of its bearer but the bearer, friend or
+             foe, on an ally fighting now or the caster. EMP only stuns mechs and turrets and breaks shield belts, so
+             only with one of those of the enemy's near the bearer and none of ours. The 6 is the aura hediff's own,
+             which no stat scales. -->
         <li Class="PatchOperationConditional">
           <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_StaticAura"]</xpath>
           <match Class="PatchOperationAddModExtension">
@@ -1110,6 +1112,10 @@
               <li Class="AbilityAI.AbilityAIExtension">
                 <workerClass>AbilityAI.AbilityAIWorker_TargetFriendly</workerClass>
                 <priority>2</priority>
+                <radius>6</radius>
+                <auraKinds>Mechanoid, Turret, Shielded</auraKinds>
+                <avoidAllies>true</avoidAllies>
+                <allyKinds>Mechanoid, Turret, Shielded</allyKinds>
               </li>
             </value>
           </match>

@@ -182,6 +182,9 @@ namespace AbilityAI
         /// <summary>Turrets (Haywire). Only the hostile area workers (AoE hostile, AoE hostile around the caster)
         /// target and count them; in allyKinds, avoidAllies also keeps clear of friendly turrets.</summary>
         Turret = 16,
+        /// <summary>A pawn whose worn shield (a shield belt) is up, whatever its race: EMP breaks it. Not in All.
+        /// Matching it reads the pawn's apparel, so only rules that name it pay for that.</summary>
+        Shielded = 32,
     }
 
     /// <summary>Recovery: the health conditions a rule treats.</summary>
@@ -348,6 +351,12 @@ namespace AbilityAI
         /// <summary>Which of the caster's side avoidAllies keeps clear of: those the effect would harm (Haywire:
         /// Mechanoid, Turret; it doesn't touch people). Default every pawn.</summary>
         public AbilityAITargetKinds allyKinds = AbilityAITargetKinds.All;
+        /// <summary>Target friendly, Self buff: the buff is an aura that hits whatever comes near its bearer (Static
+        /// Aura's EMP). Cast only while at least auraMin enemies of these kinds (turrets when Turret is named) are
+        /// within the radius of the bearer, and with avoidAllies none of the caster's side of allyKinds besides the
+        /// bearer. None = no such check.</summary>
+        public AbilityAITargetKinds auraKinds = AbilityAITargetKinds.None;
+        public int auraMin = 1;
         /// <summary>Only while the light on the caster's cell is at most this (0-1; Obscure, Shadow Focus: 0.3).
         /// 1 = any light.</summary>
         public float maxLight = 1f;
@@ -441,11 +450,18 @@ namespace AbilityAI
             if (minBleedRate < 0f) yield return "minBleedRate can't be negative";
             if (rangedOnly && minThreats < 1) yield return "rangedOnly needs minThreats of at least 1";
             if (targetKinds == AbilityAITargetKinds.None) yield return "targetKinds is empty: the rule could never target anyone";
-            else if ((targetKinds & AbilityAITargetKinds.All) == 0 && workerClass != null
+            else if (targetKinds == AbilityAITargetKinds.Turret && workerClass != null
                 && !typeof(AbilityAIWorker_AoEHostile).IsAssignableFrom(workerClass) && !typeof(AbilityAIWorker_AoEHostileSelf).IsAssignableFrom(workerClass))
                 yield return $"targetKinds names only Turret, which {workerClass.Name} never targets: the rule could never target anyone";
             if (avoidAllies && allyKinds == AbilityAITargetKinds.None) yield return "allyKinds is empty: avoidAllies would avoid nobody";
             if (maxLight < 0f) yield return "maxLight can't be negative";
+            if (auraKinds != AbilityAITargetKinds.None)
+            {
+                if (auraMin < 1) yield return "auraMin must be at least 1";
+                if (workerClass != null && !typeof(AbilityAIWorker_TargetFriendly).IsAssignableFrom(workerClass)
+                    && !typeof(AbilityAIWorker_SelfBuff).IsAssignableFrom(workerClass))
+                    yield return $"auraKinds is only read by Target friendly and Self buff, not {workerClass.Name}";
+            }
         }
     }
 

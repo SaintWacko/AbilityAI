@@ -31,6 +31,7 @@
                 <priority>3</priority>
                 <approachDistance>8</approachDistance>
                 <harmless>true</harmless>
+                <exclusive>true</exclusive>
               </li>
             </value>
           </match>

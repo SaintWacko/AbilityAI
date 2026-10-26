@@ -227,6 +227,11 @@ namespace AbilityAI
         /// <summary>Hostile workers: the ability disables without lasting harm (stun, burden, blinding), so with the
         /// BrokenAllies setting at HarmlessOnly it may be used on an ally in a hostile mental break.</summary>
         public bool harmless;
+        /// <summary>Leave a target alone while another pawn of the caster's faction is casting this ability at it or
+        /// walking into range to (so a raid doesn't all stabilize one downed pirate). Unset = the worker's default: on
+        /// for every worker but the two that cast at enemies for damage (Target hostile, AoE hostile), where piling on
+        /// one enemy is the point. Set it on a hostile rule whose effect doesn't stack (a stun keeps the longer of two).</summary>
+        public bool? exclusive;
 
         [Unsaved] private AbilityAIWorker worker;
 
@@ -604,6 +609,9 @@ namespace AbilityAI
             // Set by a TryFindApproachCell walk, cleared with approachJobId
             public Def approachAbility;
             public int approachExpected;
+            // What a TryFindApproachTarget walk is for, cleared with approachJobId: an ally's claim on that target
+            public Def approachDef;
+            public LocalTargetInfo approachGoal = LocalTargetInfo.Invalid;
 
             // Player Full mode: where the pawn stood before it walked to cast, the AttackStatic it was on (a fresh
             // copy to queue once back), and the walk back. Kept from the start of the walk until the pawn is back
@@ -652,6 +660,15 @@ namespace AbilityAI
         // The pawn being evaluated is under the player rules (Control.Player). A player pawn in a break run by the
         // NPC rules (BreakCasting) is not, and keeps vanilla's player-faction AI vetoes (CompAllowsTarget).
         private static bool curPlayer;
+
+        // Casts the evaluated pawn's faction-mates have under way (running, or walking into range for), for exclusive
+        // workers: built on the first exclusive target check of an evaluation, from the mates' current jobs rather
+        // than a record of what this AI started, so a cast the player ordered or vanilla's or VEF's AI began counts too
+        private struct Claim { public Def def; public LocalTargetInfo target; }
+        private static readonly List<Claim> claims = new List<Claim>();
+        private static bool claimsBuilt;
+        // The candidate being tried, while its worker is exclusive: Valid refuses a target a mate has claimed for it
+        private static Def exclusiveDef;
 
         /// <summary>True while TryGiveJob evaluates a pawn under the player rules: workers read it for rules that
         /// differ for the player's own pawns (what Calm will end, how far it walks).</summary>
@@ -918,17 +935,53 @@ namespace AbilityAI
         /// <summary>Every vanilla check a player's cast would pass, minus aiCanUse (see the file header), plus each
         /// effect comp's AI veto. Workers call it on each target they consider; it is also run once more on the
         /// target they return.</summary>
-        public static bool Valid(Ability ability, LocalTargetInfo target) => VanillaAIAbility.Of(ability).Valid(target);
+        public static bool Valid(Ability ability, LocalTargetInfo target) => Valid(VanillaAIAbility.Of(ability), target);
 
-        public static bool Valid(AIAbility ability, LocalTargetInfo target) => ability.Valid(target);
+        public static bool Valid(AIAbility ability, LocalTargetInfo target) => !ClaimedByMate(ability, target) && ability.Valid(target);
 
         /// <summary>Valid, short of the verb's own check (range, line of sight, reachability; it repeats the comps'
         /// Valid). For targets the pawn means to walk into range of. The player-caster comp rules (CompAllowsTarget)
         /// apply only while TryGiveJob is evaluating a pawn under Control.Player; called from anywhere else, every
         /// comp's own AICanTargetNow decides.</summary>
-        public static bool ValidIgnoringRange(Ability ability, LocalTargetInfo target) => VanillaAIAbility.Of(ability).ValidIgnoringRange(target);
+        public static bool ValidIgnoringRange(Ability ability, LocalTargetInfo target) => ValidIgnoringRange(VanillaAIAbility.Of(ability), target);
 
-        public static bool ValidIgnoringRange(AIAbility ability, LocalTargetInfo target) => ability.ValidIgnoringRange(target);
+        public static bool ValidIgnoringRange(AIAbility ability, LocalTargetInfo target) => !ClaimedByMate(ability, target) && ability.ValidIgnoringRange(target);
+
+        private static bool ClaimedByMate(AIAbility ability, LocalTargetInfo target)
+        {
+            if (exclusiveDef == null || !evaluating || ability.Def != exclusiveDef || !target.IsValid) return false;
+            if (!claimsBuilt) BuildClaims(ctx.pawn);
+            for (int i = 0; i < claims.Count; i++)
+            {
+                if (claims[i].def != exclusiveDef) continue;
+                LocalTargetInfo c = claims[i].target;
+                // A location-targeted cast at a pawn aims at its cell: compare cells unless both name a thing
+                if (c.HasThing && target.HasThing ? c.Thing == target.Thing : c.Cell == target.Cell) return true;
+            }
+            return false;
+        }
+
+        // Cost: one pass over the faction's spawned pawns, a job def test each (the sources answer from it first)
+        private static void BuildClaims(Pawn pawn)
+        {
+            claimsBuilt = true;
+            if (pawn.Faction == null) return;
+            var mates = pawn.Map.mapPawns.SpawnedPawnsInFaction(pawn.Faction);
+            for (int i = 0; i < mates.Count; i++)
+            {
+                Pawn p = mates[i];
+                if (p == pawn) continue;
+                Job cur = p.CurJob;
+                if (cur == null) continue;
+                // Both vanilla's and VEF's cast jobs carry the target as targetA
+                if (AIAbilitySources.TryGetRunningCast(p, out AIAbility running, out _))
+                {
+                    if (cur.targetA.IsValid) claims.Add(new Claim { def = running.Def, target = cur.targetA });
+                }
+                else if (states.TryGetValue(p, out PawnState s) && s.approachDef != null && cur.loadID == s.approachJobId)
+                    claims.Add(new Claim { def = s.approachDef, target = s.approachGoal });
+            }
+        }
 
         internal static Job TryGiveJob(Pawn pawn, Control control)
         {
@@ -943,6 +996,8 @@ namespace AbilityAI
                 state.approachJobId = -1;
                 state.approachAbility = null;
                 state.approachExpected = 0;
+                state.approachDef = null;
+                state.approachGoal = LocalTargetInfo.Invalid;
                 state.nextEvalTick = tick;
             }
             if (state.home.IsValid) CheckHome(pawn, state, player);
@@ -1009,6 +1064,7 @@ namespace AbilityAI
                     var ext = candidates[i].ext;
                     var worker = ext.Worker;
                     if (!CombatAllows(worker)) continue;
+                    exclusiveDef = worker.Exclusive ? a.Def : null;
                     if (!worker.TryFindTarget(ctx, a, out LocalTargetInfo target, out LocalTargetInfo dest)) continue;
                     if (!dest.IsValid) dest = target;
                     if (!Valid(a, target)) continue;
@@ -1026,6 +1082,7 @@ namespace AbilityAI
                     }
                     if (AbilityAISettings.DebugLog && Prefs.DevMode)
                         Log.Message($"[Ability AI] {pawn.LabelShort} casts {a.Label} ({worker.GetType().Name}) on {target}");
+                    exclusiveDef = null;
                     AbilityAIHooks.NotifyCast(pawn, a, target, dest);
                     if (player) QueueAfterCast(pawn, state);
                     return cast;
@@ -1040,6 +1097,9 @@ namespace AbilityAI
             {
                 ctx.End();
                 candidates.Clear();
+                claims.Clear();
+                claimsBuilt = false;
+                exclusiveDef = null;
                 // The wrappers hold their pawns: don't keep them past the evaluation
                 collected.Clear();
                 curSet = PlayerSet.All;
@@ -1214,7 +1274,9 @@ namespace AbilityAI
                 if (ext.approachDistance <= 0f || ctx.HealthFraction < ext.healthThreshold || !CombatAllows(ext.Worker)) continue;
                 if (player && AbilityAIAutocast.ModeFor(pawn, a.Def) != AbilityAIAutocastMode.Full) continue;
                 if (state.approachNext != null && state.approachNext.TryGetValue(a.Def, out int next) && ctx.tick < next) continue;
+                exclusiveDef = ext.Worker.Exclusive ? a.Def : null;
                 IntVec3 cell;
+                LocalTargetInfo claim = LocalTargetInfo.Invalid;
                 int expected = 0;
                 string at;
                 bool byCell = ext.Worker.UsesApproachCell && AbilityAIUtility.IsSelfCast(a);
@@ -1240,6 +1302,7 @@ namespace AbilityAI
                     }
                     expected = 0;
                     at = goal.LabelShort;
+                    claim = goal;
                 }
 
                 if (state.approachNext == null) state.approachNext = new Dictionary<Def, int>();
@@ -1251,6 +1314,9 @@ namespace AbilityAI
                 state.approachJobId = job.loadID;
                 state.approachAbility = expected > 0 ? a.Def : null;
                 state.approachExpected = expected;
+                state.approachDef = claim.IsValid ? a.Def : null;
+                state.approachGoal = claim;
+                exclusiveDef = null;
                 if (player)
                 {
                     ClearHome(state);

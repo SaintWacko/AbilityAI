@@ -40,6 +40,11 @@ namespace AbilityAI
         /// enemy's running cast.</summary>
         public virtual bool TargetsEnemies => false;
 
+        protected virtual bool DefaultExclusive => !TargetsEnemies;
+
+        /// <summary>See AbilityAIExtension.exclusive.</summary>
+        public bool Exclusive => ext.exclusive ?? DefaultExclusive;
+
         /// <summary>A target worth casting at now, or false. The driver runs AbilityAIDriver.Valid on the result
         /// once more, so a worker only needs to call it where it is choosing between candidates.</summary>
         public abstract bool TryFindTarget(AbilityAIContext ctx, AIAbility ability, out LocalTargetInfo target, out LocalTargetInfo dest);

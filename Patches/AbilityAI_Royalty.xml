@@ -11,7 +11,10 @@
      range) is only on the enemy-targeted rules: their workers are the ones that can pick a target to walk toward.
      Chaos skip is left without one, since its target is an enemy already in melee.
      harmless marks the rules that disable without lasting harm: with the "allies in a mental break" setting on
-     its default, those may also be used on a berserk ally. -->
+     its default, those may also be used on a berserk ally.
+     exclusive on an enemy-targeted rule keeps two casters of one faction off the same enemy: for effects that don't
+     stack (a stun keeps the longer of two, a second burden or berserk does nothing). The other workers have it on by
+     default. -->
 <Patch>
   <Operation Class="PatchOperationFindMod">
     <mods>
@@ -36,6 +39,7 @@
                 <priority>3</priority>
                 <approachDistance>8</approachDistance>
                 <harmless>true</harmless>
+                <exclusive>true</exclusive>
               </li>
             </value>
           </match>
@@ -51,6 +55,7 @@
                 <priority>2</priority>
                 <approachDistance>8</approachDistance>
                 <harmless>true</harmless>
+                <exclusive>true</exclusive>
               </li>
             </value>
           </match>
@@ -70,6 +75,7 @@
                 <radius>6</radius>
                 <avoidAllies>true</avoidAllies>
                 <approachDistance>8</approachDistance>
+                <exclusive>true</exclusive>
               </li>
             </value>
           </match>

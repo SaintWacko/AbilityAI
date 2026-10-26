@@ -1,4 +1,5 @@
 using System.Linq;
+using System.Text;
 using LudeonTK;
 using RimWorld;
 using VanillaPsycastsExpanded;
@@ -9,7 +10,8 @@ using VefAbilityDef = VEF.Abilities.AbilityDef;
 namespace AbilityAI.Vpe
 {
     // VPE's Psycasts tab, and its dev mode, only show on player pawns, so there is no way in the game to hand a raider
-    // the psycasts that have Ability AI rules. This does it on any humanlike, and leaves the pawn in its lord.
+    // the psycasts that have Ability AI rules, or to see which of them VPE would refuse it. These do both on any
+    // humanlike, and leave the pawn in its lord.
     internal static class VpeDebug
     {
         private static readonly string[] RuledPsycasts =
@@ -21,7 +23,7 @@ namespace AbilityAI.Vpe
         private const int TestLevel = 6;
 
         [DebugAction("Ability AI", "Give VPE test psycasts", actionType = DebugActionType.ToolMapForPawns,
-            allowedGameStates = AllowedGameStates.PlayingOnMap)]
+            allowedGameStates = AllowedGameStates.PlayingOnMap, requiresRoyalty = true)]
         private static void GiveTestPsycasts(Pawn pawn)
         {
             var comp = pawn.GetComp<CompAbilities>();
@@ -50,6 +52,31 @@ namespace AbilityAI.Vpe
 
             Messages.Message($"{pawn.LabelShort}: psylink {psycasts.level}, {given.Count} psycasts, full psyfocus",
                 pawn, MessageTypeDefOf.TaskCompletion, false);
+            // GiveAbility adds a psycast whose path the pawn can't unlock (backstory, meme, gene) all the same
+            ShowStatus(pawn);
+        }
+
+        [DebugAction("Ability AI", "Show VPE psycast status", actionType = DebugActionType.ToolMapForPawns,
+            allowedGameStates = AllowedGameStates.PlayingOnMap, requiresRoyalty = true)]
+        private static void ShowStatus(Pawn pawn)
+        {
+            var learned = pawn.GetComp<CompAbilities>()?.LearnedAbilities;
+            if (learned == null) return;
+            var sb = new StringBuilder();
+            var pe = pawn.psychicEntropy;
+            sb.Append(pawn.LabelShort);
+            if (pe != null) sb.Append($": heat {pe.EntropyValue:F0} / {pe.MaxEntropy:F0}, psyfocus {pe.CurrentPsyfocus:P0}");
+            sb.AppendLine();
+            foreach (var ability in learned)
+            {
+                if (!RuledPsycasts.Contains(ability.def.defName)) continue;
+                var psycast = ability.def.GetModExtension<AbilityExtension_Psycast>();
+                string cost = psycast == null ? ""
+                    : $" ({psycast.GetPsyfocusUsedByPawn(pawn):P0} psyfocus, {psycast.GetEntropyUsedByPawn(pawn):F0} heat)";
+                string state = ability.IsEnabledForPawn(out string reason) ? "ready" : reason.NullOrEmpty() ? "refused" : reason;
+                sb.AppendLine($"{ability.def.LabelCap}{cost}: {state}");
+            }
+            Find.WindowStack.Add(new Dialog_MessageBox(sb.ToString().TrimEnd()));
         }
     }
 }

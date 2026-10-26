@@ -358,6 +358,8 @@ namespace AbilityAI
     public class AbilityAIWorker_Interrupt : AbilityAIWorker
     {
         public override bool TargetsEnemies => true;
+        // One stun stops the cast; a second caster's is wasted
+        protected override bool DefaultExclusive => true;
         private const int MarginTicks = 6;
         private static readonly List<TargetingUtil.Cand> cands = new List<TargetingUtil.Cand>();
 

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using HarmonyLib;
 using RimWorld;
@@ -27,6 +28,8 @@ namespace AbilityAI
     {
         private Vector2 scroll;
         private float viewHeight = 600f;
+        private AbilityAISettings.Tab tab;
+        private List<TabRecord> tabs;
 
         public AbilityAIMod(ModContentPack content) : base(content)
         {
@@ -36,22 +39,43 @@ namespace AbilityAI
 
         public override string SettingsCategory() => "Ability AI";
 
+        private TabRecord MakeTab(AbilityAISettings.Tab t, string key) =>
+            new TabRecord(key.Translate(), () => { tab = t; scroll = Vector2.zero; }, () => tab == t);
+
         public override void DoSettingsWindowContents(Rect inRect)
         {
-            // The bottom 40 px are kept for the reset button
-            var outer = new Rect(inRect.x, inRect.y, inRect.width, inRect.height - 40f);
+            if (tabs == null)
+            {
+                tabs = new List<TabRecord>
+                {
+                    MakeTab(AbilityAISettings.Tab.General, "AAI_Tab_General"),
+                    MakeTab(AbilityAISettings.Tab.OtherFactions, "AAI_Tab_OtherFactions"),
+                    MakeTab(AbilityAISettings.Tab.YourPawns, "AAI_Tab_YourPawns"),
+                    MakeTab(AbilityAISettings.Tab.MentalBreaks, "AAI_Tab_MentalBreaks"),
+                };
+            }
+            // TabDrawer draws the tabs above the rect it is given; the bottom 40 px are kept for the reset buttons
+            var menu = new Rect(inRect.x, inRect.y + TabDrawer.TabHeight, inRect.width, inRect.height - TabDrawer.TabHeight - 40f);
+            Widgets.DrawMenuSection(menu);
+            TabDrawer.DrawTabs(menu, tabs);
+
+            var outer = menu.ContractedBy(10f);
             var view = new Rect(0f, 0f, outer.width - 16f, viewHeight);
             Widgets.BeginScrollView(outer, ref scroll, view);
             // maxOneColumn: without it an overrun wraps into a second column and CurHeight stops growing
             var list = new Listing_Standard { maxOneColumn = true };
             list.Begin(view);
-            AbilityAISettings.DoSettings(list);
+            AbilityAISettings.DoTab(list, tab);
             viewHeight = list.CurHeight + 20f;
             list.End();
             Widgets.EndScrollView();
 
-            var reset = new Rect(inRect.x, inRect.yMax - 32f, 200f, 32f);
-            if (Widgets.ButtonText(reset, "AAI_Reset".Translate())) AbilityAISettings.Reset();
+            var resetTab = new Rect(inRect.x, inRect.yMax - 32f, 200f, 32f);
+            if (Widgets.ButtonText(resetTab, "AAI_ResetTab".Translate())) AbilityAISettings.ResetTab(tab);
+            var resetAll = new Rect(inRect.xMax - 200f, inRect.yMax - 32f, 200f, 32f);
+            if (Widgets.ButtonText(resetAll, "AAI_Reset".Translate()))
+                Find.WindowStack.Add(Dialog_MessageBox.CreateConfirmation("AAI_Reset_Confirm".Translate(),
+                    AbilityAISettings.Reset, destructive: true));
         }
     }
 

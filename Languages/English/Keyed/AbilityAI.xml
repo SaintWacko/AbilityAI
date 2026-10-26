@@ -1,9 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Ability AI's settings, autocast menu and badge. AAI_ prefix: these keys are global across every loaded mod. -->
 <LanguageData>
+  <AAI_Tab_General>General</AAI_Tab_General>
+  <AAI_Tab_OtherFactions>Other factions</AAI_Tab_OtherFactions>
+  <AAI_Tab_YourPawns>Your pawns</AAI_Tab_YourPawns>
+  <AAI_Tab_MentalBreaks>Mental breaks</AAI_Tab_MentalBreaks>
   <AAI_Enabled>Ability AI</AAI_Enabled>
+  <AAI_Enabled_Desc>Off: nobody uses abilities through this mod; vanilla's or their own mod's casting takes over.</AAI_Enabled_Desc>
   <AAI_Enabled_Tip>Raiders, visitors, animals and mechs decide for themselves when to use abilities that are set up for this mod, and your own pawns use the abilities you set to autocast. Off: nobody does, and abilities fall back to whatever casting vanilla or their own mod gives them.</AAI_Enabled_Tip>
-  <AAI_Who>Who uses them:</AAI_Who>
+  <AAI_Who>Who uses abilities</AAI_Who>
+  <AAI_What>What they use</AAI_What>
+  <AAI_Section_Undrafted>Undrafted</AAI_Section_Undrafted>
+  <AAI_Section_Breaks>Pawns in a break</AAI_Section_Breaks>
+  <AAI_Section_Dev>Dev mode</AAI_Section_Dev>
   <AAI_Hostiles>Hostile pawns</AAI_Hostiles>
   <AAI_Hostiles_Tip>Raiders and anyone else hostile to your colony.</AAI_Hostiles_Tip>
   <AAI_NonHostiles>Friendly and neutral pawns</AAI_NonHostiles>
@@ -14,6 +23,7 @@
   <AAI_Mechs_Tip>Other factions' mechanoids. Yours use the abilities you set to autocast.</AAI_Mechs_Tip>
   <AAI_Who_Desc>Your own colonists, slaves, ghouls and mechs only use abilities you set to autocast. Prisoners never use any.</AAI_Who_Desc>
   <AAI_Unclaimed>Also use abilities no mod claims</AAI_Unclaimed>
+  <AAI_Unclaimed_Desc>Such as a raider psycaster's own psycasts. Rules marked off for NPCs stay off.</AAI_Unclaimed_Desc>
   <AAI_Unclaimed_Tip>Mods built on Ability AI (such as Entad Framework and Bastle Framework) claim the abilities their own gear and traits give. With this on, a pawn also uses any other ability that is set up for this mod, such as a raider psycaster's own psycasts (most combat psycasts from Royalty are). Off: only claimed abilities.</AAI_Unclaimed_Tip>
   <AAI_VanillaStandDown>Replace vanilla's casting for abilities this mod handles</AAI_VanillaStandDown>
   <AAI_VanillaStandDown_Tip>Some abilities also have vanilla's simple casting turned on, so they still get used when this mod is missing, and Vanilla Expanded Framework casts its abilities for NPCs at random in place of an attack. With this on, both stay out of the way of any ability Ability AI is deciding for, so two AIs never use the same ability. Off: both may cast it.</AAI_VanillaStandDown_Tip>
@@ -36,19 +46,19 @@
   <AAI_ShowMarker>Mark abilities that can autocast</AAI_ShowMarker>
   <AAI_ShowMarker_Tip>Draws a small grey ring on the button of every ability your pawn could autocast but isn't set to. Once you pick a mode, the "auto" or "auto+" badge takes its place.</AAI_ShowMarker_Tip>
   <AAI_Autocast_Hint>Right-click to set autocast (now: {0}).</AAI_Autocast_Hint>
-  <AAI_AutocastOwner>Psycasts Better Autocasting also handles, for colonists:</AAI_AutocastOwner>
+  <AAI_AutocastOwner>Psycasts Better Autocasting also handles</AAI_AutocastOwner>
   <AAI_AutocastOwner_Tip>Better Autocasting for Vanilla Psycasts Expanded has its own autocast for about forty VPE psycasts. Where Ability AI also has rules for one (Overshield, Word of Serenity, ...), only one of the two mods casts it for your colonists, and its gizmo has one autocast toggle. Switching keeps each colonist's on or off choice. Mechs, animals and NPCs always use Ability AI's rules.</AAI_AutocastOwner_Tip>
   <AAI_AutocastOwner_AbilityAI>Ability AI</AAI_AutocastOwner_AbilityAI>
   <AAI_AutocastOwner_AbilityAI_Tip>Right-click menu with Autocast and Full Autocast, Ability AI's targeting and your psycast limits. Better Autocasting's settings for these psycasts have no effect.</AAI_AutocastOwner_AbilityAI_Tip>
   <AAI_AutocastOwner_BetterAutocast>Better Autocasting</AAI_AutocastOwner_BetterAutocast>
   <AAI_AutocastOwner_BetterAutocast_Tip>VEF's autocast toggle and Better Autocasting's own targeting settings. Ability AI leaves these psycasts alone for colonists.</AAI_AutocastOwner_BetterAutocast_Tip>
-  <AAI_ReturnTo>After a "Full Autocast" cast:</AAI_ReturnTo>
+  <AAI_ReturnTo>After a "Full Autocast" cast</AAI_ReturnTo>
   <AAI_ReturnTo_Tip>Where a drafted pawn goes after walking a few tiles to cast an ability set to "Full Autocast".</AAI_ReturnTo_Tip>
   <AAI_ReturnTo_Original>Walk back to original position</AAI_ReturnTo_Original>
   <AAI_ReturnTo_Original_Tip>The pawn walks back to the exact spot it was standing on before it set off.</AAI_ReturnTo_Original_Tip>
   <AAI_ReturnTo_Cover>Find new cover from the ending position</AAI_ReturnTo_Cover>
   <AAI_ReturnTo_Cover_Tip>The pawn looks for a spot within 6 tiles of where it ended up that has cover from the nearest enemy and that it can shoot from, and goes there. It stays put if its own spot already has good cover. If there is none, it walks back to its original position.</AAI_ReturnTo_Cover_Tip>
-  <AAI_CalmBreaks>Your pawns' calming abilities (such as word of serenity) end:</AAI_CalmBreaks>
+  <AAI_CalmBreaks>Your pawns' calming abilities end</AAI_CalmBreaks>
   <AAI_CalmBreaks_Tip>Which of an ally's mental breaks your pawns end by themselves with an ability set to autocast. Word of serenity also puts the target into a psychic coma for a few hours and costs more psyfocus for a worse break (30% minor, 50% major, 70% extreme). Breaks that will end on their own within a minute are left alone. Raiders and visitors only ever calm aggressive breaks.</AAI_CalmBreaks_Tip>
   <AAI_CalmBreaks_Aggressive>Aggressive breaks only</AAI_CalmBreaks_Aggressive>
   <AAI_CalmBreaks_Aggressive_Tip>Berserk, murderous rage and other breaks where the pawn attacks people.</AAI_CalmBreaks_Aggressive_Tip>
@@ -60,7 +70,7 @@
   <AAI_CalmRange_Tip>Measured in a straight line, so the walk itself can be longer. How far an undrafted pawn goes to use a calming ability it has to touch the target with. Drafted pawns keep the ability's own reach (8 tiles for word of serenity), so they don't walk far from where you put them.</AAI_CalmRange_Tip>
   <AAI_BreakCasting>Your pawns use abilities during mental breaks</AAI_BreakCasting>
   <AAI_BreakCasting_Tip>A pawn of yours in a mental break (a colonist, or an animal gone manhunter) is out of your control, so your autocast choices don't apply. With this on, a pawn in an aggressive break uses its abilities the way a raider would, treating your other pawns as enemies, and a panicking one may use movement abilities to flee. Off: the game's own AI decides, as it would without this mod.</AAI_BreakCasting_Tip>
-  <AAI_BrokenAllies>Abilities meant for enemies, used on allies in a mental break:</AAI_BrokenAllies>
+  <AAI_BrokenAllies>Enemy abilities on allies in a break</AAI_BrokenAllies>
   <AAI_BrokenAllies_Tip>A berserk colonist or a tame animal gone manhunter attacks its own side. This decides whether its friends use their enemy abilities on it. It applies to every caster: your pawns on autocast, raiders and visitors alike. Calming abilities are not affected; they have their own setting.</AAI_BrokenAllies_Tip>
   <AAI_BrokenAllies_Never>Never</AAI_BrokenAllies_Never>
   <AAI_BrokenAllies_Never_Tip>Allies in a break are treated as friends: never targeted, and kept out of area abilities that avoid allies.</AAI_BrokenAllies_Never_Tip>
@@ -84,7 +94,9 @@
   <AAI_Limits_NoFloor>none</AAI_Limits_NoFloor>
   <AAI_MinGap>Least time between one pawn's casts: {0} s</AAI_MinGap>
   <AAI_MinGap_Desc>Stops a pawn with several abilities from using them all in the same moment. Each ability's own cooldown and charges still apply.</AAI_MinGap_Desc>
-  <AAI_DebugLog>Log ability AI decisions (dev mode)</AAI_DebugLog>
+  <AAI_DebugLog>Log ability AI decisions</AAI_DebugLog>
   <AAI_DebugLog_Tip>Writes a line to the log each time a pawn decides to cast something, naming the rule it used.</AAI_DebugLog_Tip>
-  <AAI_Reset>Reset to defaults</AAI_Reset>
+  <AAI_Reset>Reset all</AAI_Reset>
+  <AAI_Reset_Confirm>Reset every Ability AI setting, on every tab, to its default?</AAI_Reset_Confirm>
+  <AAI_ResetTab>Reset this tab</AAI_ResetTab>
 </LanguageData>

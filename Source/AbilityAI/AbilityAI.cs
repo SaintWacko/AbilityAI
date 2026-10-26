@@ -1410,23 +1410,54 @@ namespace AbilityAI
         public static float MinGapSeconds = DefaultMinGapSeconds;
         public static bool DebugLog;
 
+        /// <summary>The settings page's tabs, in the order they are drawn.</summary>
+        public enum Tab : byte
+        {
+            General,
+            OtherFactions,
+            YourPawns,
+            MentalBreaks,
+        }
+
         public static void Reset()
         {
-            Enabled = Hostiles = NonHostiles = Animals = Mechs = Approach = VanillaStandDown = true;
-            PlayerAutocast = UndraftedAutocast = ShowMarker = true;
-            Unclaimed = BreakCasting = ReturnToCover = false;
-            if (BetterAutocastOwns)
+            ResetTab(Tab.General);
+            ResetTab(Tab.OtherFactions);
+            ResetTab(Tab.YourPawns);
+            ResetTab(Tab.MentalBreaks);
+        }
+
+        public static void ResetTab(Tab tab)
+        {
+            switch (tab)
             {
-                BetterAutocastOwns = false;
-                AbilityAIAutocast.NotifyOwnerChanged();
+                case Tab.General:
+                    Enabled = VanillaStandDown = true;
+                    MinGapSeconds = DefaultMinGapSeconds;
+                    DebugLog = false;
+                    break;
+                case Tab.OtherFactions:
+                    Hostiles = NonHostiles = Animals = Mechs = Approach = true;
+                    Unclaimed = false;
+                    break;
+                case Tab.YourPawns:
+                    PlayerAutocast = UndraftedAutocast = ShowMarker = true;
+                    ReturnToCover = false;
+                    UndraftedIntervalTicks = DefaultUndraftedIntervalTicks;
+                    AbilityAIBlockedJobs.Reset();
+                    if (BetterAutocastOwns)
+                    {
+                        BetterAutocastOwns = false;
+                        AbilityAIAutocast.NotifyOwnerChanged();
+                    }
+                    break;
+                case Tab.MentalBreaks:
+                    CalmBreaks = DefaultCalmBreaks;
+                    CalmRange = DefaultCalmRange;
+                    BrokenAllies = DefaultBrokenAllies;
+                    BreakCasting = false;
+                    break;
             }
-            MinGapSeconds = DefaultMinGapSeconds;
-            UndraftedIntervalTicks = DefaultUndraftedIntervalTicks;
-            CalmBreaks = DefaultCalmBreaks;
-            CalmRange = DefaultCalmRange;
-            BrokenAllies = DefaultBrokenAllies;
-            AbilityAIBlockedJobs.Reset();
-            DebugLog = false;
         }
 
         public static void ExposeData()
@@ -1457,86 +1488,153 @@ namespace AbilityAI
             Scribe_Values.Look(ref DebugLog, "abilityAI_debugLog", false);
         }
 
-        public static void DoSettings(Listing_Standard list)
+        public static void DoTab(Listing_Standard list, Tab tab)
+        {
+            switch (tab)
+            {
+                case Tab.General: DoGeneral(list); break;
+                case Tab.OtherFactions: DoOtherFactions(list); break;
+                case Tab.YourPawns: DoYourPawns(list); break;
+                case Tab.MentalBreaks: DoMentalBreaks(list); break;
+            }
+        }
+
+        private const float IndentWidth = 24f;
+
+        // Listing.Indent moves the left edge only; without narrowing the column too, indented rows (and their
+        // checkboxes, drawn at the right edge) would run past the scroll view
+        private static void In(Listing_Standard list)
+        {
+            list.Indent(IndentWidth);
+            list.ColumnWidth -= IndentWidth;
+        }
+
+        private static void Out(Listing_Standard list)
+        {
+            list.Outdent(IndentWidth);
+            list.ColumnWidth += IndentWidth;
+        }
+
+        private static void Section(Listing_Standard list, string key, string tipKey = null)
+        {
+            list.Gap(10f);
+            list.Label(key.Translate().Colorize(ColoredText.TipSectionTitleColor), -1f, tipKey == null ? null : (string)tipKey.Translate());
+        }
+
+        private static void Hint(Listing_Standard list, string key)
+        {
+            Text.Font = GameFont.Tiny;
+            GUI.color = ColoredText.SubtleGrayColor;
+            list.Label(key.Translate());
+            GUI.color = Color.white;
+            Text.Font = GameFont.Small;
+        }
+
+        private static void DoGeneral(Listing_Standard list)
         {
             list.CheckboxLabeled("AAI_Enabled".Translate(), ref Enabled, "AAI_Enabled_Tip".Translate());
-            list.Gap(6f);
-            list.Label("AAI_Who".Translate());
-            list.CheckboxLabeled("  " + "AAI_Hostiles".Translate(), ref Hostiles, "AAI_Hostiles_Tip".Translate());
-            list.CheckboxLabeled("  " + "AAI_NonHostiles".Translate(), ref NonHostiles, "AAI_NonHostiles_Tip".Translate());
-            list.CheckboxLabeled("  " + "AAI_Animals".Translate(), ref Animals, "AAI_Animals_Tip".Translate());
-            list.CheckboxLabeled("  " + "AAI_Mechs".Translate(), ref Mechs, "AAI_Mechs_Tip".Translate());
-            list.Label("AAI_Who_Desc".Translate());
-            list.Gap();
-            list.CheckboxLabeled("AAI_Unclaimed".Translate(), ref Unclaimed, "AAI_Unclaimed_Tip".Translate());
+            Hint(list, "AAI_Enabled_Desc");
             list.CheckboxLabeled("AAI_VanillaStandDown".Translate(), ref VanillaStandDown, "AAI_VanillaStandDown_Tip".Translate());
-            list.CheckboxLabeled("AAI_Approach".Translate(), ref Approach, "AAI_Approach_Tip".Translate());
             list.Gap();
+            list.Label("AAI_MinGap".Translate(MinGapSeconds.ToString("0.#")));
+            MinGapSeconds = Mathf.Round(list.Slider(MinGapSeconds, 0f, 30f) * 2f) / 2f;
+            Hint(list, "AAI_MinGap_Desc");
+            if (Prefs.DevMode)
+            {
+                Section(list, "AAI_Section_Dev");
+                list.CheckboxLabeled("AAI_DebugLog".Translate(), ref DebugLog, "AAI_DebugLog_Tip".Translate());
+            }
+        }
+
+        private static void DoOtherFactions(Listing_Standard list)
+        {
+            Section(list, "AAI_Who");
+            In(list);
+            list.CheckboxLabeled("AAI_Hostiles".Translate(), ref Hostiles, "AAI_Hostiles_Tip".Translate());
+            list.CheckboxLabeled("AAI_NonHostiles".Translate(), ref NonHostiles, "AAI_NonHostiles_Tip".Translate());
+            list.CheckboxLabeled("AAI_Animals".Translate(), ref Animals, "AAI_Animals_Tip".Translate());
+            list.CheckboxLabeled("AAI_Mechs".Translate(), ref Mechs, "AAI_Mechs_Tip".Translate());
+            Out(list);
+            Hint(list, "AAI_Who_Desc");
+            Section(list, "AAI_What");
+            list.CheckboxLabeled("AAI_Unclaimed".Translate(), ref Unclaimed, "AAI_Unclaimed_Tip".Translate());
+            Hint(list, "AAI_Unclaimed_Desc");
+            list.CheckboxLabeled("AAI_Approach".Translate(), ref Approach, "AAI_Approach_Tip".Translate());
+        }
+
+        private static void DoYourPawns(Listing_Standard list)
+        {
             list.CheckboxLabeled("AAI_PlayerAutocast".Translate(), ref PlayerAutocast, "AAI_PlayerAutocast_Tip".Translate());
-            list.CheckboxLabeled("  " + "AAI_UndraftedAutocast".Translate(), ref UndraftedAutocast, "AAI_UndraftedAutocast_Tip".Translate());
+            list.CheckboxLabeled("AAI_ShowMarker".Translate(), ref ShowMarker, "AAI_ShowMarker_Tip".Translate());
+            Section(list, "AAI_Section_Undrafted");
+            list.CheckboxLabeled("AAI_UndraftedAutocast".Translate(), ref UndraftedAutocast, "AAI_UndraftedAutocast_Tip".Translate());
             if (UndraftedAutocast)
             {
-                list.Label("      " + "AAI_UndraftedInterval".Translate(UndraftedIntervalTicks, (UndraftedIntervalTicks / 60f).ToString("0.#")),
+                In(list);
+                list.Label("AAI_UndraftedInterval".Translate(UndraftedIntervalTicks, (UndraftedIntervalTicks / 60f).ToString("0.#")),
                     -1f, "AAI_UndraftedInterval_Tip".Translate());
                 UndraftedIntervalTicks = Mathf.RoundToInt(list.Slider(UndraftedIntervalTicks, 30f, 1200f) / 10f) * 10;
                 Rect jobs = list.GetRect(30f);
-                jobs.xMin += 24f;
                 jobs.width = Mathf.Min(jobs.width, 320f);
                 if (Widgets.ButtonText(jobs, "AAI_BlockedJobs".Translate(AbilityAIBlockedJobs.Count)))
                     Find.WindowStack.Add(new Dialog_BlockedJobs());
                 TooltipHandler.TipRegion(jobs, "AAI_BlockedJobs_Tip".Translate());
-                list.Gap(4f);
+                Out(list);
             }
-            list.CheckboxLabeled("  " + "AAI_ShowMarker".Translate(), ref ShowMarker, "AAI_ShowMarker_Tip".Translate());
+            Section(list, "AAI_ReturnTo", "AAI_ReturnTo_Tip");
+            In(list);
+            if (list.RadioButton("AAI_ReturnTo_Original".Translate(), !ReturnToCover, 0f, "AAI_ReturnTo_Original_Tip".Translate()))
+                ReturnToCover = false;
+            if (list.RadioButton("AAI_ReturnTo_Cover".Translate(), ReturnToCover, 0f, "AAI_ReturnTo_Cover_Tip".Translate()))
+                ReturnToCover = true;
+            Out(list);
             if (BetterAutocastActive)
             {
                 bool before = BetterAutocastOwns;
-                list.Label("  " + "AAI_AutocastOwner".Translate(), -1f, "AAI_AutocastOwner_Tip".Translate());
-                if (list.RadioButton("AAI_AutocastOwner_AbilityAI".Translate(), !BetterAutocastOwns, 24f,
+                Section(list, "AAI_AutocastOwner", "AAI_AutocastOwner_Tip");
+                In(list);
+                if (list.RadioButton("AAI_AutocastOwner_AbilityAI".Translate(), !BetterAutocastOwns, 0f,
                     "AAI_AutocastOwner_AbilityAI_Tip".Translate()))
                     BetterAutocastOwns = false;
-                if (list.RadioButton("AAI_AutocastOwner_BetterAutocast".Translate(), BetterAutocastOwns, 24f,
+                if (list.RadioButton("AAI_AutocastOwner_BetterAutocast".Translate(), BetterAutocastOwns, 0f,
                     "AAI_AutocastOwner_BetterAutocast_Tip".Translate()))
                     BetterAutocastOwns = true;
+                Out(list);
                 if (before != BetterAutocastOwns) AbilityAIAutocast.NotifyOwnerChanged();
             }
-            list.Label("  " + "AAI_ReturnTo".Translate(), -1f, "AAI_ReturnTo_Tip".Translate());
-            if (list.RadioButton("AAI_ReturnTo_Original".Translate(), !ReturnToCover, 24f, "AAI_ReturnTo_Original_Tip".Translate()))
-                ReturnToCover = false;
-            if (list.RadioButton("AAI_ReturnTo_Cover".Translate(), ReturnToCover, 24f, "AAI_ReturnTo_Cover_Tip".Translate()))
-                ReturnToCover = true;
-            list.Label("  " + "AAI_CalmBreaks".Translate(), -1f, "AAI_CalmBreaks_Tip".Translate());
-            if (list.RadioButton("AAI_CalmBreaks_Aggressive".Translate(), CalmBreaks == AbilityAICalmBreaks.Aggressive, 24f,
+        }
+
+        private static void DoMentalBreaks(Listing_Standard list)
+        {
+            Section(list, "AAI_CalmBreaks", "AAI_CalmBreaks_Tip");
+            In(list);
+            if (list.RadioButton("AAI_CalmBreaks_Aggressive".Translate(), CalmBreaks == AbilityAICalmBreaks.Aggressive, 0f,
                 "AAI_CalmBreaks_Aggressive_Tip".Translate()))
                 CalmBreaks = AbilityAICalmBreaks.Aggressive;
-            if (list.RadioButton("AAI_CalmBreaks_Major".Translate(), CalmBreaks == AbilityAICalmBreaks.MajorAndExtreme, 24f,
+            if (list.RadioButton("AAI_CalmBreaks_Major".Translate(), CalmBreaks == AbilityAICalmBreaks.MajorAndExtreme, 0f,
                 "AAI_CalmBreaks_Major_Tip".Translate()))
                 CalmBreaks = AbilityAICalmBreaks.MajorAndExtreme;
-            if (list.RadioButton("AAI_CalmBreaks_Any".Translate(), CalmBreaks == AbilityAICalmBreaks.Any, 24f,
+            if (list.RadioButton("AAI_CalmBreaks_Any".Translate(), CalmBreaks == AbilityAICalmBreaks.Any, 0f,
                 "AAI_CalmBreaks_Any_Tip".Translate()))
                 CalmBreaks = AbilityAICalmBreaks.Any;
-            list.Label("      " + "AAI_CalmRange".Translate(CalmRange.ToString("0")), -1f, "AAI_CalmRange_Tip".Translate());
+            list.Gap(6f);
+            list.Label("AAI_CalmRange".Translate(CalmRange.ToString("0")), -1f, "AAI_CalmRange_Tip".Translate());
             CalmRange = Mathf.Round(list.Slider(CalmRange, 5f, 60f));
-            list.CheckboxLabeled("AAI_BreakCasting".Translate(), ref BreakCasting, "AAI_BreakCasting_Tip".Translate());
-            list.Label("AAI_BrokenAllies".Translate(), -1f, "AAI_BrokenAllies_Tip".Translate());
-            if (list.RadioButton("AAI_BrokenAllies_Never".Translate(), BrokenAllies == AbilityAIBrokenAllies.Never, 24f,
+            Out(list);
+            Section(list, "AAI_BrokenAllies", "AAI_BrokenAllies_Tip");
+            In(list);
+            if (list.RadioButton("AAI_BrokenAllies_Never".Translate(), BrokenAllies == AbilityAIBrokenAllies.Never, 0f,
                 "AAI_BrokenAllies_Never_Tip".Translate()))
                 BrokenAllies = AbilityAIBrokenAllies.Never;
-            if (list.RadioButton("AAI_BrokenAllies_Harmless".Translate(), BrokenAllies == AbilityAIBrokenAllies.HarmlessOnly, 24f,
+            if (list.RadioButton("AAI_BrokenAllies_Harmless".Translate(), BrokenAllies == AbilityAIBrokenAllies.HarmlessOnly, 0f,
                 "AAI_BrokenAllies_Harmless_Tip".Translate()))
                 BrokenAllies = AbilityAIBrokenAllies.HarmlessOnly;
-            if (list.RadioButton("AAI_BrokenAllies_Any".Translate(), BrokenAllies == AbilityAIBrokenAllies.Any, 24f,
+            if (list.RadioButton("AAI_BrokenAllies_Any".Translate(), BrokenAllies == AbilityAIBrokenAllies.Any, 0f,
                 "AAI_BrokenAllies_Any_Tip".Translate()))
                 BrokenAllies = AbilityAIBrokenAllies.Any;
-            list.Gap();
-            list.Label("AAI_MinGap".Translate(MinGapSeconds.ToString("0.#")));
-            MinGapSeconds = Mathf.Round(list.Slider(MinGapSeconds, 0f, 30f) * 2f) / 2f;
-            list.Label("AAI_MinGap_Desc".Translate());
-            if (Prefs.DevMode)
-            {
-                list.Gap();
-                list.CheckboxLabeled("AAI_DebugLog".Translate(), ref DebugLog, "AAI_DebugLog_Tip".Translate());
-            }
+            Out(list);
+            Section(list, "AAI_Section_Breaks");
+            list.CheckboxLabeled("AAI_BreakCasting".Translate(), ref BreakCasting, "AAI_BreakCasting_Tip".Translate());
         }
     }
 

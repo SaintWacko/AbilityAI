@@ -41,6 +41,9 @@ namespace AbilityAI.Vpe
                 e.wall = true;
                 e.wallPattern = IceBlockPattern;
             }
+            // VPE's smokepop makes its smoke in code, with no extension saying so: the Cover worker then doesn't cast
+            // it again while the caster already stands in smoke
+            if (def.abilityClass != null && typeof(Ability_Smokepop).IsAssignableFrom(def.abilityClass)) e.smoke = true;
         }
 
         // Ability_IceBlock.Cast: 20 random cells of the 5x5 square centred on the target. Any of the 25 may get ice.

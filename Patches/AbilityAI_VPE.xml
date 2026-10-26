@@ -1,11 +1,25 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Ability AI rules for Vanilla Psycasts Expanded's psycasts, first handful (Source/VEF/, Source/VPE/). Only applied
-     when VPE is active; VPE's psycasts are VEF abilities (VEF.Abilities.AbilityDef), so the rules are read by the VEF
-     compat assembly and priced by the VPE one. As for Royalty, NPC psycasters use them only with the "also use
-     abilities no mod claims" setting on, and each rule sits in its own PatchOperationConditional, so a psycast VPE
-     removes or renames costs only its own rule.
+<!-- Ability AI rules for Vanilla Psycasts Expanded's psycasts (Source/VEF/, Source/VPE/). Only applied when VPE is
+     active; VPE's psycasts are VEF abilities (VEF.Abilities.AbilityDef), so the rules are read by the VEF compat
+     assembly and priced by the VPE one. As for Royalty, NPC psycasters use them only with the "also use abilities no
+     mod claims" setting on, and each rule sits in its own PatchOperationConditional, so a psycast VPE removes or
+     renames costs only its own rule. Rules follow the order of VPE's path files.
      VPE's walk-up psycasts (Stabilize, the Word of psycasts) have no range of their own: the AI looks within maxRange
-     (20 when unset) and the cast job walks there. -->
+     (20 when unset) and the cast job walks there.
+     Every psycast that can be cast by the AI has a rule, risky ones included: the player turns each on per pawn.
+     Left out: those needing two targets or a world tile or a confirmation (Skip, Chaos Skip, Mass Chaos Skip, Word of
+     Love, Luck Transfer, Health Swap, Essence Transfer, Location Swap, Farskip, Nightstep, Neuroquake, Timequake),
+     crafting and utility ones (Enchant, Mend, Power, constructs, Psyring, Transmute, Recharge, Corpsetalk, Word of
+     Trust/Productivity/Alliance/Joy/Inspiration/Progress/Foretelling/Animals, Mind Wipe, Bliss, Darkvision, Group
+     Link, Ghostwalk, Solar Pinhole, Skipdoor, Crop Burst, Tree Sprout, Shrineshield, Ice Crystal, Cold Zone), map-wide
+     ones (Soothe, Eclipse, Intensify Shadows, Raid Pause, Hurricane, Bend Probability, Manhunter Pulse, Animal
+     Allies), the ones that put the caster in a coma (Mass Hallucination, Fire Beam, Blizzard, Time Reversal, Season
+     Timeskip, Timeskip Meditation, Skillroll, Resurrect, Reverse Engineer, Summon Pack), corpse targets (Enthrall,
+     Consume Bodies, Drain Psyessence), Neural Heat Dump (comas a colonist), Paralysis Pulse (always paralyses its own
+     caster), Guardian Skipbarrier (channelled until cancelled), and for now the heat-scaled ones (Aggressive Heat
+     Dump, Neural Heat Detonation, Heat Focus), which need a heat gate.
+     <npc> and <friendlyNpc> change a rule for casters that aren't the player's pawns (friendlyNpc: visitors,
+     traders, allied soldiers, on top of npc). -->
 <Patch>
   <Operation Class="PatchOperationFindMod">
     <mods>
@@ -116,6 +130,1276 @@
                 <priority>5</priority>
                 <maxRange>8</maxRange>
                 <minBreakSeconds>60</minBreakSeconds>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Archon -->
+
+        <!-- Blinding pulse: blinds everyone within 7 tiles of the spot for 30 s, caster and allies too, so only over
+             two or more enemies with none of ours inside. As Royalty's. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_BlindingPulse"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_BlindingPulse"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
+                <priority>5</priority>
+                <minTargets>2</minTargets>
+                <avoidAllies>true</avoidAllies>
+                <avoidSelf>true</avoidSelf>
+                <approachDistance>8</approachDistance>
+                <harmless>true</harmless>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Word of pain: 12 s of extreme pain on the most dangerous enemy within 14 tiles (the caster walks to
+             within 14.9). No lasting harm. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_WordofPain"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_WordofPain"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
+                <priority>2</priority>
+                <maxRange>14</maxRange>
+                <harmless>true</harmless>
+                <exclusive>true</exclusive>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Mind break: turns one humanlike enemy within 2.9 tiles into a thrall of the caster's faction, for good.
+             60% psyfocus, so last in line and not again for a minute. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_MindBreak"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_MindBreak"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
+                <priority>1</priority>
+                <approachDistance>3</approachDistance>
+                <minGapSeconds>60</minGapSeconds>
+                <targetKinds>Humanlike</targetKinds>
+                <exclusive>true</exclusive>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Word of protection: halves the damage an ally fighting now takes, for about 6 hours; within 7 tiles
+             (the caster walks to within 6.9). -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_WordofProtection"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_WordofProtection"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetFriendly</workerClass>
+                <priority>3</priority>
+                <maxRange>7</maxRange>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Archotechist -->
+
+        <!-- Burden: slows the most dangerous enemy in range for 20 s. As Royalty's. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Burden"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Burden"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
+                <priority>2</priority>
+                <approachDistance>8</approachDistance>
+                <harmless>true</harmless>
+                <exclusive>true</exclusive>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Psychic shock: drops one enemy's consciousness to 10% for about 80 s. 30% of casts also set the target
+             alight, so not with one of ours within 3 tiles of it. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_PsychicShock"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_PsychicShock"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
+                <priority>3</priority>
+                <approachDistance>6</approachDistance>
+                <avoidAllies>true</avoidAllies>
+                <radius>3</radius>
+                <exclusive>true</exclusive>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Berserk: an enemy with another of its side within 6 tiles and none of ours, so it attacks its friends.
+             As Royalty's. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Berserk"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Berserk"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
+                <priority>7</priority>
+                <preferGrouped>true</preferGrouped>
+                <minTargets>2</minTargets>
+                <radius>6</radius>
+                <avoidAllies>true</avoidAllies>
+                <approachDistance>8</approachDistance>
+                <exclusive>true</exclusive>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Berserk pulse: everyone within 2.9 tiles of the spot goes berserk for 10 s, the caster too if inside, so
+             three or more enemies and none of ours. As Royalty's. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_BerserkPulse"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_BerserkPulse"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
+                <priority>8</priority>
+                <minTargets>3</minTargets>
+                <avoidAllies>true</avoidAllies>
+                <avoidSelf>true</avoidSelf>
+                <approachDistance>8</approachDistance>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Psychic drone: a 30 s aura that drives humanlike enemies within 25.9 tiles of the caster mad. 85 heat,
+             so four or more of them; not while the aura runs. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_PsychicDrone"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_PsychicDrone"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEHostileSelf</workerClass>
+                <priority>2</priority>
+                <minTargets>4</minTargets>
+                <targetKinds>Humanlike</targetKinds>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Chronopath -->
+
+        <!-- Age: a humanlike enemy within 3 tiles gets five days of age sickness (consciousness at most 25%) and ten
+             years older. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Age"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Age"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
+                <priority>2</priority>
+                <approachDistance>4</approachDistance>
+                <targetKinds>Humanlike</targetKinds>
+                <exclusive>true</exclusive>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Time sphere: 30 s of rapid ageing for everything within 9.9 tiles, structures included, so four or more
+             enemies with no pawn or building of ours inside. 90 heat. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_TimeSphere"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_TimeSphere"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
+                <priority>2</priority>
+                <minTargets>4</minTargets>
+                <avoidAllies>true</avoidAllies>
+                <avoidBuildings>true</avoidBuildings>
+                <approachDistance>8</approachDistance>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Conflagrator -->
+
+        <!-- Flameball: lands up to 1.9 tiles off and burns within 3, so two or more enemies with none of ours within
+             5 of the spot. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Flameball"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Flameball"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
+                <priority>2</priority>
+                <radius>5</radius>
+                <minTargets>2</minTargets>
+                <avoidAllies>true</avoidAllies>
+                <approachDistance>8</approachDistance>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Self explosion: a burst of flame 14.9 tiles around the caster, who is unharmed. Three or more enemies, no
+             pawn or building of ours inside; the caster walks up to 6 tiles to catch them. Never for visitors or
+             allies. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_SelfExplosion"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_SelfExplosion"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEHostileSelf</workerClass>
+                <priority>2</priority>
+                <minTargets>3</minTargets>
+                <avoidAllies>true</avoidAllies>
+                <avoidBuildings>true</avoidBuildings>
+                <approachDistance>6</approachDistance>
+                <friendlyNpc>
+                  <enabled>false</enabled>
+                </friendlyNpc>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Explosion: flame within 7 tiles of the spot, the caster too if inside. Two or more enemies, no pawn or
+             building of ours inside. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Explosion"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Explosion"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
+                <priority>2</priority>
+                <minTargets>2</minTargets>
+                <avoidAllies>true</avoidAllies>
+                <avoidSelf>true</avoidSelf>
+                <avoidBuildings>true</avoidBuildings>
+                <approachDistance>6</approachDistance>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Fire shield: 20 s of fire immunity for an ally fighting now (or the caster), and melee attackers catch
+             fire -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_FireShield"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_FireShield"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetFriendly</workerClass>
+                <priority>3</priority>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Breathe flame: a jet of fire at the most dangerous enemy within 9.9 tiles; not with one of ours within 3
+             tiles of it -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_BreatheFlame"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_BreatheFlame"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
+                <priority>2</priority>
+                <avoidAllies>true</avoidAllies>
+                <radius>3</radius>
+                <approachDistance>4</approachDistance>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Eye blast: a heavy, quick fire shot up to 24.9 tiles with a 3-tile burst; none of ours inside -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_EyeBlast"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_EyeBlast"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
+                <priority>3</priority>
+                <avoidAllies>true</avoidAllies>
+                <approachDistance>8</approachDistance>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Extinguish flames: foam over 16.9 tiles around the caster. 25% psyfocus, so for a burning ally or three
+             fires near allies. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_QuenchFlames"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_QuenchFlames"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Firefighting</workerClass>
+                <priority>5</priority>
+                <minTargets>3</minTargets>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Meteor shower: meteorites land at random within 9.9 tiles of the spot, so four or more enemies and no
+             pawn or building of ours inside. 50% psyfocus, 90 heat. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_MeteorShower"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_MeteorShower"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
+                <priority>2</priority>
+                <minTargets>4</minTargets>
+                <avoidAllies>true</avoidAllies>
+                <avoidBuildings>true</avoidBuildings>
+                <approachDistance>8</approachDistance>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Fire tornado: wanders for 45 s leaving fire, with no area of its own, so five or more enemies and nothing
+             of ours within 12 tiles. 80% psyfocus, 120 heat. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_FlameTornado"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_FlameTornado"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
+                <priority>2</priority>
+                <radius>12</radius>
+                <minTargets>5</minTargets>
+                <avoidAllies>true</avoidAllies>
+                <avoidBuildings>true</avoidBuildings>
+                <approachDistance>8</approachDistance>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Empath -->
+
+        <!-- Energy dump: an ally within 4 tiles under 10% rest is refreshed, and the caster is left exhausted.
+             Out of combat. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_EnergyDump"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_EnergyDump"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Recovery</workerClass>
+                <priority>1</priority>
+                <maxRange>4</maxRange>
+                <need>Rest</need>
+                <needThreshold>0.1</needThreshold>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Frostshaper -->
+
+        <!-- Breathe ice: a cold stream at the most dangerous enemy within 12.9 tiles; it hits what stands behind,
+             so not with one of ours within 3 tiles of the target -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_IceBreath"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_IceBreath"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
+                <priority>2</priority>
+                <approachDistance>6</approachDistance>
+                <avoidAllies>true</avoidAllies>
+                <radius>3</radius>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Ice spike: the cheap plain attack (4% psyfocus, 12 heat) at the most dangerous enemy within 22.9 tiles -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_IceSpike"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_IceSpike"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
+                <priority>2</priority>
+                <approachDistance>8</approachDistance>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Ice shield: 30 s of cold immunity for an ally fighting now (or the caster); melee attackers get
+             hypothermia -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_IceShield"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_IceShield"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetFriendly</workerClass>
+                <priority>3</priority>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Frost ray: the caster stands still about 4 s while it cuts and freezes along the ray; not with one of ours
+             within 3 tiles of the target -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_FrostRay"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_FrostRay"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
+                <priority>3</priority>
+                <approachDistance>4</approachDistance>
+                <avoidAllies>true</avoidAllies>
+                <radius>3</radius>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Ice block: up to 20 ice walls in a 5x5 square four tiles toward the nearest shooter, when two are on the
+             caster. The walls only melt in heat, so never for visitors or allies. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_IceBlock"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_IceBlock"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Cover</workerClass>
+                <priority>4</priority>
+                <offsetTowardThreat>4</offsetTowardThreat>
+                <minThreats>2</minThreats>
+                <friendlyNpc>
+                  <enabled>false</enabled>
+                </friendlyNpc>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Snap freeze: everyone (people and animals) within 3 tiles of the spot is frozen in place for 6 s, the
+             caster too if inside, so two or more enemies and none of ours -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_SnapFreeze"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_SnapFreeze"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
+                <priority>3</priority>
+                <minTargets>2</minTargets>
+                <targetKinds>Humanlike, Animal</targetKinds>
+                <avoidAllies>true</avoidAllies>
+                <allyKinds>Humanlike, Animal</allyKinds>
+                <avoidSelf>true</avoidSelf>
+                <approachDistance>8</approachDistance>
+                <harmless>true</harmless>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Ice wall: a ring of ice walls 5 to 5.9 tiles around the caster when two shooters are on it; not while one
+             stands that close. The walls only melt in heat, so never for visitors or allies. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_IceWall"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_IceWall"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Cover</workerClass>
+                <priority>5</priority>
+                <minThreats>2</minThreats>
+                <friendlyNpc>
+                  <enabled>false</enabled>
+                </friendlyNpc>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Harmonist -->
+
+        <!-- Mind control: the most dangerous humanlike enemy fights for the caster's side for 12 s. Both are
+             mind-scrambled afterwards. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Mindcontrol"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Mindcontrol"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
+                <priority>3</priority>
+                <approachDistance>6</approachDistance>
+                <targetKinds>Humanlike</targetKinds>
+                <exclusive>true</exclusive>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Psychic guidance: an ally within 4.9 tiles who is fighting now is overcharged for half a day, while the
+             caster's own senses are dulled as long. Not for NPCs. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_PsychicGuidance"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_PsychicGuidance"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetFriendly</workerClass>
+                <priority>2</priority>
+                <npc>
+                  <enabled>false</enabled>
+                </npc>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Necropath -->
+
+        <!-- Word of fear: the most dangerous enemy within 14 tiles flees for 5 s or more (the caster walks to within
+             6). No lasting harm. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_WordofFear"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_WordofFear"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
+                <priority>3</priority>
+                <maxRange>14</maxRange>
+                <harmless>true</harmless>
+                <exclusive>true</exclusive>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Liferot: necrosis and vomiting on a flesh enemy within 12.9 tiles; not on mechs -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Liferot"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Liferot"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
+                <priority>2</priority>
+                <approachDistance>6</approachDistance>
+                <targetKinds>Humanlike, Animal</targetKinds>
+                <exclusive>true</exclusive>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Steal vitality: a day of an enemy's healing, speed and consciousness moves to the caster; within 3.9
+             tiles -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_StealVitality"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_StealVitality"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
+                <priority>2</priority>
+                <approachDistance>4</approachDistance>
+                <exclusive>true</exclusive>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Deathshield: a downed ally losing half its blood a day or more can't die for a day. Below Stabilize
+             (7), which is cheaper; 80% psyfocus. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Deathshield"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Deathshield"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Rescue</workerClass>
+                <priority>6</priority>
+                <maxRange>12</maxRange>
+                <minBleedRate>0.5</minBleedRate>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Nightstalker -->
+
+        <!-- Darkness: an orb over three or more enemies; every shot into, out of or through it misses, so none of
+             ours inside. Not for NPCs. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Darkness"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Darkness"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
+                <priority>2</priority>
+                <minTargets>3</minTargets>
+                <avoidAllies>true</avoidAllies>
+                <harmless>true</harmless>
+                <npc>
+                  <enabled>false</enabled>
+                </npc>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Obscure: the caster's people within 8.9 tiles go unseen while they stand in the dark. Three or more of
+             them, and only while the caster stands in the dark. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Obscure"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Obscure"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEFriendly</workerClass>
+                <priority>2</priority>
+                <minTargets>3</minTargets>
+                <targetKinds>Humanlike</targetKinds>
+                <maxLight>0.3</maxLight>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Decoy: a 6 s lure among three or more enemies, which draws their attacks; the decoy has no area of its
+             own, so 6 tiles -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Decoy"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Decoy"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
+                <priority>3</priority>
+                <radius>6</radius>
+                <minTargets>3</minTargets>
+                <harmless>true</harmless>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Shadow focus: a minute of more psychic sensitivity the darker it is; only while the caster stands in the
+             dark with an enemy near -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_ShadowFocus"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_ShadowFocus"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_SelfBuff</workerClass>
+                <priority>2</priority>
+                <maxLight>0.3</maxLight>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Assassinate: a melee caster skips to an enemy standing in the dark (VPE checks the light), strikes it
+             several times and skips back. Within 25 tiles. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Assassinate"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Assassinate"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
+                <priority>3</priority>
+                <maxRange>25</maxRange>
+                <requires>Melee</requires>
+                <exclusive>true</exclusive>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Protector -->
+
+        <!-- Painblock: gets an ally downed by pain alone back up; otherwise an ally in 40% pain or more. As
+             Royalty's. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Painblock"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Painblock"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Rescue</workerClass>
+                <priority>7</priority>
+                <painShockOnly>true</painShockOnly>
+              </li>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetFriendly</workerClass>
+                <priority>3</priority>
+                <minPain>0.4</minPain>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Word of healing: two and a half days of triple healing for someone under 70% health with wounds still
+             healing, out of combat, within 12 tiles (the caster walks up) -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_WordofHealing"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_WordofHealing"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Recovery</workerClass>
+                <priority>2</priority>
+                <maxRange>12</maxRange>
+                <health>Injured</health>
+                <healthThreshold>0.7</healthThreshold>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Word of immunity: two and a half days of faster immunity for someone with a disease, out of combat,
+             within 12 tiles -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_WordofImmunity"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_WordofImmunity"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Recovery</workerClass>
+                <priority>2</priority>
+                <maxRange>12</maxRange>
+                <health>Disease</health>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Focus: a minute of sharper senses and speed for an ally fighting now. As Royalty's. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Focus"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Focus"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetFriendly</workerClass>
+                <priority>2</priority>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Skipshield: a bubble on the caster that sends shots away, both ways, when three shooters are on it. As
+             Royalty's. Not for NPCs. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Skipshield"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Skipshield"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Cover</workerClass>
+                <priority>5</priority>
+                <minThreats>3</minThreats>
+                <npc>
+                  <enabled>false</enabled>
+                </npc>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Invisibility: the caster or an ally in trouble vanishes for 15 s. As Royalty's. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Invisibility"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Invisibility"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Defensive</workerClass>
+                <priority>6</priority>
+                <minThreats>2</minThreats>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Regrow limbs: someone missing a part (with no prosthetic) goes into a day-long coma and regrows it. Out
+             of combat, within 12 tiles. Not for NPCs. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_RegrowLimbs"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_RegrowLimbs"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Recovery</workerClass>
+                <priority>2</priority>
+                <maxRange>12</maxRange>
+                <health>MissingParts</health>
+                <npc>
+                  <enabled>false</enabled>
+                </npc>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Skipmaster -->
+
+        <!-- Chunkskip: skips up to five rock chunks to three tiles toward the nearest shooter when two are on the
+             caster. Never for visitors or allies (chunks in the base). -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Chunkskip"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Chunkskip"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Cover</workerClass>
+                <priority>3</priority>
+                <offsetTowardThreat>3</offsetTowardThreat>
+                <minThreats>2</minThreats>
+                <friendlyNpc>
+                  <enabled>false</enabled>
+                </friendlyNpc>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Waterskip: puts out fire near allies. It also shorts electrics, so never for visitors or allies. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Waterskip"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Waterskip"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Firefighting</workerClass>
+                <priority>6</priority>
+                <friendlyNpc>
+                  <enabled>false</enabled>
+                </friendlyNpc>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Wallraise: rock walls (they collapse after about 4 hours) two tiles toward the nearest shooter when two
+             are on the caster. As Royalty's. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Wallraise"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Wallraise"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Cover</workerClass>
+                <priority>4</priority>
+                <offsetTowardThreat>2</offsetTowardThreat>
+                <minThreats>2</minThreats>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Smokepop: smoke on the caster when two shooters are on it; not while it already stands in smoke. As
+             Royalty's. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Smokepop"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Smokepop"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Cover</workerClass>
+                <priority>4</priority>
+                <minThreats>2</minThreats>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Staticlord -->
+
+        <!-- Chain bolt: jumps from its target to enemies within 9 tiles (the bolt's own bounce range, read from it),
+             so two or more there. Each hit burns and EMPs what stands beside it; no ally check, as decided. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_ChainBolt"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_ChainBolt"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
+                <priority>3</priority>
+                <minTargets>2</minTargets>
+                <approachDistance>8</approachDistance>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Thunderbolt: flame on the spot and an EMP around it (6 tiles, more with sensitivity); no pawn or building
+             of ours inside -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Thunderbolt"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Thunderbolt"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
+                <priority>3</priority>
+                <avoidAllies>true</avoidAllies>
+                <avoidBuildings>true</avoidBuildings>
+                <approachDistance>8</approachDistance>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Static aura: 30 s of an aura that EMPs whatever comes at its bearer, on an ally fighting now or the
+             caster -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_StaticAura"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_StaticAura"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetFriendly</workerClass>
+                <priority>2</priority>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Ball lightning: zaps up to five of the caster's enemies within 5 tiles each second, never its friends,
+             so two or more enemies and no ally check -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_BallLightning"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_BallLightning"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
+                <priority>3</priority>
+                <minTargets>2</minTargets>
+                <approachDistance>8</approachDistance>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Static pulse: an EMP 50.9 tiles around the caster, harmless to flesh. Only worth it against mechs and
+             turrets: three or more of them, and no mech or turret of ours inside. Never for visitors or allies. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_StaticPulse"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_StaticPulse"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEHostileSelf</workerClass>
+                <priority>4</priority>
+                <minTargets>3</minTargets>
+                <targetKinds>Mechanoid, Turret</targetKinds>
+                <avoidAllies>true</avoidAllies>
+                <allyKinds>Mechanoid, Turret</allyKinds>
+                <friendlyNpc>
+                  <enabled>false</enabled>
+                </friendlyNpc>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Vortex: for about 40 s everyone within 18.9 tiles of it is slowed and mechs are stunned. Its range is
+             18.9 too, so it always reaches the caster and no spot clears the caster's side: five or more enemies. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Vortex"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Vortex"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
+                <priority>3</priority>
+                <radius>18.9</radius>
+                <minTargets>5</minTargets>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Flashstorm: about 40 lightning strikes over 100 s within 14 tiles of the spot, so four or more enemies
+             and no pawn or building of ours inside -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Flashstorm"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Flashstorm"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
+                <priority>3</priority>
+                <minTargets>4</minTargets>
+                <avoidAllies>true</avoidAllies>
+                <avoidSelf>true</avoidSelf>
+                <avoidBuildings>true</avoidBuildings>
+                <approachDistance>6</approachDistance>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Technomancer -->
+
+        <!-- Haywire: up to three mechs or turrets within 2.9 tiles of the spot, picked at random whoever owns them,
+             turn on their own side for 40 s. Enemy mechs or turrets there, none of ours. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Haywire"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Haywire"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
+                <priority>3</priority>
+                <targetKinds>Mechanoid, Turret</targetKinds>
+                <avoidAllies>true</avoidAllies>
+                <allyKinds>Mechanoid, Turret</allyKinds>
+                <approachDistance>6</approachDistance>
+                <exclusive>true</exclusive>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Warlord. The self buffs go on while an enemy is within maxRange (30 when unset). -->
+
+        <!-- Speed boost: triple move speed for about 2 minutes -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_SpeedBoost"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_SpeedBoost"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_SelfBuff</workerClass>
+                <priority>2</priority>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Blade focus: double melee speed for about 2 minutes, for a melee caster with an enemy within 12 tiles -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_BladeFocus"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_BladeFocus"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_SelfBuff</workerClass>
+                <priority>3</priority>
+                <maxRange>12</maxRange>
+                <requires>Melee</requires>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Firing focus: 80% shorter ranged cooldown for 30 s, for a ranged caster -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_FiringFocus"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_FiringFocus"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_SelfBuff</workerClass>
+                <priority>3</priority>
+                <requires>Ranged</requires>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Adrenaline rush: 30 s with no pain and better sight, hearing and speed, with an enemy within 12 tiles -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_AdrenalineRush"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_AdrenalineRush"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_SelfBuff</workerClass>
+                <priority>4</priority>
+                <maxRange>12</maxRange>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Controlled frenzy: double damage for 60 s (kills renew it and cool the caster), with an enemy within
+             15 tiles -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_ControlledFrenzy"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_ControlledFrenzy"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_SelfBuff</workerClass>
+                <priority>3</priority>
+                <maxRange>15</maxRange>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Guided shot: 8 s of sure hits and double range, for a ranged caster with an enemy within 25 tiles -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_GuidedShot"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_GuidedShot"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_SelfBuff</workerClass>
+                <priority>3</priority>
+                <maxRange>25</maxRange>
+                <requires>Ranged</requires>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Beckon: the most dangerous enemy 6 tiles off or more walks to the caster for 8 s. NPCs only with a melee
+             weapon. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Beckon"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Beckon"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
+                <priority>2</priority>
+                <minRange>6</minRange>
+                <harmless>true</harmless>
+                <exclusive>true</exclusive>
+                <npc>
+                  <requires>Melee</requires>
+                </npc>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Killskip: a melee caster skips to the most dangerous enemy within 15.5 tiles and strikes; a kill skips
+             it on to the next -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Killskip"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Killskip"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
+                <priority>4</priority>
+                <requires>Melee</requires>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Mass beckon: everyone (people and animals) within 9 tiles of the spot walks to the caster for 8 s, so
+             three or more enemies, none of ours and not the caster. NPCs only with a melee weapon. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_MassBeckon"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_MassBeckon"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
+                <priority>3</priority>
+                <minTargets>3</minTargets>
+                <targetKinds>Humanlike, Animal</targetKinds>
+                <avoidAllies>true</avoidAllies>
+                <allyKinds>Humanlike, Animal</allyKinds>
+                <avoidSelf>true</avoidSelf>
+                <approachDistance>6</approachDistance>
+                <harmless>true</harmless>
+                <npc>
+                  <requires>Melee</requires>
+                </npc>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Wildspeaker -->
+
+        <!-- Bramble maze: a thicket within 6 tiles of the spot (it withers in 12 hours) that blocks everyone, so
+             three or more enemies and no pawn or building of ours inside -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_BrambleMaze"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_BrambleMaze"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
+                <priority>2</priority>
+                <minTargets>3</minTargets>
+                <avoidAllies>true</avoidAllies>
+                <avoidBuildings>true</avoidBuildings>
+                <approachDistance>6</approachDistance>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Shield animals: the caster's animals within 12 tiles are shielded from shots for 8 s; two or more of
+             them in the fight -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_ShieldAnimals"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_ShieldAnimals"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEFriendly</workerClass>
+                <priority>3</priority>
+                <minTargets>2</minTargets>
+                <targetKinds>Animal</targetKinds>
               </li>
             </value>
           </match>

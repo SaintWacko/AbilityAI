@@ -76,9 +76,17 @@ namespace AbilityAI
 
         public override bool TryFindTarget(AbilityAIContext ctx, AIAbility ability, out LocalTargetInfo target, out LocalTargetInfo dest)
         {
-            dest = LocalTargetInfo.Invalid;
+            target = dest = LocalTargetInfo.Invalid;
             Score(ctx, ability, TargetingUtil.Reach(ability, ext));
-            return TargetingUtil.FirstValid(cands, ability, out target);
+            TargetingUtil.SortBest(cands);
+            // An ability that only takes a location (VPE's Frost Ray) is aimed at the enemy's cell
+            for (int i = 0; i < cands.Count && i < TargetingUtil.MaxTries; i++)
+            {
+                target = AbilityAIUtility.PawnOrCell(ability, cands[i].pawn);
+                if (target.IsValid) break;
+            }
+            cands.Clear();
+            return target.IsValid;
         }
 
         public override bool TryFindApproachTarget(AbilityAIContext ctx, AIAbility ability, float reach, out Thing goal)
@@ -87,7 +95,10 @@ namespace AbilityAI
             Score(ctx, ability, reach);
             TargetingUtil.SortBest(cands);
             for (int i = 0; i < cands.Count && i < TargetingUtil.MaxTries; i++)
-                if (AbilityAIDriver.ValidIgnoringRange(ability, cands[i].pawn)) { goal = cands[i].pawn; break; }
+            {
+                Pawn p = cands[i].pawn;
+                if (AbilityAIDriver.ValidIgnoringRange(ability, p) || AbilityAIDriver.ValidIgnoringRange(ability, p.Position)) { goal = p; break; }
+            }
             cands.Clear();
             return goal != null;
         }

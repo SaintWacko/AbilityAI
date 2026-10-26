@@ -196,9 +196,11 @@ namespace AbilityAI
         public static bool IsOfKind(AbilityAITargetKinds kinds, Pawn p) =>
             (kinds & KindOf(p)) != 0 || ((kinds & AbilityAITargetKinds.Shielded) != 0 && ShieldUp(p));
 
-        /// <summary>A worn shield (vanilla CompShield on apparel) that is up now.</summary>
+        /// <summary>A vanilla CompShield that is up now: worn (a shield belt) or the pawn's own (Biotech heavy mechs).</summary>
         public static bool ShieldUp(Pawn p)
         {
+            var own = p.GetComp<CompShield>();
+            if (own != null && own.ShieldState == ShieldState.Active) return true;
             var worn = p.apparel?.WornApparel;
             if (worn == null) return false;
             for (int i = 0; i < worn.Count; i++)

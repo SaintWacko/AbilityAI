@@ -458,6 +458,7 @@ namespace AbilityAI
             if (auraKinds != AbilityAITargetKinds.None)
             {
                 if (auraMin < 1) yield return "auraMin must be at least 1";
+                if (radius < 0f) yield return "auraKinds needs a radius: the aura's reach is rarely the ability's own";
                 if (workerClass != null && !typeof(AbilityAIWorker_TargetFriendly).IsAssignableFrom(workerClass)
                     && !typeof(AbilityAIWorker_SelfBuff).IsAssignableFrom(workerClass))
                     yield return $"auraKinds is only read by Target friendly and Self buff, not {workerClass.Name}";

@@ -105,6 +105,28 @@ namespace AbilityAI
         internal static event Action WorldReady;
         private bool readyPending;
 
+        /// <summary>The player switched AbilityAISettings.BetterAutocastOwns. Raised from the settings page, in a game
+        /// or at the main menu.</summary>
+        internal static event Action OwnerChanged;
+
+        // BetterAutocastOwns as this world last ran with it, so a switch made at the main menu is carried over when
+        // the game loads (the VPE compat reads and sets it)
+        private bool betterAutocastOwned;
+
+        internal static bool WorldBetterAutocastOwned
+        {
+            get => Instance?.betterAutocastOwned ?? false;
+            set { if (Instance is AbilityAIAutocast inst) inst.betterAutocastOwned = value; }
+        }
+
+        internal static void NotifyOwnerChanged()
+        {
+            Version++;
+            AutocastMarker.ClearCache();
+            try { OwnerChanged?.Invoke(); }
+            catch (Exception e) { Log.Error($"[Ability AI] Carrying autocast choices over to the new owner failed: {e}"); }
+        }
+
         /// <summary>Goes up on every mode change, so a cached answer built from the modes knows it is stale.</summary>
         internal static int Version { get; private set; }
 
@@ -241,6 +263,7 @@ namespace AbilityAI
             Scribe_Collections.Look(ref saved, "abilityAutocast", LookMode.Deep);
             Scribe_Collections.Look(ref savedOther, "otherAutocast", LookMode.Deep);
             Scribe_Collections.Look(ref savedLimits, "psycastLimits", LookMode.Deep);
+            Scribe_Values.Look(ref betterAutocastOwned, "betterAutocastOwned", false);
             if (Scribe.mode == LoadSaveMode.PostLoadInit)
             {
                 modes.Clear();
@@ -312,7 +335,8 @@ namespace AbilityAI
         /// <summary>Offers for an ability of any system. For VEF's this also says whether Ability AI owns the
         /// ability, which hides VEF's own autocast toggle.</summary>
         internal static bool Offers(AIAbility ability) =>
-            ability != null && ability.Drivable && Offers(ability.Pawn, ability.Def) && AbilityAIHooks.NotVetoed(ability.Pawn, ability);
+            ability != null && ability.Drivable && !ability.PlayerAutocastElsewhere && Offers(ability.Pawn, ability.Def)
+            && AbilityAIHooks.NotVetoed(ability.Pawn, ability);
 
         private static bool Offers(Pawn p, Def def)
         {

@@ -1,7 +1,11 @@
 using System;
+using System.Runtime.CompilerServices;
 using HarmonyLib;
 using Verse;
 using VefAbility = VEF.Abilities.Ability;
+
+// The VPE compat's Better Autocasting bridge asks VefAutocast whether we own an ability and hooks ConvertAll
+[assembly: InternalsVisibleTo("AbilityAI.VPE")]
 
 namespace AbilityAI.Vef
 {

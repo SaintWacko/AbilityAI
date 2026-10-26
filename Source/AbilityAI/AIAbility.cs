@@ -56,6 +56,11 @@ namespace AbilityAI
         /// (the Word psycasts). The autocast menu calls its in-place mode plain "Autocast".</summary>
         public virtual bool IsTouch => false;
 
+        /// <summary>Another autocast mod decides this ability for this player pawn (Better Autocasting, when the
+        /// player gave it the abilities both mods have rules for). Ability AI then offers no menu and never casts it
+        /// for the player; NPCs are unaffected.</summary>
+        public virtual bool PlayerAutocastElsewhere => false;
+
         /// <summary>Castable this moment by its own system's rules: cooldown, charges, comps, and the cost it would
         /// pay (a psycast the pawn has the psyfocus for).</summary>
         public abstract bool CanCastNow { get; }

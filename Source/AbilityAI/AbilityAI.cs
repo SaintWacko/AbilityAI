@@ -859,7 +859,8 @@ namespace AbilityAI
         // The player's own pawn: their mode counts as the claim, but a hook can still veto (an item bound to someone else)
         private static bool PlayerAllowed(Pawn pawn, AIAbility a)
         {
-            return AbilityAIAutocast.ModeFor(pawn, a.Def) != AbilityAIAutocastMode.Off && AbilityAIHooks.NotVetoed(pawn, a);
+            return AbilityAIAutocast.ModeFor(pawn, a.Def) != AbilityAIAutocastMode.Off && !a.PlayerAutocastElsewhere
+                && AbilityAIHooks.NotVetoed(pawn, a);
         }
 
         /// <summary>Whether this mod is the one that decides when this pawn casts this ability: the AI is on, the
@@ -1392,6 +1393,11 @@ namespace AbilityAI
         public static bool UndraftedAutocast = true;
         public static bool ShowMarker = true;
         public static bool ReturnToCover;
+        /// <summary>Better Autocasting for VPE decides the colonists' psycasts both mods have rules for (default: Ability
+        /// AI does).</summary>
+        public static bool BetterAutocastOwns;
+        /// <summary>Better Autocasting is loaded and the VPE compat's bridge to it is up: the owner choice is shown.</summary>
+        internal static bool BetterAutocastActive;
         public const AbilityAICalmBreaks DefaultCalmBreaks = AbilityAICalmBreaks.MajorAndExtreme;
         public static AbilityAICalmBreaks CalmBreaks = DefaultCalmBreaks;
         public const float DefaultCalmRange = 20f;
@@ -1409,6 +1415,11 @@ namespace AbilityAI
             Enabled = Hostiles = NonHostiles = Animals = Mechs = Approach = VanillaStandDown = true;
             PlayerAutocast = UndraftedAutocast = ShowMarker = true;
             Unclaimed = BreakCasting = ReturnToCover = false;
+            if (BetterAutocastOwns)
+            {
+                BetterAutocastOwns = false;
+                AbilityAIAutocast.NotifyOwnerChanged();
+            }
             MinGapSeconds = DefaultMinGapSeconds;
             UndraftedIntervalTicks = DefaultUndraftedIntervalTicks;
             CalmBreaks = DefaultCalmBreaks;
@@ -1435,6 +1446,7 @@ namespace AbilityAI
             AbilityAIBlockedJobs.ExposeData();
             Scribe_Values.Look(ref ShowMarker, "abilityAI_showMarker", true);
             Scribe_Values.Look(ref ReturnToCover, "abilityAI_returnToCover", false);
+            Scribe_Values.Look(ref BetterAutocastOwns, "abilityAI_betterAutocastOwns", false);
             Scribe_Values.Look(ref CalmBreaks, "abilityAI_calmBreaks", DefaultCalmBreaks);
             Scribe_Values.Look(ref CalmRange, "abilityAI_calmRange", DefaultCalmRange);
             CalmRange = Mathf.Clamp(CalmRange, 5f, 60f);
@@ -1476,6 +1488,18 @@ namespace AbilityAI
                 list.Gap(4f);
             }
             list.CheckboxLabeled("  " + "AAI_ShowMarker".Translate(), ref ShowMarker, "AAI_ShowMarker_Tip".Translate());
+            if (BetterAutocastActive)
+            {
+                bool before = BetterAutocastOwns;
+                list.Label("  " + "AAI_AutocastOwner".Translate(), -1f, "AAI_AutocastOwner_Tip".Translate());
+                if (list.RadioButton("AAI_AutocastOwner_AbilityAI".Translate(), !BetterAutocastOwns, 24f,
+                    "AAI_AutocastOwner_AbilityAI_Tip".Translate()))
+                    BetterAutocastOwns = false;
+                if (list.RadioButton("AAI_AutocastOwner_BetterAutocast".Translate(), BetterAutocastOwns, 24f,
+                    "AAI_AutocastOwner_BetterAutocast_Tip".Translate()))
+                    BetterAutocastOwns = true;
+                if (before != BetterAutocastOwns) AbilityAIAutocast.NotifyOwnerChanged();
+            }
             list.Label("  " + "AAI_ReturnTo".Translate(), -1f, "AAI_ReturnTo_Tip".Translate());
             if (list.RadioButton("AAI_ReturnTo_Original".Translate(), !ReturnToCover, 24f, "AAI_ReturnTo_Original_Tip".Translate()))
                 ReturnToCover = false;

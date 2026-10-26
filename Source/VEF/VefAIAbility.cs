@@ -71,6 +71,7 @@ namespace AbilityAI.Vef
         private static readonly HashSet<JobDef> castJobs = new HashSet<JobDef>();
         private static readonly List<Action<VefAbilityDef, AIAbilityEffects>> effectReaders = new List<Action<VefAbilityDef, AIAbilityEffects>>();
         private static readonly List<IVefAbilityCosts> costSystems = new List<IVefAbilityCosts>();
+        private static readonly List<Func<VefAbility, bool>> otherAutocasters = new List<Func<VefAbility, bool>>();
         // Runtime ability types that declare their own IsEnabledForPawn (VPE's Conjure Heat Pearls, Farskip)
         private static readonly Dictionary<Type, bool> ownEnabledCheck = new Dictionary<Type, bool>();
         private static readonly GlobalTargetInfo[] oneTarget = new GlobalTargetInfo[1];
@@ -97,6 +98,14 @@ namespace AbilityAI.Vef
             costSystems.Add(costs);
             foreach (var info in infos.Values) info.costsKnown = false;
             foreach (var info in otherInfos.Values) info.costsKnown = false;
+        }
+
+        /// <summary>For a compat assembly built on this one (VPE's): another autocast mod that decides some VEF
+        /// abilities for the player's pawns. True for an ability means Ability AI offers no menu for it and never casts
+        /// it for that pawn. Asked on the player's casting path and per gizmo, so answer from a cached set.</summary>
+        public static void RegisterPlayerAutocaster(Func<VefAbility, bool> decides)
+        {
+            if (decides != null && !otherAutocasters.Contains(decides)) otherAutocasters.Add(decides);
         }
 
         internal static void Init()
@@ -239,6 +248,16 @@ namespace AbilityAI.Vef
         public override bool Drivable => infos.ContainsKey(ability.def);
 
         public override bool IsTouch => Info.touch;
+
+        public override bool PlayerAutocastElsewhere
+        {
+            get
+            {
+                for (int i = 0; i < otherAutocasters.Count; i++)
+                    if (otherAutocasters[i](ability)) return true;
+                return false;
+            }
+        }
 
         public override bool IsPsycast => Costs != null;
 

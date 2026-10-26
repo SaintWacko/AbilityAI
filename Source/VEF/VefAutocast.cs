@@ -1,4 +1,6 @@
+using System;
 using System.Collections.Generic;
+using System.Reflection;
 using HarmonyLib;
 using RimWorld;
 using UnityEngine;
@@ -43,10 +45,15 @@ namespace AbilityAI.Vef
             return true;
         }
 
+        /// <summary>Run at the start of ConvertAll, before any flag is converted: the Better Autocasting bridge carries a
+        /// switch of owner made at the main menu over here, and it has to see the flags as they were saved.</summary>
+        internal static Action BeforeConvertAll;
+
         // Once per game, so a colonist whose flag was set before this mod (or this ability's rules) arrived starts
         // autocasting without the player having to look at its gizmo first
         internal static void ConvertAll()
         {
+            BeforeConvertAll?.Invoke();
             var pawns = PawnsFinder.AllMapsCaravansAndTravellingTransporters_Alive_OfPlayerFaction;
             for (int i = 0; i < pawns.Count; i++)
             {
@@ -83,6 +90,7 @@ namespace AbilityAI.Vef
         {
             Pawn p = ability?.pawn;
             if (p == null || !AbilityAISettings.Enabled || !AbilityAISettings.PlayerAutocast || !VefAIAbility.Supported(ability.def)) return;
+            if (VefAIAbility.Of(ability).PlayerAutocastElsewhere) return;
             var mode = AbilityAIAutocast.HasAny(p) ? AbilityAIAutocast.ModeFor(p, ability.def) : AbilityAIAutocastMode.Off;
             if (mode == AbilityAIAutocastMode.Off)
             {
@@ -94,11 +102,23 @@ namespace AbilityAI.Vef
     }
 
     /// <summary>VEF's toggle off where we own the ability. After Better Autocasting's postfix, which forces true for
-    /// the abilities it handles: while ours owns them, ours is the only toggle.</summary>
-    [HarmonyPatch(typeof(VEF.Abilities.Ability), nameof(VEF.Abilities.Ability.CanAutoCast), MethodType.Getter)]
+    /// the abilities it handles: while ours owns them, ours is the only toggle. On the base getter and on every
+    /// override, since an override doesn't call the base: VEF's Ability_Spawn and Ability_SpawnBuilding read false,
+    /// and Better Autocasting postfixes both to force true as well.</summary>
+    [HarmonyPatch]
     [HarmonyAfter("dev.tobot.vpe-better-autocast")]
     internal static class Patch_VefAbility_CanAutoCast_Owned
     {
+        static IEnumerable<MethodBase> TargetMethods()
+        {
+            yield return AccessTools.PropertyGetter(typeof(VefAbility), nameof(VefAbility.CanAutoCast));
+            foreach (Type t in typeof(VefAbility).AllSubclasses())
+            {
+                MethodInfo getter = AccessTools.DeclaredPropertyGetter(t, nameof(VefAbility.CanAutoCast));
+                if (getter != null && !getter.IsAbstract) yield return getter;
+            }
+        }
+
         static void Postfix(VefAbility __instance, ref bool __result)
         {
             if (__result && VefAutocast.Owns(__instance)) __result = false;

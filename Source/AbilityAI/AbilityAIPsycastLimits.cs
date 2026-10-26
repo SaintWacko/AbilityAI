@@ -94,7 +94,8 @@ namespace AbilityAI
             {
                 AIAbilitySources.Collect(pawn, collected);
                 for (int i = 0; i < collected.Count; i++)
-                    if (collected[i].IsPsycast && AbilityAIAutocast.ModeFor(pawn, collected[i].Def) != AbilityAIAutocastMode.Off) return true;
+                    if (collected[i].IsPsycast && !collected[i].PlayerAutocastElsewhere
+                        && AbilityAIAutocast.ModeFor(pawn, collected[i].Def) != AbilityAIAutocastMode.Off) return true;
                 return false;
             }
             finally { collected.Clear(); }

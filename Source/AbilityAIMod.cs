@@ -7,6 +7,8 @@ using Verse;
 
 // The VEF compat assembly hooks VEF's gizmos into the same autocast menu, badge and marker, which stay internal here
 [assembly: InternalsVisibleTo("AbilityAI.VEF")]
+// The VPE compat's Better Autocasting bridge reads the owner setting and carries modes over when it changes
+[assembly: InternalsVisibleTo("AbilityAI.VPE")]
 
 namespace AbilityAI
 {

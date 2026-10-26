@@ -1,6 +1,5 @@
 using System;
 using RimWorld;
-using RimWorld.Planet;
 using VanillaPsycastsExpanded;
 using Verse;
 using VefAbility = VEF.Abilities.Ability;
@@ -19,6 +18,7 @@ namespace AbilityAI.Vpe
         {
             Vef.VefAIAbility.RegisterCosts(new VpeCosts());
             Vef.VefAIAbility.RegisterEffectsReader(ReadEffects);
+            BetterAutocastBridge.Init();
         }
 
         private static void ReadEffects(VefAbilityDef def, AIAbilityEffects e)

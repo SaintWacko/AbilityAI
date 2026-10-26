@@ -36,6 +36,12 @@
   <AAI_ShowMarker>Mark abilities that can autocast</AAI_ShowMarker>
   <AAI_ShowMarker_Tip>Draws a small grey ring on the button of every ability your pawn could autocast but isn't set to. Once you pick a mode, the "auto" or "auto+" badge takes its place.</AAI_ShowMarker_Tip>
   <AAI_Autocast_Hint>Right-click to set autocast (now: {0}).</AAI_Autocast_Hint>
+  <AAI_AutocastOwner>Psycasts Better Autocasting also handles, for colonists:</AAI_AutocastOwner>
+  <AAI_AutocastOwner_Tip>Better Autocasting for Vanilla Psycasts Expanded has its own autocast for about forty VPE psycasts. Where Ability AI also has rules for one (Overshield, Word of Serenity, ...), only one of the two mods casts it for your colonists, and its gizmo has one autocast toggle. Switching keeps each colonist's on or off choice. Mechs, animals and NPCs always use Ability AI's rules.</AAI_AutocastOwner_Tip>
+  <AAI_AutocastOwner_AbilityAI>Ability AI</AAI_AutocastOwner_AbilityAI>
+  <AAI_AutocastOwner_AbilityAI_Tip>Right-click menu with Autocast and Full Autocast, Ability AI's targeting and your psycast limits. Better Autocasting's settings for these psycasts have no effect.</AAI_AutocastOwner_AbilityAI_Tip>
+  <AAI_AutocastOwner_BetterAutocast>Better Autocasting</AAI_AutocastOwner_BetterAutocast>
+  <AAI_AutocastOwner_BetterAutocast_Tip>VEF's autocast toggle and Better Autocasting's own targeting settings. Ability AI leaves these psycasts alone for colonists.</AAI_AutocastOwner_BetterAutocast_Tip>
   <AAI_ReturnTo>After a "Full Autocast" cast:</AAI_ReturnTo>
   <AAI_ReturnTo_Tip>Where a drafted pawn goes after walking a few tiles to cast an ability set to "Full Autocast".</AAI_ReturnTo_Tip>
   <AAI_ReturnTo_Original>Walk back to original position</AAI_ReturnTo_Original>

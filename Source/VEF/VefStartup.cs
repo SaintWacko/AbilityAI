@@ -50,6 +50,13 @@ namespace AbilityAI.Vef
         static void Postfix(VefAbility __instance, ref bool __result)
         {
             if (!__result || !VefAIAbility.Supported(__instance.def)) return;
+            // Pawns tick before the world component, so on a loaded game's first tick a saved flag on an ability we
+            // own is still unconverted (Convert waits for AbilityAIAutocast.Ready): it reads false without converting
+            if (__instance.pawn != null && __instance.pawn.IsColonist && !AbilityAIAutocast.Ready && VefAutocast.Owns(__instance))
+            {
+                __result = false;
+                return;
+            }
             if (VefAutocast.Convert(__instance))
             {
                 __result = false;

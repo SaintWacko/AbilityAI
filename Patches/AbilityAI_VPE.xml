@@ -5,8 +5,7 @@
      abilities no mod claims" setting on, and each rule sits in its own PatchOperationConditional, so a psycast VPE
      removes or renames costs only its own rule.
      VPE's walk-up psycasts (Stabilize, the Word of psycasts) have no range of their own: the AI looks within maxRange
-     (20 when unset) and the cast job walks there.
-     The rest of the worker map is in .circinus/handoff/vpe-adapter.md (build step 7). -->
+     (20 when unset) and the cast job walks there. -->
 <Patch>
   <Operation Class="PatchOperationFindMod">
     <mods>
@@ -37,7 +36,8 @@
           </match>
         </li>
 
-        <!-- Bolt: cheap (2% psyfocus, 8 heat) with burns on a hit and EMP around it, so the plain attack -->
+        <!-- Bolt: cheap (2% psyfocus, 8 heat), the plain attack. It lands up to 1.9 tiles off and burns whatever it
+             hits, so never at an enemy with one of the caster's side within 3 tiles. -->
         <li Class="PatchOperationConditional">
           <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Bolt"]</xpath>
           <match Class="PatchOperationAddModExtension">
@@ -47,6 +47,8 @@
                 <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
                 <priority>2</priority>
                 <approachDistance>8</approachDistance>
+                <avoidAllies>true</avoidAllies>
+                <radius>3</radius>
               </li>
             </value>
           </match>

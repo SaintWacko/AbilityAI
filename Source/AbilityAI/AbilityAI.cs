@@ -1518,7 +1518,9 @@ namespace AbilityAI
         private static void Section(Listing_Standard list, string key, string tipKey = null)
         {
             list.Gap(10f);
-            list.Label(key.Translate().Colorize(ColoredText.TipSectionTitleColor), -1f, tipKey == null ? null : (string)tipKey.Translate());
+            string label = key.Translate().Colorize(ColoredText.TipSectionTitleColor);
+            if (tipKey == null) list.Label(label);
+            else list.Label(label, -1f, new TipSignal(tipKey.Translate()));
         }
 
         private static void Hint(Listing_Standard list, string key)

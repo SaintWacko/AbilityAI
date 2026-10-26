@@ -30,6 +30,7 @@ namespace AbilityAI
         private float viewHeight = 600f;
         private AbilityAISettings.Tab tab;
         private List<TabRecord> tabs;
+        private LoadedLanguage tabsLanguage;
 
         public AbilityAIMod(ModContentPack content) : base(content)
         {
@@ -44,8 +45,10 @@ namespace AbilityAI
 
         public override void DoSettingsWindowContents(Rect inRect)
         {
-            if (tabs == null)
+            // The labels are translated when the list is made: made again after a language change
+            if (tabs == null || tabsLanguage != LanguageDatabase.activeLanguage)
             {
+                tabsLanguage = LanguageDatabase.activeLanguage;
                 tabs = new List<TabRecord>
                 {
                     MakeTab(AbilityAISettings.Tab.General, "AAI_Tab_General"),

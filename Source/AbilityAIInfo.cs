@@ -52,7 +52,8 @@ namespace AbilityAI
             new Dictionary<Type, Func<AbilityCompProperties, (float, float)>>();
 
         /// <summary>Tell the cone worker (AbilityAIWorker_ConeHostile) the shape of a comp properties type of yours:
-        /// how far the cone reaches from the caster and how wide it is at its far end (0 or 1 for a line).</summary>
+        /// how far the cone reaches from the caster and how wide it is at its far end (0 or 1 for a line). A length of
+        /// 0 or less means "not known here": the worker then uses the ability's own range.</summary>
         public static void RegisterCone<T>(Func<T, float> length, Func<T, float> widthAtEnd) where T : AbilityCompProperties
         {
             if (length == null) throw new ArgumentNullException(nameof(length));

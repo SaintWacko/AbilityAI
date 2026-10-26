@@ -853,7 +853,7 @@ namespace AbilityAI
             target = dest = LocalTargetInfo.Invalid;
             float length = Length(ability);
             float halfWidth = HalfWidth(ability);
-            if (!Score(ctx, ability, length, halfWidth, length)) return false;
+            if (!Score(ctx, ability, length, halfWidth, AimReach(length))) return false;
             for (int i = 0; i < aims.Count && i < MaxTries; i++)
             {
                 if (ext.avoidBuildings && FriendlyBuildingInCone(ctx, aims[i].pawn.Position, length, halfWidth)) continue;
@@ -868,7 +868,7 @@ namespace AbilityAI
         {
             goal = null;
             float length = Length(ability);
-            if (!Score(ctx, ability, length, HalfWidth(ability), length + ext.approachDistance)) return false;
+            if (!Score(ctx, ability, length, HalfWidth(ability), AimReach(length) + ext.approachDistance)) return false;
             for (int i = 0; i < aims.Count && i < MaxTries; i++)
             {
                 Pawn p = aims[i].pawn;
@@ -878,12 +878,15 @@ namespace AbilityAI
             return goal != null;
         }
 
-        private float Length(AIAbility ability)
+        // The shape always reaches its full length (vanilla extends the spew to its range whatever the target's
+        // distance), so allies and buildings are checked over all of it; maxRange only limits how far off an aim may be
+        private static float Length(AIAbility ability)
         {
             var e = ability.Effects;
-            float length = e.cone ? e.coneRange : ability.Range;
-            return ext.maxRange >= 0f ? Mathf.Min(length, ext.maxRange) : length;
+            return e.cone && e.coneRange > 0f ? e.coneRange : ability.Range;
         }
+
+        private float AimReach(float length) => ext.maxRange >= 0f ? Mathf.Min(length, ext.maxRange) : length;
 
         private float HalfWidth(AIAbility ability)
         {
@@ -952,17 +955,22 @@ namespace AbilityAI
             return false;
         }
 
+        // Only the cells of the cone's bounding box: a long thin line would otherwise scan the whole disc of its length
         private static bool FriendlyBuildingInCone(AbilityAIContext ctx, IntVec3 aim, float length, float halfWidth)
         {
             IntVec3 from = ctx.pawn.Position;
             Vector2 dir = Dir(from, aim);
             float tanHalf = halfWidth / length;
-            int n = GenRadial.NumCellsInRadius(Mathf.Min(length, GenRadial.MaxRadialPatternRadius));
-            for (int i = 0; i < n; i++)
-            {
-                IntVec3 c = from + GenRadial.RadialPattern[i];
-                if (c.InBounds(ctx.map) && InCone(from, dir, length, tanHalf, c) && AbilityAIUtility.FriendlyBuildingAt(ctx, c)) return true;
-            }
+            float side = Mathf.Max(LineHalfWidth, halfWidth);
+            float ex = from.x + dir.x * length, ez = from.z + dir.y * length;
+            float px = -dir.y * side, pz = dir.x * side;
+            int minX = Mathf.FloorToInt(Mathf.Min(from.x, Mathf.Min(ex + px, ex - px))) - 1;
+            int maxX = Mathf.CeilToInt(Mathf.Max(from.x, Mathf.Max(ex + px, ex - px))) + 1;
+            int minZ = Mathf.FloorToInt(Mathf.Min(from.z, Mathf.Min(ez + pz, ez - pz))) - 1;
+            int maxZ = Mathf.CeilToInt(Mathf.Max(from.z, Mathf.Max(ez + pz, ez - pz))) + 1;
+            var rect = CellRect.FromLimits(minX, minZ, maxX, maxZ).ClipInsideMap(ctx.map);
+            foreach (IntVec3 c in rect)
+                if (InCone(from, dir, length, tanHalf, c) && AbilityAIUtility.FriendlyBuildingAt(ctx, c)) return true;
             return false;
         }
     }

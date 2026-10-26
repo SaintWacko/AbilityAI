@@ -219,10 +219,19 @@ namespace AbilityAI
 
         public void LoadDataFromXmlCustom(XmlNode xmlRoot)
         {
-            if (objectFromXml == null)
-                objectFromXml = typeof(DirectXmlToObject).GetMethod("ObjectFromXml", BindingFlags.Public | BindingFlags.Static)
-                    .MakeGenericMethod(typeof(AbilityAIExtension));
-            values = (AbilityAIExtension)objectFromXml.Invoke(null, new object[] { xmlRoot, false });
+            try
+            {
+                if (objectFromXml == null)
+                    objectFromXml = typeof(DirectXmlToObject).GetMethod("ObjectFromXml", BindingFlags.Public | BindingFlags.Static)
+                        .MakeGenericMethod(typeof(AbilityAIExtension));
+                values = (AbilityAIExtension)objectFromXml.Invoke(null, new object[] { xmlRoot, false });
+            }
+            catch (Exception e)
+            {
+                // The block is left out (the rule applies to these casters unchanged) rather than the whole def
+                errors.Add($"<{xmlRoot.Name}> could not be read, so it is ignored: {e.InnerException ?? e}");
+                return;
+            }
             foreach (XmlNode child in xmlRoot.ChildNodes)
             {
                 if (child.NodeType != XmlNodeType.Element) continue;
@@ -394,6 +403,19 @@ namespace AbilityAI
         public override IEnumerable<string> ConfigErrors()
         {
             foreach (var e in base.ConfigErrors()) yield return e;
+            foreach (var e in RuleErrors()) yield return e;
+            if (npc != null) foreach (var e in npc.errors) yield return e;
+            if (friendlyNpc != null) foreach (var e in friendlyNpc.errors) yield return e;
+            // Cross-references are resolved by now, so the versions can be built and checked as they will run
+            var npcVersion = For(AbilityAIRole.Npc);
+            if (npcVersion != this) foreach (var e in npcVersion.RuleErrors()) yield return "<npc>: " + e;
+            var friendlyVersion = For(AbilityAIRole.FriendlyNpc);
+            if (friendlyVersion != npcVersion) foreach (var e in friendlyVersion.RuleErrors()) yield return "<friendlyNpc>: " + e;
+        }
+
+        private IEnumerable<string> RuleErrors()
+        {
+            if (!enabled) yield break;
             if (workerClass == null) yield return "AbilityAIExtension needs a workerClass";
             else if (!typeof(AbilityAIWorker).IsAssignableFrom(workerClass)) yield return $"workerClass {workerClass} is not an AbilityAIWorker";
             else if (workerClass.IsAbstract) yield return $"workerClass {workerClass} is abstract";
@@ -403,8 +425,6 @@ namespace AbilityAI
             if (minBleedRate < 0f) yield return "minBleedRate can't be negative";
             if (rangedOnly && minThreats < 1) yield return "rangedOnly needs minThreats of at least 1";
             if (targetKinds == AbilityAITargetKinds.None) yield return "targetKinds is empty: the rule could never target anyone";
-            if (npc != null) foreach (var e in npc.errors) yield return e;
-            if (friendlyNpc != null) foreach (var e in friendlyNpc.errors) yield return e;
         }
     }
 

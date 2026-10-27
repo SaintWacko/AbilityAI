@@ -413,7 +413,8 @@ namespace AbilityAI.Vef
         {
             rule = default;
             if (!Info.twoTarget) return false;
-            rule.range = ability.GetRangeForPawn();
+            // CanHitTarget wants the cell strictly inside the range, and the worker's own test is inclusive
+            rule.range = ability.GetRangeForPawn() - 0.5f;
             rule.fromCaster = true;
             rule.lineOfSight = ability.def.requireLineOfSight;
             return true;

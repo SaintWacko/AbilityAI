@@ -515,6 +515,8 @@ namespace AbilityAI
             if (avoidAllies && allyKinds == AbilityAITargetKinds.None) yield return "allyKinds is empty: avoidAllies would avoid nobody";
             if (maxLight < 0f) yield return "maxLight can't be negative";
             if (cellMaxLight < 0f) yield return "cellMaxLight can't be negative";
+            else if (cellMaxLight < 1f && workerClass != null && !typeof(AbilityAIWorker_Movement).IsAssignableFrom(workerClass))
+                yield return $"cellMaxLight is only read by Movement, not {workerClass.Name}";
             if (auraKinds != AbilityAITargetKinds.None)
             {
                 if (auraMin < 1) yield return "auraMin must be at least 1";

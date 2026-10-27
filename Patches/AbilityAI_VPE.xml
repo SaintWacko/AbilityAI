@@ -1048,7 +1048,8 @@
         </li>
 
         <!-- Skip: the same three uses as Royalty's Skip (see AbilityAI_Royalty.xml), with VPE's destination rule:
-             within range of the caster, and in its sight. -->
+             within range of the caster, and in its sight. Unlike Royalty's, VPE's stuns whoever it moves for 1 to 2
+             seconds: the rescued ally on arrival, and on Escape the caster itself, which by then is well away. -->
         <li Class="PatchOperationConditional">
           <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Skip"]</xpath>
           <match Class="PatchOperationAddModExtension">

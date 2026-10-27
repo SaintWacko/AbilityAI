@@ -50,6 +50,8 @@ namespace AbilityAI
         // Only while a cast is running: empty almost all the time
         private static readonly Dictionary<Pawn, Hold> holds = new Dictionary<Pawn, Hold>();
         private static readonly List<Pawn> tmpGone = new List<Pawn>();
+        // Leaving a game doesn't despawn its pawns, so an entry from the last game would otherwise never go
+        private static Game holdsGame;
 
         internal static bool Holding => holds.Count > 0;
 
@@ -100,9 +102,15 @@ namespace AbilityAI
             if (ability.IsTouch && target.IsValid)
                 ticks += Mathf.Min(MaxWalkTicks, Mathf.CeilToInt(pawn.Position.DistanceTo(target.Cell) * pawn.TicksPerMoveCardinal));
             int stamp = GenTicks.TicksGame + ticks - (int)(ReactionHold * pawn.RaceProps.baseBodySize);
-            int previous = (int)lastInterrupted.GetValue(data);
-            if (previous >= stamp) return;
-            lastInterrupted.SetValue(data, stamp);
+            SameGame();
+            int current = (int)lastInterrupted.GetValue(data);
+            // A cast started while our hold for the last one is still in place: what goes back is still the value
+            // from before the first
+            bool held = holds.TryGetValue(pawn, out var old) && current == old.stamp;
+            int previous = held ? old.previous : current;
+            if (current < stamp) lastInterrupted.SetValue(data, stamp);
+            else if (held) stamp = current;
+            else return;
 
             // A pawn that died or left mid-cast never comes back to CheckHold
             foreach (var p in holds.Keys)
@@ -117,11 +125,19 @@ namespace AbilityAI
         /// job ends on its own. A stamp CAI has moved since is CAI's and stays.</summary>
         internal static void CheckHold(Pawn pawn)
         {
+            SameGame();
             if (!holds.TryGetValue(pawn, out var hold)) return;
             Job cur = pawn.CurJob;
             if (cur != null && cur.loadID == hold.jobId) return;
             holds.Remove(pawn);
             if ((int)lastInterrupted.GetValue(hold.data) == hold.stamp) lastInterrupted.SetValue(hold.data, hold.previous);
+        }
+
+        private static void SameGame()
+        {
+            if (holdsGame == Current.Game) return;
+            holds.Clear();
+            holdsGame = Current.Game;
         }
     }
 }

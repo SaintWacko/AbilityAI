@@ -7,11 +7,11 @@
      VPE's walk-up psycasts (Stabilize, the Word of psycasts) have no range of their own: the AI looks within maxRange
      (20 when unset) and the cast job walks there.
      Every psycast that can be cast by the AI has a rule, risky ones included: the player turns each on per pawn.
-     Left out: those needing two targets or a world tile or a confirmation (Skip, Chaos Skip, Mass Chaos Skip, Word of
+     Left out: those needing two targets or a world tile or a confirmation (Chaos Skip, Mass Chaos Skip, Word of
      Love, Luck Transfer, Health Swap, Essence Transfer, Location Swap, Farskip, Nightstep, Neuroquake, Timequake),
      crafting and utility ones (Enchant, Mend, Power, constructs, Psyring, Transmute, Recharge, Corpsetalk, Word of
      Trust/Productivity/Alliance/Joy/Inspiration/Progress/Foretelling/Animals, Mind Wipe, Bliss, Darkvision, Group
-     Link, Ghostwalk, Solar Pinhole, Skipdoor, Crop Burst, Tree Sprout, Shrineshield, Ice Crystal, Cold Zone), map-wide
+     Link, Solar Pinhole, Skipdoor, Crop Burst, Tree Sprout, Shrineshield, Ice Crystal, Cold Zone), map-wide
      ones (Soothe, Eclipse, Intensify Shadows, Raid Pause, Hurricane, Bend Probability, Manhunter Pulse, Animal
      Allies), the ones that put the caster in a coma (Mass Hallucination, Fire Beam, Blizzard, Time Reversal, Season
      Timeskip, Timeskip Meditation, Skillroll, Resurrect, Reverse Engineer, Summon Pack), corpse targets (Enthrall,
@@ -755,6 +755,22 @@
           </match>
         </li>
 
+        <!-- Ghostwalk: the caster walks through walls for 12 seconds (times psychic sensitivity). A movement psycast
+             like Power Leap: a melee caster closing on its target 6 tiles or more away, or a caster getting away (hurt,
+             fleeing, or a shooter in melee). 55% psyfocus, so below Power Leap. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Ghostwalk"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Ghostwalk"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Movement</workerClass>
+                <priority>3</priority>
+              </li>
+            </value>
+          </match>
+        </li>
+
         <!-- Deathshield: a downed ally losing half its blood a day or more can't die for a day. Below Stabilize
              (7), which is cheaper; 80% psyfocus. -->
         <li Class="PatchOperationConditional">
@@ -860,6 +876,24 @@
                 <maxRange>25</maxRange>
                 <requires>Melee</requires>
                 <exclusive>true</exclusive>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Shadowskip: the caster skips to any dark cell it isn't fogged from (VPE: light 0.29 or less), with no
+             range or sight limit. A movement psycast: next to a melee caster's target, or away from enemies. The AI
+             looks within 30 tiles and only at dark cells. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Shadowskip"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Shadowskip"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Movement</workerClass>
+                <priority>4</priority>
+                <maxRange>30</maxRange>
+                <cellMaxLight>0.29</cellMaxLight>
               </li>
             </value>
           </match>
@@ -1008,6 +1042,36 @@
                 <friendlyNpc>
                   <enabled>false</enabled>
                 </friendlyNpc>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Skip: the same three uses as Royalty's Skip (see AbilityAI_Royalty.xml), with VPE's destination rule:
+             within range of the caster, and in its sight. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Skip"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Skip"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Skip</workerClass>
+                <skipMode>Rescue</skipMode>
+                <priority>7</priority>
+                <healthThreshold>0.4</healthThreshold>
+              </li>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Skip</workerClass>
+                <skipMode>Repel</skipMode>
+                <priority>6</priority>
+                <healthThreshold>0.5</healthThreshold>
+                <harmless>true</harmless>
+              </li>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Skip</workerClass>
+                <skipMode>Escape</skipMode>
+                <priority>5</priority>
+                <healthThreshold>0.35</healthThreshold>
               </li>
             </value>
           </match>

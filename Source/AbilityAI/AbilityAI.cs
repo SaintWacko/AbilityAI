@@ -415,6 +415,10 @@ namespace AbilityAI
         /// <summary>Only while the light on the caster's cell is at most this (0-1; Obscure, Shadow Focus: 0.3).
         /// 1 = any light.</summary>
         public float maxLight = 1f;
+        /// <summary>Movement, targeted: only cells where the light is at most this (0-1). For abilities that only land
+        /// in the dark (VPE's Shadowskip: 0.29, its own limit), so a bright map doesn't use up the worker's few
+        /// validations on cells the ability refuses anyway. 1 = any light.</summary>
+        public float cellMaxLight = 1f;
         /// <summary>Recovery: the health conditions it treats. None = the need rule alone.</summary>
         public AbilityAIHealth health;
         /// <summary>AoE hostile: never centre the area within its radius of the caster, for areas that hit the caster
@@ -510,6 +514,7 @@ namespace AbilityAI
                 yield return $"targetKinds names only Turret, which {workerClass.Name} never targets: the rule could never target anyone";
             if (avoidAllies && allyKinds == AbilityAITargetKinds.None) yield return "allyKinds is empty: avoidAllies would avoid nobody";
             if (maxLight < 0f) yield return "maxLight can't be negative";
+            if (cellMaxLight < 0f) yield return "cellMaxLight can't be negative";
             if (auraKinds != AbilityAITargetKinds.None)
             {
                 if (auraMin < 1) yield return "auraMin must be at least 1";

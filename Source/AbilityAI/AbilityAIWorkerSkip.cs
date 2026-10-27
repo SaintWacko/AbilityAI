@@ -9,8 +9,8 @@ using Verse.AI;
 namespace AbilityAI
 {
     /// <summary>
-    /// Skip: a vanilla ability that moves its target to a cell the caster picks (CompAbilityEffect_WithDest with
-    /// destination Selected: Royalty's Skip). One rule per use, chosen by skipMode, each behind its own setting:
+    /// Skip: an ability that moves its target to a cell the caster picks (AIAbility.TryGetDestRule: Royalty's Skip,
+    /// VPE's Skip). One rule per use, chosen by skipMode, each behind its own setting:
     /// - Repel: an enemy standing next to someone of the caster's side who can't hold it off (downed, under
     ///   healthThreshold, or a ranged fighter; a healthy brawler is left to it) goes far from that side and toward its
     ///   own, and never into the player's home area when the caster isn't hostile to the player. An enemy carrying
@@ -23,11 +23,12 @@ namespace AbilityAI
     ///   from the nearest one. A drafted pawn still on its feet stays where the player put it.
     /// - Escape: the caster itself, when Movement's escape applies (under healthThreshold, fleeing, or a ranged pawn
     ///   in melee, with an enemy within 12 tiles), to the cell furthest from every enemy.
-    /// Nobody in a player-ordered job is moved. The comp's own rules for the destination are only checked by its
-    /// targeting UI, so they are applied here: within the comp's range of the TARGET (not of the caster), in sight of
-    /// the target when the comp requires it, standable, not fogged, walkable by the pawn moved and not behind a door
-    /// it can't pass. The move must be worth it: Repel lands at least 10 tiles from the side, the others gain 4 tiles
-    /// on the nearest enemy (Rescue also needs 6 clear).
+    /// Nobody in a player-ordered job is moved. The destination rule is applied here, since vanilla only checks it in
+    /// its targeting UI: within range of the rule's origin (vanilla: the TARGET; VEF: the caster), in sight of it when
+    /// the rule asks, standable, not fogged, walkable by the pawn moved, not behind a door it can't pass, and whatever
+    /// the system's own ValidDest adds. Candidate cells lie on rings around that origin. The move must be worth it:
+    /// Repel lands at least 10 tiles from the side, the others gain 4 tiles on the nearest enemy (Rescue also needs 6
+    /// clear).
     /// Cost: Repel a pass over the enemies with up to a adjacency checks each; Rescue a pass over the allies; then for
     /// each of the best three targets 48 cells (Repel), 32 (Escape) or about 110 (Rescue) times k distance checks,
     /// a cover check for Rescue's best 12, and line of sight for the best six cells.
@@ -75,12 +76,10 @@ namespace AbilityAI
         {
             target = dest = LocalTargetInfo.Invalid;
             if (!AbilityAISettings.SkipAllowed(ext.skipMode)) return false;
-            // Only vanilla's comp says where the destination may be; another system's two-target ability stays with it
-            var comp = ability.Vanilla?.CompOfType<CompAbilityEffect_WithDest>();
-            if (comp == null || comp.Props.destination != AbilityEffectDestination.Selected) return false;
-            var props = comp.Props;
-            float destRange = props.range > 0f ? props.range : AbilityAIUtility.Range(ability, ext);
+            if (!ability.TryGetDestRule(out AIDestRule rule)) return false;
+            float destRange = rule.range > 0f ? rule.range : AbilityAIUtility.Range(ability, ext);
             if (destRange < 2f) return false;
+            var dr = new DestCtx { ability = ability, rule = rule, range = destRange };
 
             Pawn moved;
             IntVec3 cell;
@@ -89,9 +88,9 @@ namespace AbilityAI
             {
                 switch (ext.skipMode)
                 {
-                    case AbilityAISkipMode.Repel: found = TryRepel(ctx, ability, props, destRange, out moved, out cell); break;
-                    case AbilityAISkipMode.Rescue: found = TryRescue(ctx, ability, props, destRange, out moved, out cell); break;
-                    default: found = TryEscape(ctx, ability, props, destRange, out moved, out cell); break;
+                    case AbilityAISkipMode.Repel: found = TryRepel(ctx, dr, out moved, out cell); break;
+                    case AbilityAISkipMode.Rescue: found = TryRescue(ctx, dr, out moved, out cell); break;
+                    default: found = TryEscape(ctx, dr, out moved, out cell); break;
                 }
             }
             finally
@@ -106,6 +105,15 @@ namespace AbilityAI
             return true;
         }
 
+        // What every destination check needs, passed down as one
+        private struct DestCtx
+        {
+            public AIAbility ability;
+            public AIDestRule rule;
+            public float range;
+            public IntVec3 Origin(AbilityAIContext ctx, Pawn moved) => rule.fromCaster ? ctx.pawn.Position : moved.Position;
+        }
+
         private static bool PlayerOrdered(Pawn p) => p.CurJob != null && p.CurJob.playerForced;
 
         // CompAbilityEffect.Apply's goodwill rule for a player caster, short of the lodger and quest-helper exemptions
@@ -116,8 +124,9 @@ namespace AbilityAI
             return home != null && home != Faction.OfPlayer && !home.HostileTo(Faction.OfPlayer);
         }
 
-        private bool TryRepel(AbilityAIContext ctx, AIAbility ability, CompProperties_EffectWithDest props, float destRange, out Pawn moved, out IntVec3 cell)
+        private bool TryRepel(AbilityAIContext ctx, DestCtx dr, out Pawn moved, out IntVec3 cell)
         {
+            AIAbility ability = dr.ability;
             moved = null;
             cell = IntVec3.Invalid;
             float range = AbilityAIUtility.Range(ability, ext);
@@ -153,7 +162,7 @@ namespace AbilityAI
             {
                 Pawn e = cands[i].pawn;
                 if (!AbilityAIDriver.Valid(ability, e)) continue;
-                if (TryRepelCell(ctx, props, destRange, e, avoidHome, out cell)) { moved = e; return true; }
+                if (TryRepelCell(ctx, dr, e, avoidHome, out cell)) { moved = e; return true; }
             }
             return false;
         }
@@ -178,10 +187,11 @@ namespace AbilityAI
             return best;
         }
 
-        private static bool TryRepelCell(AbilityAIContext ctx, CompProperties_EffectWithDest props, float destRange, Pawn e, bool avoidHome, out IntVec3 result)
+        private static bool TryRepelCell(AbilityAIContext ctx, DestCtx dr, Pawn e, bool avoidHome, out IntVec3 result)
         {
             result = IntVec3.Invalid;
-            IntVec3 origin = e.Position;
+            IntVec3 origin = dr.Origin(ctx, e);
+            float destRange = dr.range;
             var home = avoidHome ? ctx.map.areaManager.Home : null;
             var enemies = ctx.Enemies;
             spots.Clear();
@@ -189,7 +199,7 @@ namespace AbilityAI
                 for (int s = 0; s < RepelRings.Length; s++)
                 {
                     IntVec3 c = Ring(origin, Dirs[i], destRange * RepelRings[s] - 0.5f);
-                    if (!CellOk(ctx, origin, destRange, c)) continue;
+                    if (c == e.Position || !CellOk(ctx, origin, destRange, c)) continue;
                     if (home != null && home[c]) continue;
                     float fromSide = MinDist(side, c, null);
                     if (fromSide < RepelMinDistance) continue;
@@ -197,11 +207,12 @@ namespace AbilityAI
                     float fromOwn = MinDist(enemies, c, e);
                     spots.Add(new Spot { cell = c, score = Mathf.Min(fromSide, ScoreCap) - 0.3f * Mathf.Min(fromOwn, ScoreCap) });
                 }
-            return BestDest(ctx, props, e, origin, out result);
+            return BestDest(ctx, dr, e, origin, out result);
         }
 
-        private bool TryRescue(AbilityAIContext ctx, AIAbility ability, CompProperties_EffectWithDest props, float destRange, out Pawn moved, out IntVec3 cell)
+        private bool TryRescue(AbilityAIContext ctx, DestCtx dr, out Pawn moved, out IntVec3 cell)
         {
+            AIAbility ability = dr.ability;
             moved = null;
             cell = IntVec3.Invalid;
             var enemies = ctx.Enemies;
@@ -234,27 +245,28 @@ namespace AbilityAI
             {
                 Pawn p = cands[i].pawn;
                 if (!AbilityAIDriver.Valid(ability, p)) continue;
-                if (TryRescueCell(ctx, props, destRange, p, out cell)) { moved = p; return true; }
+                if (TryRescueCell(ctx, dr, p, out cell)) { moved = p; return true; }
             }
             return false;
         }
 
         // Near the caster first (it is presumably out of the worst of it, and can watch over the pawn), then rings
-        // around the pawn for a caster that is itself in the thick of it
-        private static bool TryRescueCell(AbilityAIContext ctx, CompProperties_EffectWithDest props, float destRange, Pawn p, out IntVec3 result)
+        // around the rule's origin (the pawn, for vanilla) for a caster that is itself in the thick of it
+        private static bool TryRescueCell(AbilityAIContext ctx, DestCtx dr, Pawn p, out IntVec3 result)
         {
             result = IntVec3.Invalid;
-            IntVec3 origin = p.Position;
+            IntVec3 origin = dr.Origin(ctx, p);
+            float destRange = dr.range;
             var enemies = ctx.Enemies;
-            float need = Mathf.Max(RescueMinDistance, MinDist(enemies, origin, null) + MinGain);
+            float need = Mathf.Max(RescueMinDistance, MinDist(enemies, p.Position, null) + MinGain);
             IntVec3 casterAt = ctx.pawn.Position;
             spots.Clear();
             int n = GenRadial.NumCellsInRadius(RescueDisc);
             for (int i = 0; i < n; i++)
-                AddRescueSpot(ctx, origin, destRange, casterAt + GenRadial.RadialPattern[i], need);
+                AddRescueSpot(ctx, p, origin, destRange, casterAt + GenRadial.RadialPattern[i], need);
             for (int i = 0; i < Dirs.Length; i++)
                 for (int s = 0; s < Rings.Length; s++)
-                    AddRescueSpot(ctx, origin, destRange, Ring(origin, Dirs[i], destRange * Rings[s] - 0.5f), need);
+                    AddRescueSpot(ctx, p, origin, destRange, Ring(origin, Dirs[i], destRange * Rings[s] - 0.5f), need);
             // Cover reads the cells around each spot, so only the best few by distance pay for it
             spots.Sort((a, b) => b.score.CompareTo(a.score));
             if (spots.Count > CoverChecks) spots.RemoveRange(CoverChecks, spots.Count - CoverChecks);
@@ -265,20 +277,22 @@ namespace AbilityAI
                 s.score += 8f * CoverUtility.CalculateOverallBlockChance(s.cell, nearest.Position, ctx.map);
                 spots[i] = s;
             }
-            return BestDest(ctx, props, p, origin, out result);
+            return BestDest(ctx, dr, p, origin, out result);
         }
 
-        private static void AddRescueSpot(AbilityAIContext ctx, IntVec3 origin, float destRange, IntVec3 c, float need)
+        private static void AddRescueSpot(AbilityAIContext ctx, Pawn p, IntVec3 origin, float destRange, IntVec3 c, float need)
         {
-            if (c == origin || !CellOk(ctx, origin, destRange, c)) return;
+            if (c == p.Position || !CellOk(ctx, origin, destRange, c)) return;
             float clear = MinDist(ctx.Enemies, c, null);
             if (clear < need) return;
             float score = Mathf.Min(clear, ScoreCap) - 0.5f * (c - ctx.pawn.Position).LengthHorizontal;
             spots.Add(new Spot { cell = c, score = score });
         }
 
-        private bool TryEscape(AbilityAIContext ctx, AIAbility ability, CompProperties_EffectWithDest props, float destRange, out Pawn moved, out IntVec3 cell)
+        private bool TryEscape(AbilityAIContext ctx, DestCtx dr, out Pawn moved, out IntVec3 cell)
         {
+            AIAbility ability = dr.ability;
+            float destRange = dr.range;
             moved = null;
             cell = IntVec3.Invalid;
             Pawn pawn = ctx.pawn;
@@ -301,7 +315,7 @@ namespace AbilityAI
                     if (clear < need) continue;
                     spots.Add(new Spot { cell = c, score = clear });
                 }
-            if (!BestDest(ctx, props, pawn, origin, out cell)) return false;
+            if (!BestDest(ctx, dr, pawn, origin, out cell)) return false;
             moved = pawn;
             return true;
         }
@@ -314,19 +328,20 @@ namespace AbilityAI
             c.InBounds(ctx.map) && (c - origin).LengthHorizontalSquared <= destRange * destRange
             && c.Standable(ctx.map) && !c.Fogged(ctx.map);
 
-        // CompAbilityEffect_WithDest.CanHitTarget and CanPlaceSelectedTargetAt, which read the targeting UI's own
-        // selection and so can't be asked
-        private static bool BestDest(AbilityAIContext ctx, CompProperties_EffectWithDest props, Pawn moved, IntVec3 origin, out IntVec3 result)
+        // Vanilla's CompAbilityEffect_WithDest.CanHitTarget and CanPlaceSelectedTargetAt read the targeting UI's own
+        // selection and so can't be asked; the system's ValidDest last, as the dearest
+        private static bool BestDest(AbilityAIContext ctx, DestCtx dr, Pawn moved, IntVec3 origin, out IntVec3 result)
         {
             result = IntVec3.Invalid;
             spots.Sort((a, b) => b.score.CompareTo(a.score));
             for (int i = 0; i < spots.Count && i < MaxCells; i++)
             {
                 IntVec3 c = spots[i].cell;
-                if (props.requiresLineOfSight && !GenSight.LineOfSight(origin, c, ctx.map)) continue;
+                if (dr.rule.lineOfSight && !GenSight.LineOfSight(origin, c, ctx.map)) continue;
                 var door = c.GetDoor(ctx.map);
                 if (door != null && !door.CanPhysicallyPass(moved)) continue;
                 if (!c.WalkableBy(ctx.map, moved)) continue;
+                if (!dr.ability.ValidDest(moved, c)) continue;
                 result = c;
                 break;
             }

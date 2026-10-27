@@ -126,6 +126,30 @@ namespace AbilityAI
         /// own system refuses the cast at the last moment. It may set up the cast on its system's side (VEF records
         /// the ability and targets on CompAbilities), so only call it for a job that will be returned.</summary>
         public abstract Job MakeCastJob(LocalTargetInfo target, LocalTargetInfo dest);
+
+        /// <summary>For an ability that sends its target to a second cell the caster picks (vanilla's and VPE's Skip):
+        /// how far that cell may be and from where. False for every other ability.</summary>
+        public virtual bool TryGetDestRule(out AIDestRule rule)
+        {
+            rule = default;
+            return false;
+        }
+
+        /// <summary>The system's own checks on a destination for this target, past the rule's range and sight and the
+        /// cell being standable, which the Skip worker checks first. Asked for the best few cells only.</summary>
+        public virtual bool ValidDest(LocalTargetInfo target, IntVec3 cell) => true;
+    }
+
+    /// <summary>Where a two-target ability may send its first target (AIAbility.TryGetDestRule).</summary>
+    public struct AIDestRule
+    {
+        /// <summary>How far from the origin the cell may be; 0 when the system states none (the worker then uses the
+        /// ability's range).</summary>
+        public float range;
+        /// <summary>Range and sight are measured from the caster (VEF: every target is a CanHitTarget from the caster);
+        /// otherwise from the target (vanilla's CompAbilityEffect_WithDest).</summary>
+        public bool fromCaster;
+        public bool lineOfSight;
     }
 
     /// <summary>A system of abilities the AI can drive. The core registers vanilla's; a compat assembly registers
@@ -421,6 +445,18 @@ namespace AbilityAI
         public override float HeatGain => ability is Psycast ? ability.def.EntropyGain : 0f;
 
         public override Job MakeCastJob(LocalTargetInfo target, LocalTargetInfo dest) => ability.GetJob(target, dest);
+
+        // The comp's own CanHitTarget and CanPlaceSelectedTargetAt read the targeting UI's selection, so the Skip
+        // worker applies the rule itself
+        public override bool TryGetDestRule(out AIDestRule rule)
+        {
+            rule = default;
+            var comp = ability.CompOfType<CompAbilityEffect_WithDest>();
+            if (comp == null || comp.Props.destination != AbilityEffectDestination.Selected) return false;
+            rule.range = comp.Props.range;
+            rule.lineOfSight = comp.Props.requiresLineOfSight;
+            return true;
+        }
 
         // Some vanilla comps open AICanTargetNow with "if the caster is the player's, no": vanilla's AI never casts
         // for colonists, so that line only ever stopped vanilla's own AI. For our player autocast it fails every

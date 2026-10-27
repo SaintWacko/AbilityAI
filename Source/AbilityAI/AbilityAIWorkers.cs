@@ -622,7 +622,8 @@ namespace AbilityAI
     /// maxRange (default 40; a targeted ability also needs it in reach); a targeted ability lands next to it.
     /// Escape: health under healthThreshold, fleeing, or a ranged pawn caught in melee, with an enemy within 12 tiles;
     /// a targeted ability tries 16 directions at full and 60% range for the cell furthest from every enemy, and only
-    /// goes if that gains at least 4 tiles. Cost: escape is 32 × k distance checks, then up to 6 validations;
+    /// goes if that gains at least 4 tiles. A targeted ability's cells can be limited to dark ones (cellMaxLight).
+    /// Cost: escape is 32 × k distance checks, then up to 6 validations;
     /// gap-close with a targeted ability up to 8 validations, only while the enemy is within its reach.
     /// </summary>
     public class AbilityAIWorker_Movement : AbilityAIWorker
@@ -656,7 +657,7 @@ namespace AbilityAI
                 if (self) { target = ctx.pawn; return true; }
                 // Even the cell next to the enemy nearest the caster is out of reach: skip the eight validations
                 if (d > AbilityAIUtility.Range(ability, ext) + 1.5f) return false;
-                if (TryCellNear(ctx, ability, enemy, out IntVec3 cell)) { target = cell; return true; }
+                if (TryCellNear(ctx, ability, enemy, ext.cellMaxLight, out IntVec3 cell)) { target = cell; return true; }
             }
             return false;
         }
@@ -670,7 +671,7 @@ namespace AbilityAI
         }
 
         // The standable cell next to the enemy nearest the caster that the ability accepts
-        private static bool TryCellNear(AbilityAIContext ctx, AIAbility ability, Pawn enemy, out IntVec3 best)
+        private static bool TryCellNear(AbilityAIContext ctx, AIAbility ability, Pawn enemy, float maxLight, out IntVec3 best)
         {
             best = IntVec3.Invalid;
             float bestD = float.MaxValue;
@@ -680,6 +681,7 @@ namespace AbilityAI
                 // Vanilla's jump verbs refuse a cell nobody can stand on; VEF's location targeting doesn't, and VPE's
                 // Power Leap would land the caster inside a wall
                 if (!c.InBounds(ctx.map) || !c.Standable(ctx.map)) continue;
+                if (maxLight < 1f && ctx.map.glowGrid.GroundGlowAt(c) > maxLight) continue;
                 float d = (c - ctx.pawn.Position).LengthHorizontalSquared;
                 if (d >= bestD || !AbilityAIDriver.Valid(ability, c)) continue;
                 bestD = d;
@@ -707,6 +709,7 @@ namespace AbilityAI
                     float dist = s == 0 ? range - 0.5f : range * 0.6f;
                     IntVec3 c = ctx.pawn.Position + new IntVec3(Mathf.RoundToInt(dir.x * dist), 0, Mathf.RoundToInt(dir.z * dist));
                     if (!c.InBounds(ctx.map) || !c.Standable(ctx.map)) continue;
+                    if (ext.cellMaxLight < 1f && ctx.map.glowGrid.GroundGlowAt(c) > ext.cellMaxLight) continue;
                     float score = MinEnemyDist(enemies, c);
                     if (score - now < EscapeMinGain) continue;
                     spots.Add(new Spot { cell = c, score = score });

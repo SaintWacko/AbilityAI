@@ -56,7 +56,9 @@ namespace AbilityAI.Vef
         private sealed class DefInfo
         {
             public bool self, touch, hostile;
-            public TargetingParameters targetParams;
+            // Target, then the cell it is sent to (VPE's Skip): only the Skip worker can cast it (TryGetDestRule)
+            public bool twoTarget;
+            public TargetingParameters targetParams, destParams;
             public AIAbilityEffects effects;
             // Resolved on first use: a cost system may register after Init
             public bool costsKnown;
@@ -79,7 +81,7 @@ namespace AbilityAI.Vef
         private static readonly GlobalTargetInfo[] oneTarget = new GlobalTargetInfo[1];
 
         /// <summary>Whether the AI can cast abilities of this def: it has an AbilityAIExtension and a shape the
-        /// driver can target (one map target, no confirmation dialog).</summary>
+        /// driver can target (one map target, or a thing and the cell to send it to; no confirmation dialog).</summary>
         public static bool Supported(VefAbilityDef def) => def != null && TryGetInfo(def, out _);
 
         /// <summary>The pawn's ability of this def, learned or held on an item (AIHeldAbilities), or null.</summary>
@@ -156,9 +158,12 @@ namespace AbilityAI.Vef
         private static DefInfo MakeInfo(VefAbilityDef def)
         {
             bool self = def.targetModes != null && def.targetModes.Count > 0 && def.targetModes[0] == AbilityTargetingMode.Self;
+            bool two = IsTwoTarget(def);
             return new DefInfo
             {
                 self = self,
+                twoTarget = two,
+                destParams = two ? def.targetingParametersList[1] : null,
                 touch = !self && def.jobDef?.driverClass != null
                     && typeof(JobDriver_GotoTargetAndCastAbilityOnce).IsAssignableFrom(def.jobDef.driverClass),
                 hostile = IsHostile(def, self),
@@ -205,9 +210,24 @@ namespace AbilityAI.Vef
             }
         }
 
+        // A thing, then the cell it goes to (VPE's Skip: Ability_Teleport.Cast moves targets[i] to targets[i + 1]).
+        // At least two, not exactly: Psycasts² raises targetCount on the def for more pairs, and one pair is still a
+        // cast VEF accepts. Not with hasAoE, whose ModifyTargets rebuilds the array around the first cell.
+        private static bool IsTwoTarget(VefAbilityDef def)
+        {
+            var modes = def.targetModes;
+            if (def.targetCount < 2 || modes == null || modes.Count < 2 || def.hasAoE) return false;
+            if (def.targetingParametersList == null || def.targetingParametersList.Count < 2) return false;
+            if (modes[1] != AbilityTargetingMode.Location) return false;
+            var first = modes[0];
+            return first == AbilityTargetingMode.Pawn || first == AbilityTargetingMode.Thing
+                || first == AbilityTargetingMode.Humanlike || first == AbilityTargetingMode.None;
+        }
+
         private static string Unsupported(VefAbilityDef def)
         {
-            if (def.targetCount != 1 || def.targetModes == null || def.targetModes.Count == 0) return "it takes more than one target";
+            if (def.targetModes == null || def.targetModes.Count == 0) return "it has no target mode";
+            if (def.targetCount != 1 && !IsTwoTarget(def)) return "it takes more than one target, other than a thing and the cell to send it to";
             if (def.worldTargeting) return "it targets the world map";
             // None is a def that gives targetingParameters and no targetMode (VPE's Overshield): VEF targets by the
             // parameters alone, as ValidIgnoringRange does. A def with neither was made Self when it was loaded.
@@ -389,13 +409,49 @@ namespace AbilityAI.Vef
 
         public override float HeatGain => Costs?.HeatGain(ability) ?? 0f;
 
+        public override bool TryGetDestRule(out AIDestRule rule)
+        {
+            rule = default;
+            if (!Info.twoTarget) return false;
+            rule.range = ability.GetRangeForPawn();
+            rule.fromCaster = true;
+            rule.lineOfSight = ability.def.requireLineOfSight;
+            return true;
+        }
+
+        // Ability.CanHitTarget for the second target, short of range and sight (the worker's): not callable here, since
+        // it reads targetParams by the player's currentTargetingIndex
+        public override bool ValidDest(LocalTargetInfo target, IntVec3 cell)
+        {
+            var info = Info;
+            if (!info.twoTarget) return false;
+            Pawn pawn = ability.pawn;
+            Map map = pawn.Map;
+            float min = ability.def.minRange;
+            if (min > 0f && cell.DistanceTo(pawn.Position) <= min) return false;
+            var tp = info.destParams;
+            if (tp != null && !(tp.canTargetLocations && tp.CanTarget(new TargetInfo(cell, map)))) return false;
+            var at = new LocalTargetInfo(cell);
+            var exts = ability.AbilityModExtensions;
+            for (int i = 0; i < exts.Count; i++)
+                if (!exts[i].CanApplyOn(at, ability, false) || !exts[i].ValidateTarget(at, ability, false)) return false;
+            return true;
+        }
+
         public override Job MakeCastJob(LocalTargetInfo target, LocalTargetInfo dest)
         {
             Pawn pawn = ability.pawn;
             // VEF starts its own cast job with the def's keepCarryingThing; a think-tree job can't carry that
             // override, so the caster would drop what it holds
             if (ability.def.keepCarryingThing == true && pawn.carryTracker?.CarriedThing != null) return null;
-            var targets = new[] { target.ToGlobalTargetInfo(pawn.Map) };
+            GlobalTargetInfo[] targets;
+            if (Info.twoTarget)
+            {
+                // A worker other than Skip passes the target as its own destination: a cast that moves nothing
+                if (!dest.IsValid || dest.Cell == target.Cell) return null;
+                targets = new[] { target.ToGlobalTargetInfo(pawn.Map), dest.ToGlobalTargetInfo(pawn.Map) };
+            }
+            else targets = new[] { target.ToGlobalTargetInfo(pawn.Map) };
             var exts = ability.AbilityModExtensions;
             for (int i = 0; i < exts.Count; i++)
                 if (!exts[i].Valid(targets, ability, false)) return null;

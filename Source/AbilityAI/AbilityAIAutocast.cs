@@ -322,14 +322,26 @@ namespace AbilityAI
             return v != null && v.range <= 0f && v.targetable && def.targetRequired;
         }
 
-        internal static string Label(AbilityAIAutocastMode mode, AbilityDef def) => Label(mode, IsTouch(def));
+        // A Movement rule (Power Leap, Blink, Shadowskip, Ghostwalk) moves the caster in the in-place mode too: drafted
+        // autocast runs every worker while holding position, gap-close and escape included. "Stationary" would promise
+        // the pawn stays put, so these get the plain "Autocast" label that touch abilities have.
+        private static bool MovesCaster(Def def)
+        {
+            var exts = def.modExtensions;
+            if (exts == null) return false;
+            for (int i = 0; i < exts.Count; i++)
+                if (exts[i] is AbilityAIExtension ext && ext.Worker is AbilityAIWorker_Movement) return true;
+            return false;
+        }
 
-        internal static string Label(AbilityAIAutocastMode mode, bool touch)
+        internal static string Label(AbilityAIAutocastMode mode, AbilityDef def) => Label(mode, def, IsTouch(def));
+
+        internal static string Label(AbilityAIAutocastMode mode, Def def, bool touch)
         {
             switch (mode)
             {
                 case AbilityAIAutocastMode.Stationary:
-                    return touch ? "AAI_Mode_Touch".Translate() : "AAI_Mode_Stationary".Translate();
+                    return touch || MovesCaster(def) ? "AAI_Mode_Touch".Translate() : "AAI_Mode_Stationary".Translate();
                 case AbilityAIAutocastMode.Full: return "AAI_Mode_Full".Translate();
                 default: return "AAI_Mode_Off".Translate();
             }
@@ -386,7 +398,7 @@ namespace AbilityAI
             foreach (AbilityAIAutocastMode mode in Modes)
             {
                 if (mode == AbilityAIAutocastMode.Full && !full && current != AbilityAIAutocastMode.Full) continue;
-                string label = Label(mode, touch);
+                string label = Label(mode, def, touch);
                 if (mode == current) label = "AAI_Mode_Current".Translate(label);
                 AbilityAIAutocastMode m = mode;
                 options.Add(new FloatMenuOption(label, () =>

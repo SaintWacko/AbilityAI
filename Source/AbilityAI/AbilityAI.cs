@@ -595,7 +595,8 @@ namespace AbilityAI
 
         public const int RecentTicks = 600;
 
-        /// <summary>Has a hostile target, or attacked or was hurt in the last 10 seconds.</summary>
+        /// <summary>Has a hostile target, or attacked or was hurt in the last 10 seconds, or is drafted or waiting
+        /// out a fight with enemies on the map.</summary>
         public bool InCombat
         {
             get
@@ -604,8 +605,12 @@ namespace AbilityAI
                 {
                     var mind = pawn.mindState;
                     // A drafted pawn is in a fighting stance: any threat on the map counts, so it can act before
-                    // the first shot
-                    inCombat = (drafted && Enemies.Count > 0) || EnemyTarget != null
+                    // the first shot. So is one on a combat wait (vanilla's when a raider can't reach anyone, CAI's
+                    // behind cover) or on CAI's walk to cover: it is neither targeting nor being hurt, but it is in
+                    // the fight.
+                    JobDef job = pawn.CurJobDef;
+                    bool holding = drafted || job == JobDefOf.Wait_Combat || AbilityAICombatAI.IsCoverJob(job);
+                    inCombat = (holding && Enemies.Count > 0) || EnemyTarget != null
                         || (mind != null && (tick - mind.lastHarmTick < RecentTicks || tick - mind.lastAttackTargetTick < RecentTicks
                             || (mind.lastRangedHarmTick > 0 && tick - mind.lastRangedHarmTick < RecentTicks)));
                     combatKnown = true;
@@ -1539,6 +1544,7 @@ namespace AbilityAI
                         Log.Message($"[Ability AI] {pawn.LabelShort} casts {a.Label} ({worker.GetType().Name}) on {target}");
                     exclusiveDef = null;
                     AbilityAIHooks.NotifyCast(pawn, a, target, dest);
+                    AbilityAICombatAI.HoldForCast(pawn, a, target);
                     if (player) QueueAfterCast(pawn, state);
                     return cast;
                 }

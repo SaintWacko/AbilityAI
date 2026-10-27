@@ -40,11 +40,15 @@ namespace AbilityAI
         // CheckHold puts the stamp back when the job ends, but a pawn whose constant tree isn't checked (despawned
         // into a transporter, say) keeps it: no longer for a walk than CAI's own longest pause
         private const int MaxWalkTicks = 240;
+        // The same for a channel (below), long enough for a Frost Ray at high psychic sensitivity
+        private const int MaxChannelTicks = 600;
 
         private struct Hold
         {
             public object data;
             public int jobId, previous, stamp;
+            public bool afterCast;
+            public Stance channel;
         }
 
         // Only while a cast is running: empty almost all the time
@@ -129,6 +133,29 @@ namespace AbilityAI
             if (!holds.TryGetValue(pawn, out var hold)) return;
             Job cur = pawn.CurJob;
             if (cur != null && cur.loadID == hold.jobId) return;
+            // A channel: an ability that keeps its caster standing for its effect once the cast job is over (VPE's
+            // Frost Ray, whose ray stays where it was cast from for 4 s). CAI's cover job cancels busy stances, so the
+            // caster walked off and left the ray behind. Taken only on the first check after the job, so a gun's
+            // later warmup or cooldown is never mistaken for one
+            if (!hold.afterCast)
+            {
+                hold.afterCast = true;
+                if (pawn.stances?.curStance is Stance_Busy busy && !(busy is Stance_Warmup) && !(busy is Stance_Cooldown)
+                    && busy.ticksLeft > 0 && (int)lastInterrupted.GetValue(hold.data) == hold.stamp)
+                {
+                    int stamp = GenTicks.TicksGame + Mathf.Min(busy.ticksLeft, MaxChannelTicks) + MarginTicks
+                        - (int)(ReactionHold * pawn.RaceProps.baseBodySize);
+                    if (stamp > hold.stamp)
+                    {
+                        lastInterrupted.SetValue(hold.data, stamp);
+                        hold.stamp = stamp;
+                    }
+                    hold.channel = busy;
+                    holds[pawn] = hold;
+                    return;
+                }
+            }
+            else if (hold.channel != null && pawn.stances?.curStance == hold.channel) return;
             holds.Remove(pawn);
             if ((int)lastInterrupted.GetValue(hold.data) == hold.stamp) lastInterrupted.SetValue(hold.data, hold.previous);
         }

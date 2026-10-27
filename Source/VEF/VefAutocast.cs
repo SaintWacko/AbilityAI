@@ -75,14 +75,8 @@ namespace AbilityAI.Vef
             foreach (object o in Find.Selector.SelectedObjectsListForReading)
             {
                 if (!(o is Pawn p) || p == clicked.pawn) continue;
-                var list = p.GetComp<CompAbilities>()?.LearnedAbilities;
-                if (list == null) continue;
-                for (int i = 0; i < list.Count; i++)
-                    if (list[i].def == def)
-                    {
-                        if (list[i].ShowGizmoOnPawn() && Owns(list[i])) pawns.Add(p);
-                        break;
-                    }
+                var other = VefAIAbility.FindOn(p, def);
+                if (other != null && other.ShowGizmoOnPawn() && Owns(other)) pawns.Add(p);
             }
             AbilityAIAutocast.OpenMenu(clicked.pawn, def, VefAIAbility.Of(clicked).IsTouch, pawns, command.LabelCap);
         }

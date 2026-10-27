@@ -21,7 +21,9 @@ using Verse.AI.Group;
 // - AbilityAIInfo.Register, which tells the workers the radius / hediff / stun of a host's own effect comp. The
 //   IAbilityAIInfo interface still works for a mod that hard-depends on this one, but a soft-dependent host can't
 //   put it on its own comp class (the whole host DLL would fail to load without this mod);
-// - AbilityAIExtension on its AbilityDefs, added by PatchOperationAddModExtension from the gated folder.
+// - AbilityAIExtension on its AbilityDefs, added by PatchOperationAddModExtension from the gated folder;
+// - for abilities of another system kept on items (Entad's VEF psycasts on gear), AIHeldAbilities.Register to hand
+//   them out and AbilityAIHooks.RegisterVote to claim or veto them, both typed object so the host names no VEF type.
 // The settings are this mod's own (AbilityAIMod.cs).
 //
 // Vanilla stand-down (Patch_Ability_AICanTargetNow_StandDown): a host may leave aiCanUse on so its abilities still get
@@ -58,10 +60,40 @@ namespace AbilityAI
     public static class AbilityAIHooks
     {
         private static readonly List<IAbilityAIHook> hooks = new List<IAbilityAIHook>();
+        private static readonly List<Func<Pawn, object, AbilityAIVote>> votes = new List<Func<Pawn, object, AbilityAIVote>>();
 
         public static void Register(IAbilityAIHook hook)
         {
             if (hook != null && !hooks.Contains(hook)) hooks.Add(hook);
+        }
+
+        /// <summary>A say over abilities of other systems than vanilla's (VEF's), the way IAbilityAIHook.Vote has one
+        /// over vanilla's: asked with the ability's own object (AIAbility.Raw), which a host that never names that
+        /// system's types can still compare with the objects it handed out (AIHeldAbilities). Same meaning: any Veto
+        /// wins; Claim lets an NPC cast it without the Unclaimed setting; on the player's own pawns only Veto counts.
+        /// Vanilla abilities are not asked here.</summary>
+        public static void RegisterVote(Func<Pawn, object, AbilityAIVote> vote)
+        {
+            if (vote != null && !votes.Contains(vote)) votes.Add(vote);
+        }
+
+        // Veto, else Claim if any voter claims, else NoOpinion
+        private static AbilityAIVote VoteRaw(Pawn pawn, object raw)
+        {
+            var result = AbilityAIVote.NoOpinion;
+            for (int i = 0; i < votes.Count; i++)
+            {
+                AbilityAIVote v;
+                try { v = votes[i](pawn, raw); }
+                catch (Exception e)
+                {
+                    Log.ErrorOnce($"[Ability AI] vote {votes[i].Method.DeclaringType?.FullName}.{votes[i].Method.Name} threw: {e}", votes[i].Method.GetHashCode() ^ 0x5A3);
+                    continue;
+                }
+                if (v == AbilityAIVote.Veto) return v;
+                if (v == AbilityAIVote.Claim) result = v;
+            }
+            return result;
         }
 
         // Any veto wins; otherwise a claim, or the "unclaimed abilities" setting, lets it through
@@ -100,12 +132,20 @@ namespace AbilityAI
             return true;
         }
 
-        // Hooks vote on vanilla abilities only (their API takes one): any other kind goes by the Unclaimed setting for
-        // NPCs and is never vetoed for the player's pawns
-        internal static bool Allowed(Pawn pawn, AIAbility ability) =>
-            ability.Vanilla != null ? Allowed(pawn, ability.Vanilla) : AbilityAISettings.Unclaimed;
+        // Hooks vote on vanilla abilities (their API takes one), the RegisterVote voters on every other kind
+        internal static bool Allowed(Pawn pawn, AIAbility ability)
+        {
+            if (ability.Vanilla != null) return Allowed(pawn, ability.Vanilla);
+            if (votes.Count == 0) return AbilityAISettings.Unclaimed;
+            var v = VoteRaw(pawn, ability.Raw);
+            return v == AbilityAIVote.Claim || (v == AbilityAIVote.NoOpinion && AbilityAISettings.Unclaimed);
+        }
 
-        internal static bool NotVetoed(Pawn pawn, AIAbility ability) => ability.Vanilla == null || NotVetoed(pawn, ability.Vanilla);
+        internal static bool NotVetoed(Pawn pawn, AIAbility ability)
+        {
+            if (ability.Vanilla != null) return NotVetoed(pawn, ability.Vanilla);
+            return votes.Count == 0 || VoteRaw(pawn, ability.Raw) != AbilityAIVote.Veto;
+        }
 
         internal static void NotifyCast(Pawn pawn, AIAbility ability, LocalTargetInfo target, LocalTargetInfo dest)
         {

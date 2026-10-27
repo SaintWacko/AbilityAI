@@ -221,6 +221,62 @@ namespace AbilityAI
         }
     }
 
+    /// <summary>
+    /// Abilities a pawn can cast that its own trackers don't list, because they live on items it wears or wields
+    /// (Entad Framework's gear). Each provider hands out objects of some ability system's own type, already pointed at
+    /// the pawn; each ability source picks out the ones of its type (VEF's: VEF.Abilities.Ability). The core never
+    /// looks inside them. Nothing here is saved: the objects belong to the items, and the AI keys everything by def.
+    /// A provider that throws is dropped for the session, as an ability source is.
+    /// </summary>
+    public static class AIHeldAbilities
+    {
+        private struct Provider
+        {
+            public Func<Pawn, bool> hasAny;
+            public Action<Pawn, List<object>> collect;
+        }
+
+        private static readonly List<Provider> providers = new List<Provider>();
+
+        /// <summary>hasAny: whether the pawn holds any such ability, asked whenever its constant think tree has
+        /// nothing to do, so keep it to a few field reads. collect: append them, each pointed at the pawn and ready
+        /// to be asked whether it can cast now.</summary>
+        public static void Register(Func<Pawn, bool> hasAny, Action<Pawn, List<object>> collect)
+        {
+            if (hasAny == null || collect == null) return;
+            for (int i = 0; i < providers.Count; i++) if (providers[i].collect == collect) return;
+            providers.Add(new Provider { hasAny = hasAny, collect = collect });
+        }
+
+        /// <summary>Any provider is registered: an ability source can skip asking with one count read.</summary>
+        public static bool Any => providers.Count > 0;
+
+        public static bool HasAny(Pawn pawn)
+        {
+            for (int i = 0; i < providers.Count; i++)
+            {
+                try { if (providers[i].hasAny(pawn)) return true; }
+                catch (Exception e) { Drop(i--, "hasAny", e); }
+            }
+            return false;
+        }
+
+        public static void Collect(Pawn pawn, List<object> into)
+        {
+            for (int i = 0; i < providers.Count; i++)
+            {
+                try { providers[i].collect(pawn, into); }
+                catch (Exception e) { Drop(i--, "collect", e); }
+            }
+        }
+
+        private static void Drop(int i, string what, Exception e)
+        {
+            Log.Error($"[Ability AI] held-ability provider {providers[i].collect.Method.DeclaringType?.FullName}: {what} threw, so its abilities are left to their own AI from now on: {e}");
+            providers.RemoveAt(i);
+        }
+    }
+
     public sealed class VanillaAIAbility : AIAbility
     {
         public readonly Ability ability;

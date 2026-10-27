@@ -64,6 +64,8 @@ namespace AbilityAI.Vef
         }
 
         private static readonly Dictionary<VefAbilityDef, DefInfo> infos = new Dictionary<VefAbilityDef, DefInfo>();
+        // Defs looked at and not driven: no AbilityAIExtension, or a shape the AI can't target (warned about once)
+        private static readonly HashSet<VefAbilityDef> notDriven = new HashSet<VefAbilityDef>();
         // Defs the AI doesn't cast, read when TryGetRunningCast wraps an enemy's cast of one (the Interrupt worker
         // asks it Hostile)
         private static readonly Dictionary<VefAbilityDef, DefInfo> otherInfos = new Dictionary<VefAbilityDef, DefInfo>();
@@ -78,7 +80,38 @@ namespace AbilityAI.Vef
 
         /// <summary>Whether the AI can cast abilities of this def: it has an AbilityAIExtension and a shape the
         /// driver can target (one map target, no confirmation dialog).</summary>
-        public static bool Supported(VefAbilityDef def) => def != null && infos.ContainsKey(def);
+        public static bool Supported(VefAbilityDef def) => def != null && TryGetInfo(def, out _);
+
+        /// <summary>The pawn's ability of this def, learned or held on an item (AIHeldAbilities), or null.</summary>
+        internal static VefAbility FindOn(Pawn pawn, VefAbilityDef def) => VefSource.Find(pawn, def);
+
+        // Init reads every def there is at startup. A def added later is read the first time the AI meets it: Entad
+        // Framework registers its per-trait copies of VPE's defs from its own static constructor, which runs after
+        // this assembly's because Entad loads after Ability AI.
+        private static bool TryGetInfo(VefAbilityDef def, out DefInfo info)
+        {
+            if (infos.TryGetValue(def, out info)) return true;
+            if (notDriven.Contains(def)) return false;
+            Consider(def);
+            return infos.TryGetValue(def, out info);
+        }
+
+        private static void Consider(VefAbilityDef def)
+        {
+            if (def.GetModExtension<AbilityAIExtension>() == null)
+            {
+                notDriven.Add(def);
+                return;
+            }
+            string why = Unsupported(def);
+            if (why != null)
+            {
+                Log.Warning($"[Ability AI] {def.defName} has an AbilityAIExtension, but {why}, so the AI leaves it to VEF.");
+                notDriven.Add(def);
+                return;
+            }
+            infos[def] = MakeInfo(def);
+        }
 
         /// <summary>For a compat assembly built on this one (VPE's): fill in what an ability does from extensions
         /// this assembly doesn't know. Runs after VEF's own readers, once per def, the next time the AI asks.</summary>
@@ -117,17 +150,7 @@ namespace AbilityAI.Vef
 
             var defs = DefDatabase<VefAbilityDef>.AllDefsListForReading;
             for (int i = 0; i < defs.Count; i++)
-            {
-                var def = defs[i];
-                if (def.GetModExtension<AbilityAIExtension>() == null) continue;
-                string why = Unsupported(def);
-                if (why != null)
-                {
-                    Log.Warning($"[Ability AI] {def.defName} has an AbilityAIExtension, but {why}, so the AI leaves it to VEF.");
-                    continue;
-                }
-                infos[def] = MakeInfo(def);
-            }
+                if (!infos.ContainsKey(defs[i]) && !notDriven.Contains(defs[i])) Consider(defs[i]);
         }
 
         private static DefInfo MakeInfo(VefAbilityDef def)
@@ -201,7 +224,7 @@ namespace AbilityAI.Vef
             get
             {
                 var def = ability.def;
-                if (infos.TryGetValue(def, out var info)) return info;
+                if (TryGetInfo(def, out var info)) return info;
                 if (!otherInfos.TryGetValue(def, out info)) otherInfos[def] = info = MakeInfo(def);
                 return info;
             }
@@ -216,7 +239,7 @@ namespace AbilityAI.Vef
             get
             {
                 Pawn pawn = ability.pawn;
-                if (pawn?.Map == null || ability.verb == null || !infos.ContainsKey(ability.def)) return false;
+                if (pawn?.Map == null || ability.verb == null || !TryGetInfo(ability.def, out _)) return false;
                 // MakeCastJob would refuse it (see there): don't pay for the target search first
                 if (ability.def.keepCarryingThing == true && pawn.carryTracker?.CarriedThing != null) return false;
                 return EnabledForPawn();
@@ -252,7 +275,7 @@ namespace AbilityAI.Vef
             {
                 Pawn pawn = ability.pawn;
                 if (pawn?.Map == null || ability.verb == null) return "not on a map";
-                if (!infos.ContainsKey(ability.def)) return "its shape isn't supported";
+                if (!TryGetInfo(ability.def, out _)) return "its shape isn't supported";
                 if (ability.def.keepCarryingThing == true && pawn.carryTracker?.CarriedThing != null) return "carrying something";
                 int left = ability.cooldown - Find.TickManager.TicksGame;
                 if (left > 0) return $"on cooldown ({left / 60f:0.#} s)";
@@ -265,7 +288,7 @@ namespace AbilityAI.Vef
             }
         }
 
-        public override bool Drivable => infos.ContainsKey(ability.def);
+        public override bool Drivable => TryGetInfo(ability.def, out _);
 
         public override bool IsTouch => Info.touch;
 
@@ -451,12 +474,18 @@ namespace AbilityAI.Vef
             return e;
         }
 
+        // VEF abilities kept on items (AIHeldAbilities) are cast through the holder's CompAbilities like learned ones:
+        // the cast job reads currentlyCasting there, which is also how TryGetRunningCast sees them. They are never
+        // added to LearnedAbilities, which would save them on the pawn as well as on the item.
         private sealed class VefSource : IAIAbilitySource
         {
+            private static readonly List<object> held = new List<object>();
+
             public bool HasAny(Pawn pawn)
             {
                 var comp = pawn.GetComp<CompAbilities>();
-                return comp != null && comp.LearnedAbilities.Count > 0;
+                if (comp == null) return false;
+                return comp.LearnedAbilities.Count > 0 || (AIHeldAbilities.Any && AIHeldAbilities.HasAny(pawn));
             }
 
             public bool AnyWithExtension(Pawn pawn)
@@ -464,8 +493,16 @@ namespace AbilityAI.Vef
                 var list = pawn.GetComp<CompAbilities>()?.LearnedAbilities;
                 if (list == null) return false;
                 for (int i = 0; i < list.Count; i++)
-                    if (infos.ContainsKey(list[i].def)) return true;
-                return false;
+                    if (TryGetInfo(list[i].def, out _)) return true;
+                if (!AIHeldAbilities.Any || !AIHeldAbilities.HasAny(pawn)) return false;
+                try
+                {
+                    AIHeldAbilities.Collect(pawn, held);
+                    for (int i = 0; i < held.Count; i++)
+                        if (held[i] is VefAbility a && TryGetInfo(a.def, out _)) return true;
+                    return false;
+                }
+                finally { held.Clear(); }
             }
 
             public void Collect(Pawn pawn, List<AIAbility> into)
@@ -473,7 +510,33 @@ namespace AbilityAI.Vef
                 var list = pawn.GetComp<CompAbilities>()?.LearnedAbilities;
                 if (list == null) return;
                 for (int i = 0; i < list.Count; i++)
-                    if (infos.ContainsKey(list[i].def)) into.Add(Of(list[i]));
+                    if (TryGetInfo(list[i].def, out _)) into.Add(Of(list[i]));
+                if (!AIHeldAbilities.Any) return;
+                try
+                {
+                    AIHeldAbilities.Collect(pawn, held);
+                    for (int i = 0; i < held.Count; i++)
+                        if (held[i] is VefAbility a && TryGetInfo(a.def, out _)) into.Add(Of(a));
+                }
+                finally { held.Clear(); }
+            }
+
+            /// <summary>The pawn's ability of this def, learned or held, or null.</summary>
+            internal static VefAbility Find(Pawn pawn, VefAbilityDef def)
+            {
+                var list = pawn.GetComp<CompAbilities>()?.LearnedAbilities;
+                if (list == null) return null;
+                for (int i = 0; i < list.Count; i++)
+                    if (list[i].def == def) return list[i];
+                if (!AIHeldAbilities.Any) return null;
+                try
+                {
+                    AIHeldAbilities.Collect(pawn, held);
+                    for (int i = 0; i < held.Count; i++)
+                        if (held[i] is VefAbility a && a.def == def) return a;
+                    return null;
+                }
+                finally { held.Clear(); }
             }
 
             public bool TryGetRunningCast(Pawn pawn, out AIAbility ability, out int warmupTicksLeft)

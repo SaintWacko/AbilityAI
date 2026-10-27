@@ -1544,7 +1544,9 @@ namespace AbilityAI
                         Log.Message($"[Ability AI] {pawn.LabelShort} casts {a.Label} ({worker.GetType().Name}) on {target}");
                     exclusiveDef = null;
                     AbilityAIHooks.NotifyCast(pawn, a, target, dest);
-                    AbilityAICombatAI.HoldForCast(pawn, a, target);
+                    // CAI reads its stamp to tell the player's orders from its own: a stamp in the future would
+                    // make a drafted auto-controlled colonist's next order look like CAI's
+                    if (!player) AbilityAICombatAI.HoldForCast(pawn, a, target);
                     if (player) QueueAfterCast(pawn, state);
                     return cast;
                 }

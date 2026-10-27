@@ -31,6 +31,9 @@ namespace AbilityAI
         private const int ShortestHold = 30;
         // The ability's own cast after the warmup, and the scan that happens to land on that tick
         private const int MarginTicks = 30;
+        // The stamp stays put if the cast is cut short (target dead, caster staggered), leaving the raider without
+        // CAI's cover or retreat until it runs out: no longer for a walk than CAI's own longest pause
+        private const int MaxWalkTicks = 240;
 
         static AbilityAICombatAI()
         {
@@ -54,7 +57,7 @@ namespace AbilityAI
         /// <summary>CAI's cover, duck and retreat walks, which it starts for pawns under fire.</summary>
         internal static bool IsCoverJob(JobDef def) => def != null && (def == gotoCover || def == gotoDuck || def == gotoRetreat);
 
-        /// <summary>Keeps CAI's reactions off this pawn until the cast it is starting has gone off. Never shortens
+        /// <summary>Keeps CAI's reactions off this NPC until the cast it is starting has gone off. Never shortens
         /// a hold CAI set itself. Once per cast, so the reflection costs nothing that matters.</summary>
         internal static void HoldForCast(Pawn pawn, AIAbility ability, LocalTargetInfo target)
         {
@@ -72,7 +75,7 @@ namespace AbilityAI
             int ticks = Mathf.CeilToInt(ability.WarmupSeconds * GenTicks.TicksPerRealSecond) + MarginTicks;
             // A walk-up ability walks to its target before the warmup starts
             if (ability.IsTouch && target.IsValid)
-                ticks += Mathf.CeilToInt(pawn.Position.DistanceTo(target.Cell) * pawn.TicksPerMoveCardinal);
+                ticks += Mathf.Min(MaxWalkTicks, Mathf.CeilToInt(pawn.Position.DistanceTo(target.Cell) * pawn.TicksPerMoveCardinal));
             int stamp = GenTicks.TicksGame + ticks - Mathf.CeilToInt(ShortestHold * pawn.RaceProps.baseBodySize);
             if ((int)lastInterrupted.GetValue(data) < stamp) lastInterrupted.SetValue(data, stamp);
         }

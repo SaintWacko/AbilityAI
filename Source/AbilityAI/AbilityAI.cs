@@ -332,7 +332,8 @@ namespace AbilityAI
         /// <summary>Seconds after an AI cast of this ability before the AI considers it again, on top of its cooldown.</summary>
         public float minGapSeconds;
 
-        /// <summary>Area affected around the target; negative = read it from the effect comps.</summary>
+        /// <summary>Area affected around the target; negative = read it from the effect comps. Cone and beam hostile
+        /// with avoidAllies: how close to the target an ally may not stand.</summary>
         public float radius = -1f;
         /// <summary>Pawns the cast must affect (enemies for hostile workers, allies for friendly ones).</summary>
         public int minTargets = 1;

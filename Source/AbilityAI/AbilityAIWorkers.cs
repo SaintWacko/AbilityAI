@@ -1174,9 +1174,12 @@ namespace AbilityAI
                 if (d > reachSq || d < minSq || at == from) continue;
                 Vector2 dir = Dir(from, at);
                 Shape shape = ShapeFor(length, halfWidth, d);
+                // A beam's width is a margin for allies; only the pawns on the line itself are hit
+                Shape hits = shape;
+                if (Beam) hits.minHalf = LineHalfWidth;
                 int count = 0;
                 for (int j = 0; j < enemies.Count; j++)
-                    if (affected[j] && InCone(from, dir, shape, enemies[j].Position)) count++;
+                    if (affected[j] && InCone(from, dir, hits, enemies[j].Position)) count++;
                 if (count < ext.minTargets) continue;
                 if (AnyInCone(ctx.Friendlies, pawn, from, dir, shape)) continue;
                 if (spareBroken && AnyInCone(ctx.BrokenAllies, pawn, from, dir, shape)) continue;

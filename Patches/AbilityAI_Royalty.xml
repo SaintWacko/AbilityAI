@@ -5,7 +5,7 @@
      Each rule sits in its own PatchOperationConditional on its def, so a psycast another mod removed or renamed
      costs only its own rule: a conditional with no nomatch succeeds when its xpath finds nothing, and the sequence
      goes on to the next one.
-     Left out on purpose: Skip (needs a second target), Beckon, Flashstorm, Neuroquake, manhunter pulse, mass chaos
+     Left out on purpose: Beckon, Flashstorm, Neuroquake, manhunter pulse, mass chaos
      skip, farskip, chunkskip, solar pinhole, neural heat dump and the social Word of psycasts other than serenity.
      approachDistance (how far a ranged NPC, or a player pawn set to "Full Autocast", walks to get a target into
      range) is only on the enemy-targeted rules: their workers are the ones that can pick a target to walk toward.
@@ -250,6 +250,39 @@
                 <priority>5</priority>
                 <maxRange>8</maxRange>
                 <minBreakSeconds>60</minBreakSeconds>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Skip: one rule per use, each behind its own setting. Rescue first (a downed ally next to an enemy is
+             about to die or be carried off), then sending an enemy away from someone who can't fight it off (which
+             keeps the caster in place), then the caster's own escape. Skipping only stuns for a moment, so repel is
+             harmless: with the default setting it may move a berserk pawn of the caster's own faction off a downed
+             friend. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="Skip"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="Skip"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Skip</workerClass>
+                <skipMode>Rescue</skipMode>
+                <priority>7</priority>
+                <healthThreshold>0.4</healthThreshold>
+              </li>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Skip</workerClass>
+                <skipMode>Repel</skipMode>
+                <priority>6</priority>
+                <healthThreshold>0.5</healthThreshold>
+                <harmless>true</harmless>
+              </li>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Skip</workerClass>
+                <skipMode>Escape</skipMode>
+                <priority>5</priority>
+                <healthThreshold>0.35</healthThreshold>
               </li>
             </value>
           </match>

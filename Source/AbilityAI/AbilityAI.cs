@@ -158,6 +158,17 @@ namespace AbilityAI
         Both = GapClose | Escape,
     }
 
+    /// <summary>Skip: what the rule moves, and where to (AbilityAIWorker_Skip).</summary>
+    public enum AbilityAISkipMode : byte
+    {
+        /// <summary>An enemy next to someone of the caster's side who can't hold it off, sent far from that side.</summary>
+        Repel,
+        /// <summary>A downed or badly hurt ally under attack, brought near the caster and out of the line of fire.</summary>
+        Rescue,
+        /// <summary>The caster itself, away from every enemy.</summary>
+        Escape,
+    }
+
     /// <summary>What the caster must be fighting with for a rule to apply (Blade Focus: melee).</summary>
     public enum AbilityAIRequires
     {
@@ -295,6 +306,8 @@ namespace AbilityAI
         public HediffDef hediff;
         /// <summary>Movement: which situations to move in.</summary>
         public AbilityAIMoveModes modes = AbilityAIMoveModes.Both;
+        /// <summary>Skip: which use this rule is. One rule per use; each has its own setting.</summary>
+        public AbilityAISkipMode skipMode;
         /// <summary>Movement gap-close: don't bother below this distance to the enemy.</summary>
         public float minGapDistance = 6f;
         /// <summary>Cover: how far from the caster toward the threat to place the cover; 0 = on the caster.</summary>
@@ -1812,6 +1825,20 @@ namespace AbilityAI
         public const float DefaultMinGapSeconds = 2.5f;
         public static float MinGapSeconds = DefaultMinGapSeconds;
         public static bool DebugLog;
+        /// <summary>Which uses of Skip any caster may make (AbilityAIWorker_Skip).</summary>
+        public static bool SkipRepel = true;
+        public static bool SkipRescue = true;
+        public static bool SkipEscape = true;
+
+        public static bool SkipAllowed(AbilityAISkipMode mode)
+        {
+            switch (mode)
+            {
+                case AbilityAISkipMode.Repel: return SkipRepel;
+                case AbilityAISkipMode.Rescue: return SkipRescue;
+                default: return SkipEscape;
+            }
+        }
 
         /// <summary>The settings page's tabs, in the order they are drawn.</summary>
         public enum Tab : byte
@@ -1837,6 +1864,7 @@ namespace AbilityAI
                 case Tab.General:
                     Enabled = VanillaStandDown = true;
                     MinGapSeconds = DefaultMinGapSeconds;
+                    SkipRepel = SkipRescue = SkipEscape = true;
                     DebugLog = false;
                     break;
                 case Tab.OtherFactions:
@@ -1887,6 +1915,9 @@ namespace AbilityAI
             Scribe_Values.Look(ref BrokenAllies, "abilityAI_brokenAllies", DefaultBrokenAllies);
             Scribe_Values.Look(ref MinGapSeconds, "abilityAI_minGapSeconds", DefaultMinGapSeconds);
             MinGapSeconds = Mathf.Clamp(MinGapSeconds, 0f, 30f);
+            Scribe_Values.Look(ref SkipRepel, "abilityAI_skipRepel", true);
+            Scribe_Values.Look(ref SkipRescue, "abilityAI_skipRescue", true);
+            Scribe_Values.Look(ref SkipEscape, "abilityAI_skipEscape", true);
             Scribe_Values.Look(ref DebugLog, "abilityAI_debugLog", false);
         }
 
@@ -1943,6 +1974,15 @@ namespace AbilityAI
             list.Label("AAI_MinGap".Translate(MinGapSeconds.ToString("0.#")));
             MinGapSeconds = Mathf.Round(list.Slider(MinGapSeconds, 0f, 30f) * 2f) / 2f;
             Hint(list, "AAI_MinGap_Desc");
+            // Only Royalty's Skip has rules for this worker
+            if (ModsConfig.RoyaltyActive)
+            {
+                Section(list, "AAI_Section_Skip");
+                list.CheckboxLabeled("AAI_SkipRepel".Translate(), ref SkipRepel, "AAI_SkipRepel_Tip".Translate());
+                list.CheckboxLabeled("AAI_SkipRescue".Translate(), ref SkipRescue, "AAI_SkipRescue_Tip".Translate());
+                list.CheckboxLabeled("AAI_SkipEscape".Translate(), ref SkipEscape, "AAI_SkipEscape_Tip".Translate());
+                Hint(list, "AAI_Skip_Desc");
+            }
             if (Prefs.DevMode)
             {
                 Section(list, "AAI_Section_Dev");

@@ -94,6 +94,14 @@
   <AAI_Limits_NoFloor>none</AAI_Limits_NoFloor>
   <AAI_MinGap>Least time between one pawn's casts: {0} s</AAI_MinGap>
   <AAI_MinGap_Desc>Stops a pawn with several abilities from using them all in the same moment. Each ability's own cooldown and charges still apply.</AAI_MinGap_Desc>
+  <AAI_Section_Skip>Skip</AAI_Section_Skip>
+  <AAI_SkipRepel>Skip enemies away from allies who can't fight them off</AAI_SkipRepel>
+  <AAI_SkipRepel_Tip>An enemy standing next to a downed or badly hurt ally, or next to someone with a ranged weapon, is skipped far from the caster's side and back toward its own. Never into your home area when the caster is yours or friendly to you. Healthy melee fighters are left to their fight.</AAI_SkipRepel_Tip>
+  <AAI_SkipRescue>Skip downed or badly hurt allies out of danger</AAI_SkipRescue>
+  <AAI_SkipRescue_Tip>A downed ally with an enemy within 10 tiles, or a badly hurt ally being hit or shot at, is skipped to a spot near the caster, away from the enemies and behind cover if there is any. Drafted pawns on their feet and pawns doing something you ordered stay where they are.</AAI_SkipRescue_Tip>
+  <AAI_SkipEscape>Skip the caster away when it is in trouble</AAI_SkipEscape>
+  <AAI_SkipEscape_Tip>When the caster is badly hurt, fleeing, or has a ranged weapon and is caught in melee, it skips itself to the spot furthest from every enemy within reach.</AAI_SkipEscape_Tip>
+  <AAI_Skip_Desc>For every pawn that uses Skip on its own: yours set to autocast it, and other factions' psycasters.</AAI_Skip_Desc>
   <AAI_DebugLog>Log ability AI decisions</AAI_DebugLog>
   <AAI_DebugLog_Tip>Writes a line to the log each time a pawn decides to cast something, naming the rule it used. When a pawn with abilities set up for this mod checks and casts nothing, it also writes why, at most once every 10 seconds per pawn.</AAI_DebugLog_Tip>
   <AAI_Reset>Reset all</AAI_Reset>

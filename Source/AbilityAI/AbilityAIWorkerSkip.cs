@@ -14,8 +14,9 @@ namespace AbilityAI
     /// - Repel: an enemy standing next to someone of the caster's side who can't hold it off (downed, under
     ///   healthThreshold, or a ranged fighter; a healthy brawler is left to it) goes far from that side and toward its
     ///   own, and never into the player's home area when the caster isn't hostile to the player. An enemy carrying
-    ///   someone is left alone, since the carried pawn would go with it. An ally in a hostile break only if it is of
-    ///   the caster's own faction (anyone else's costs goodwill) and MayHitBrokenAllies. Worst threat first: next to
+    ///   someone is left alone, since the carried pawn would go with it, and so is a prisoner breaking out. An ally in a
+    ///   hostile break only if it is of the caster's own faction and MayHitBrokenAllies; for a player caster never a
+    ///   pawn whose home faction isn't hostile to the player (Skip costs 15 goodwill with it). Worst threat first: next to
     ///   a downed ally x3, a hurt one x2.
     /// - Rescue: a pawn of the caster's faction other than the caster, downed with an enemy within 10 tiles, or under
     ///   healthThreshold and hurt in melee or shot at. It goes near the caster, away from the enemies, behind cover
@@ -28,8 +29,8 @@ namespace AbilityAI
     /// it can't pass. The move must be worth it: Repel lands at least 10 tiles from the side, the others gain 4 tiles
     /// on the nearest enemy (Rescue also needs 6 clear).
     /// Cost: Repel a pass over the enemies with up to a adjacency checks each; Rescue a pass over the allies; then for
-    /// each of the best three targets 48 cells (Repel), 32 (Escape) or about 110 (Rescue, with a cover check each)
-    /// times k distance checks, and line of sight for the best six cells.
+    /// each of the best three targets 48 cells (Repel), 32 (Escape) or about 110 (Rescue) times k distance checks,
+    /// a cover check for Rescue's best 12, and line of sight for the best six cells.
     /// </summary>
     public class AbilityAIWorker_Skip : AbilityAIWorker
     {
@@ -42,6 +43,7 @@ namespace AbilityAI
         private const float ScoreCap = 30f;
         private const int MaxTargets = 3;
         private const int MaxCells = 6;
+        private const int CoverChecks = 12;
 
         private static readonly Vector3[] Dirs = MakeDirs(16);
         private static readonly float[] RepelRings = { 1f, 0.7f, 0.45f };
@@ -106,6 +108,14 @@ namespace AbilityAI
 
         private static bool PlayerOrdered(Pawn p) => p.CurJob != null && p.CurJob.playerForced;
 
+        // CompAbilityEffect.Apply's goodwill rule for a player caster, short of the lodger and quest-helper exemptions
+        private static bool CostsGoodwill(Pawn p)
+        {
+            if (p.IsSlaveOfColony) return false;
+            Faction home = p.HomeFaction;
+            return home != null && home != Faction.OfPlayer && !home.HostileTo(Faction.OfPlayer);
+        }
+
         private bool TryRepel(AbilityAIContext ctx, AIAbility ability, CompProperties_EffectWithDest props, float destRange, out Pawn moved, out IntVec3 cell)
         {
             moved = null;
@@ -113,6 +123,7 @@ namespace AbilityAI
             float range = AbilityAIUtility.Range(ability, ext);
             float maxSq = range * range;
             bool mayHitBroken = AbilityAIUtility.MayHitBrokenAllies(ext);
+            bool playerCaster = ctx.pawn.Faction == Faction.OfPlayer;
             var enemies = ctx.Enemies;
             for (int i = 0; i < enemies.Count; i++)
             {
@@ -121,6 +132,10 @@ namespace AbilityAI
                 if (d > maxSq) continue;
                 if (ctx.IsBrokenAlly(e) && (!mayHitBroken || e.Faction != ctx.pawn.Faction)) continue;
                 if (e.carryTracker?.CarriedThing is Pawn) continue;
+                // A prisoner breaking out is hostile without a mental state; sending it far from the colonists is
+                // sending it on its way
+                if (e.IsPrisoner) continue;
+                if (playerCaster && CostsGoodwill(e)) continue;
                 if (!AbilityAIUtility.WouldAffect(ability, ext, e)) continue;
                 float threat = ThreatTo(ctx, e);
                 if (threat <= 0f) continue;
@@ -240,16 +255,25 @@ namespace AbilityAI
             for (int i = 0; i < Dirs.Length; i++)
                 for (int s = 0; s < Rings.Length; s++)
                     AddRescueSpot(ctx, origin, destRange, Ring(origin, Dirs[i], destRange * Rings[s] - 0.5f), need);
+            // Cover reads the cells around each spot, so only the best few by distance pay for it
+            spots.Sort((a, b) => b.score.CompareTo(a.score));
+            if (spots.Count > CoverChecks) spots.RemoveRange(CoverChecks, spots.Count - CoverChecks);
+            for (int i = 0; i < spots.Count; i++)
+            {
+                var s = spots[i];
+                Pawn nearest = NearestOf(enemies, s.cell, out _);
+                s.score += 8f * CoverUtility.CalculateOverallBlockChance(s.cell, nearest.Position, ctx.map);
+                spots[i] = s;
+            }
             return BestDest(ctx, props, p, origin, out result);
         }
 
         private static void AddRescueSpot(AbilityAIContext ctx, IntVec3 origin, float destRange, IntVec3 c, float need)
         {
             if (c == origin || !CellOk(ctx, origin, destRange, c)) return;
-            Pawn nearest = NearestOf(ctx.Enemies, c, out float clear);
-            if (nearest == null || clear < need) return;
-            float cover = CoverUtility.CalculateOverallBlockChance(c, nearest.Position, ctx.map);
-            float score = Mathf.Min(clear, ScoreCap) + 8f * cover - 0.5f * (c - ctx.pawn.Position).LengthHorizontal;
+            float clear = MinDist(ctx.Enemies, c, null);
+            if (clear < need) return;
+            float score = Mathf.Min(clear, ScoreCap) - 0.5f * (c - ctx.pawn.Position).LengthHorizontal;
             spots.Add(new Spot { cell = c, score = score });
         }
 

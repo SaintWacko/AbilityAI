@@ -87,7 +87,9 @@ namespace AbilityAI
                 try { v = votes[i](pawn, raw); }
                 catch (Exception e)
                 {
-                    Log.ErrorOnce($"[Ability AI] vote {votes[i].Method.DeclaringType?.FullName}.{votes[i].Method.Name} threw: {e}", votes[i].Method.GetHashCode() ^ 0x5A3);
+                    // Asked on every gizmo draw and casting check: one that throws once would throw every time
+                    Log.Error($"[Ability AI] vote {votes[i].Method.DeclaringType?.FullName}.{votes[i].Method.Name} threw, so it is no longer asked: {e}");
+                    votes.RemoveAt(i--);
                     continue;
                 }
                 if (v == AbilityAIVote.Veto) return v;

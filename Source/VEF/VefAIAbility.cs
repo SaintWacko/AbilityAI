@@ -494,15 +494,9 @@ namespace AbilityAI.Vef
                 if (list == null) return false;
                 for (int i = 0; i < list.Count; i++)
                     if (TryGetInfo(list[i].def, out _)) return true;
-                if (!AIHeldAbilities.Any || !AIHeldAbilities.HasAny(pawn)) return false;
-                try
-                {
-                    AIHeldAbilities.Collect(pawn, held);
-                    for (int i = 0; i < held.Count; i++)
-                        if (held[i] is VefAbility a && TryGetInfo(a.def, out _)) return true;
-                    return false;
-                }
-                finally { held.Clear(); }
+                // Asked before the per-pawn interval, so held abilities aren't collected here (a provider's collect
+                // does more than a lookup: Entad re-points and refreshes each one); Collect sorts out the driven ones
+                return AIHeldAbilities.Any && AIHeldAbilities.HasAny(pawn);
             }
 
             public void Collect(Pawn pawn, List<AIAbility> into)

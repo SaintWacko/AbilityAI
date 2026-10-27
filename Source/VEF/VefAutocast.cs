@@ -94,6 +94,9 @@ namespace AbilityAI.Vef
                 if (AbilityAISettings.ShowMarker && AutocastMarker.Offers(VefAIAbility.Of(ability))) AutocastMarker.Draw(button, shrunk, true);
                 return;
             }
+            // Modes are kept per def, so a mode set on one item's ability would otherwise badge another item's copy
+            // of the def that a host vetoes (Entad: a trait not identified yet, whose badge would give it away)
+            if (!AbilityAIHooks.NotVetoed(p, VefAIAbility.Of(ability))) return;
             Patch_CommandAbility_Autocast.DrawBadge(button, mode, shrunk, true);
         }
     }

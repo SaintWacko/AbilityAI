@@ -622,8 +622,9 @@ namespace AbilityAI
     /// maxRange (default 40; a targeted ability also needs it in reach); a targeted ability lands next to it.
     /// Escape: health under healthThreshold, fleeing, or a ranged pawn caught in melee, with an enemy within 12 tiles;
     /// a targeted ability tries 16 directions at full and 60% range for the cell furthest from every enemy, and only
-    /// goes if that gains at least 4 tiles. A targeted ability's cells can be limited to dark ones (cellMaxLight), and
-    /// gap-closing to a target the caster can't see (gapCloseOutOfSight: one sight line, O(distance)).
+    /// goes if that gains at least 4 tiles. A targeted ability's cells can be limited to dark ones (cellMaxLight).
+    /// Any rule's gap-close can be limited to a target the caster can't see (gapCloseOutOfSight: one sight line,
+    /// O(distance)); an NPC's own target is in sight when it is picked, so that mostly means a player's melee order.
     /// Cost: escape is 32 × k distance checks, then up to 6 validations;
     /// gap-close with a targeted ability up to 8 validations, only while the enemy is within its reach.
     /// </summary>

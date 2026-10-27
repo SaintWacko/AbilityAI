@@ -430,7 +430,8 @@ namespace AbilityAI
         /// <summary>Hostile area and cone workers: not when a building of the caster's side, or of a faction not
         /// hostile to it, is inside (incendiaries cast by visitors near the player's base).</summary>
         public bool avoidBuildings;
-        /// <summary>Cone hostile: width at the far end of the cone; negative = read it from the effects, else 1 (a line).</summary>
+        /// <summary>Cone hostile: width at the far end of the cone; Beam hostile: width all along the beam (at least 1.5).
+        /// Negative = read it from the effects, else 1 (a line).</summary>
         public float coneWidth = -1f;
         /// <summary>Changes to this rule for every caster that isn't the player's own pawn.</summary>
         public AbilityAIOverride npc;

@@ -585,19 +585,21 @@
           </match>
         </li>
 
-        <!-- Frost ray: the caster stands still about 4 s while it cuts and freezes along the ray; not with one of ours
-             within 3 tiles of the target -->
+        <!-- Frost ray: the caster stands still about 4 s while it cuts and freezes every pawn on the ray from the caster
+             to the aimed cell. Aimed along a line with no one of ours on it or beside it (2.5 wide, for pawns that
+             step in while it lasts) and none within 3 tiles of the target; the enemies on the ray are counted. -->
         <li Class="PatchOperationConditional">
           <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_FrostRay"]</xpath>
           <match Class="PatchOperationAddModExtension">
             <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_FrostRay"]</xpath>
             <value>
               <li Class="AbilityAI.AbilityAIExtension">
-                <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
+                <workerClass>AbilityAI.AbilityAIWorker_BeamHostile</workerClass>
                 <priority>3</priority>
                 <approachDistance>4</approachDistance>
                 <avoidAllies>true</avoidAllies>
                 <radius>3</radius>
+                <coneWidth>2.5</coneWidth>
               </li>
             </value>
           </match>

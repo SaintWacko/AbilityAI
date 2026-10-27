@@ -1056,19 +1056,28 @@ namespace AbilityAI
     /// an aim, scored by the affectable enemies inside (WouldAffect), at least minTargets. An aim with anyone on the
     /// caster's side inside (Friendlies, and spared allies in a hostile break) is always dropped, and with
     /// avoidBuildings one with a friendly building inside. Walls are ignored, so an ally behind one still blocks. The
-    /// best five are validated. Approach: the same aims out to the length + approachDistance.
+    /// best five are validated. Approach: the same aims out to the length + approachDistance. With avoidAllies and a
+    /// radius, an aim with anyone of the caster's side (allyKinds) within that radius of it is dropped too: someone
+    /// fighting the target may step into the shape before the effect is over.
     /// Cost: k WouldAffect checks and k² point tests, k×a for the allies; with avoidBuildings a pass over the cells
     /// of the cone's bounding box for each of the five.
     /// </summary>
     public class AbilityAIWorker_ConeHostile : AbilityAIWorker
     {
         public override bool TargetsEnemies => true;
-        private struct Aim { public Pawn pawn; public int count; public float distSq; }
+        // along: how far the shape reaches; lateral half width = max(minHalf, distance along the axis × tanHalf)
+        private struct Shape { public float length, tanHalf, minHalf; }
+        private struct Aim { public Pawn pawn; public int count; public float distSq; public Shape shape; }
         private static readonly List<Aim> aims = new List<Aim>();
         private static readonly List<bool> affected = new List<bool>();
         private const int MaxTries = 5;
         // Cells on the line to the cone's end count whatever the width (vanilla adds the Bresenham line)
         private const float LineHalfWidth = 0.75f;
+        // A beam is drawn to the aimed cell's centre; half a cell past it covers the cell itself
+        private const float BeamSlack = 0.5f;
+
+        /// <summary>The shape ends at the aimed cell and has the same width all along (BeamHostile).</summary>
+        protected virtual bool Beam => false;
 
         public override bool TryFindTarget(AbilityAIContext ctx, AIAbility ability, out LocalTargetInfo target, out LocalTargetInfo dest)
         {
@@ -1078,7 +1087,7 @@ namespace AbilityAI
             if (!Score(ctx, ability, length, halfWidth, AimReach(length))) return false;
             for (int i = 0; i < aims.Count && i < MaxTries; i++)
             {
-                if (ext.avoidBuildings && FriendlyBuildingInCone(ctx, aims[i].pawn.Position, length, halfWidth)) continue;
+                if (ext.avoidBuildings && FriendlyBuildingInCone(ctx, aims[i].pawn.Position, aims[i].shape)) continue;
                 target = AbilityAIUtility.PawnOrCell(ability, aims[i].pawn);
                 if (target.IsValid) break;
             }
@@ -1116,15 +1125,21 @@ namespace AbilityAI
             return (ext.coneWidth >= 0f ? ext.coneWidth : e.cone ? e.coneWidth : 1f) / 2f;
         }
 
-        // Inside the cone from the caster's cell toward aim: within its length, ahead of the caster, and no further
-        // from the axis than the cone's width there
-        private static bool InCone(IntVec3 from, Vector2 dir, float length, float tanHalf, IntVec3 c)
+        private Shape ShapeFor(float coneLength, float halfWidth, float aimDistSq)
+        {
+            if (Beam) return new Shape { length = Mathf.Sqrt(aimDistSq) + BeamSlack, tanHalf = 0f, minHalf = Mathf.Max(LineHalfWidth, halfWidth) };
+            return new Shape { length = coneLength, tanHalf = halfWidth / coneLength, minHalf = LineHalfWidth };
+        }
+
+        // Inside the shape from the caster's cell toward aim: within its length, ahead of the caster, and no further
+        // from the axis than its width there
+        private static bool InCone(IntVec3 from, Vector2 dir, in Shape s, IntVec3 c)
         {
             float vx = c.x - from.x, vz = c.z - from.z;
             float along = vx * dir.x + vz * dir.y;
-            if (along <= 0f || vx * vx + vz * vz > length * length) return false;
+            if (along <= 0f || vx * vx + vz * vz > s.length * s.length) return false;
             float lateral = Mathf.Abs(vx * dir.y - vz * dir.x);
-            return lateral <= Mathf.Max(LineHalfWidth, along * tanHalf);
+            return lateral <= Mathf.Max(s.minHalf, along * s.tanHalf);
         }
 
         private static Vector2 Dir(IntVec3 from, IntVec3 to) => new Vector2(to.x - from.x, to.z - from.z).normalized;
@@ -1149,8 +1164,8 @@ namespace AbilityAI
 
             Pawn pawn = ctx.pawn;
             IntVec3 from = pawn.Position;
-            float tanHalf = halfWidth / length;
             float reachSq = reach * reach, minSq = ext.minRange * ext.minRange;
+            float nearAimSq = ext.avoidAllies && ext.radius > 0f ? ext.radius * ext.radius : -1f;
             for (int i = 0; i < enemies.Count; i++)
             {
                 if (!affected[i]) continue;
@@ -1158,32 +1173,34 @@ namespace AbilityAI
                 float d = (at - from).LengthHorizontalSquared;
                 if (d > reachSq || d < minSq || at == from) continue;
                 Vector2 dir = Dir(from, at);
+                Shape shape = ShapeFor(length, halfWidth, d);
                 int count = 0;
                 for (int j = 0; j < enemies.Count; j++)
-                    if (affected[j] && InCone(from, dir, length, tanHalf, enemies[j].Position)) count++;
+                    if (affected[j] && InCone(from, dir, shape, enemies[j].Position)) count++;
                 if (count < ext.minTargets) continue;
-                if (AnyInCone(ctx.Friendlies, pawn, from, dir, length, tanHalf)) continue;
-                if (spareBroken && AnyInCone(ctx.BrokenAllies, pawn, from, dir, length, tanHalf)) continue;
-                aims.Add(new Aim { pawn = enemies[i], count = count, distSq = d });
+                if (AnyInCone(ctx.Friendlies, pawn, from, dir, shape)) continue;
+                if (spareBroken && AnyInCone(ctx.BrokenAllies, pawn, from, dir, shape)) continue;
+                if (nearAimSq > 0f && AbilityAIUtility.AllyWithin(ctx, ext, at, nearAimSq, spareBroken, true)) continue;
+                aims.Add(new Aim { pawn = enemies[i], count = count, distSq = d, shape = shape });
             }
             aims.Sort((a, b) => a.count != b.count ? b.count.CompareTo(a.count) : a.distSq.CompareTo(b.distSq));
             return aims.Count > 0;
         }
 
-        private static bool AnyInCone(List<Pawn> pawns, Pawn caster, IntVec3 from, Vector2 dir, float length, float tanHalf)
+        private static bool AnyInCone(List<Pawn> pawns, Pawn caster, IntVec3 from, Vector2 dir, in Shape s)
         {
             for (int i = 0; i < pawns.Count; i++)
-                if (pawns[i] != caster && InCone(from, dir, length, tanHalf, pawns[i].Position)) return true;
+                if (pawns[i] != caster && InCone(from, dir, s, pawns[i].Position)) return true;
             return false;
         }
 
         // Only the cells of the cone's bounding box: a long thin line would otherwise scan the whole disc of its length
-        private static bool FriendlyBuildingInCone(AbilityAIContext ctx, IntVec3 aim, float length, float halfWidth)
+        private static bool FriendlyBuildingInCone(AbilityAIContext ctx, IntVec3 aim, in Shape s)
         {
             IntVec3 from = ctx.pawn.Position;
             Vector2 dir = Dir(from, aim);
-            float tanHalf = halfWidth / length;
-            float side = Mathf.Max(LineHalfWidth, halfWidth);
+            float length = s.length;
+            float side = Mathf.Max(s.minHalf, length * s.tanHalf);
             float ex = from.x + dir.x * length, ez = from.z + dir.y * length;
             float px = -dir.y * side, pz = dir.x * side;
             int minX = Mathf.FloorToInt(Mathf.Min(from.x, Mathf.Min(ex + px, ex - px))) - 1;
@@ -1192,8 +1209,20 @@ namespace AbilityAI
             int maxZ = Mathf.CeilToInt(Mathf.Max(from.z, Mathf.Max(ez + pz, ez - pz))) + 1;
             var rect = CellRect.FromLimits(minX, minZ, maxX, maxZ).ClipInsideMap(ctx.map);
             foreach (IntVec3 c in rect)
-                if (InCone(from, dir, length, tanHalf, c) && AbilityAIUtility.FriendlyBuildingAt(ctx, c)) return true;
+                if (InCone(from, dir, s, c) && AbilityAIUtility.FriendlyBuildingAt(ctx, c)) return true;
             return false;
         }
+    }
+
+    /// <summary>
+    /// Beam hostile: a straight beam from the caster to the aimed cell that hurts everyone on it, held for a while
+    /// (VPE's Frost Ray). Cone hostile's rules with the shape ending at the aim and coneWidth (else 1) as its width
+    /// all along, never under 1.5: an ally anywhere on the way, or beside it, drops the aim, not only one near the
+    /// target. A pawn crossing the beam later is hit too, so give the rule a coneWidth wider than the beam and, with
+    /// avoidAllies, a radius for allies around the target. The enemies counted are the ones on the beam.
+    /// </summary>
+    public class AbilityAIWorker_BeamHostile : AbilityAIWorker_ConeHostile
+    {
+        protected override bool Beam => true;
     }
 }

@@ -756,8 +756,9 @@
         </li>
 
         <!-- Ghostwalk: the caster walks through walls for 12 seconds (times psychic sensitivity). A movement psycast
-             like Power Leap: a melee caster closing on its target 6 tiles or more away, or a caster getting away (hurt,
-             fleeing, or a shooter in melee). 55% psyfocus, so below Power Leap. -->
+             like Power Leap: a melee caster closing on a target 6 tiles or more away that it can't see (so with a wall
+             in between), or a caster getting away (hurt, fleeing, or a shooter in melee). 55% psyfocus, so below Power
+             Leap. -->
         <li Class="PatchOperationConditional">
           <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Ghostwalk"]</xpath>
           <match Class="PatchOperationAddModExtension">
@@ -766,6 +767,7 @@
               <li Class="AbilityAI.AbilityAIExtension">
                 <workerClass>AbilityAI.AbilityAIWorker_Movement</workerClass>
                 <priority>3</priority>
+                <gapCloseOutOfSight>true</gapCloseOutOfSight>
               </li>
             </value>
           </match>
@@ -1047,9 +1049,10 @@
           </match>
         </li>
 
-        <!-- Skip: the same three uses as Royalty's Skip (see AbilityAI_Royalty.xml), with VPE's destination rule:
-             within range of the caster, and in its sight. Unlike Royalty's, VPE's stuns whoever it moves for 1 to 2
-             seconds: the rescued ally on arrival, and on Escape the caster itself, which by then is well away. -->
+        <!-- Skip: Royalty's Rescue and Repel (see AbilityAI_Royalty.xml), with VPE's destination rule: within range of
+             the caster, and in its sight. Unlike Royalty's, VPE's stuns whoever it moves for 1 to 2 seconds, so it
+             never moves the caster itself (no Escape, and no gap-closing): the rescued ally takes the stun on
+             arrival, out of the fight, and the repelled enemy takes it too. -->
         <li Class="PatchOperationConditional">
           <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Skip"]</xpath>
           <match Class="PatchOperationAddModExtension">
@@ -1067,12 +1070,6 @@
                 <priority>6</priority>
                 <healthThreshold>0.5</healthThreshold>
                 <harmless>true</harmless>
-              </li>
-              <li Class="AbilityAI.AbilityAIExtension">
-                <workerClass>AbilityAI.AbilityAIWorker_Skip</workerClass>
-                <skipMode>Escape</skipMode>
-                <priority>5</priority>
-                <healthThreshold>0.35</healthThreshold>
               </li>
             </value>
           </match>

@@ -622,7 +622,8 @@ namespace AbilityAI
     /// maxRange (default 40; a targeted ability also needs it in reach); a targeted ability lands next to it.
     /// Escape: health under healthThreshold, fleeing, or a ranged pawn caught in melee, with an enemy within 12 tiles;
     /// a targeted ability tries 16 directions at full and 60% range for the cell furthest from every enemy, and only
-    /// goes if that gains at least 4 tiles. A targeted ability's cells can be limited to dark ones (cellMaxLight).
+    /// goes if that gains at least 4 tiles. A targeted ability's cells can be limited to dark ones (cellMaxLight), and
+    /// gap-closing to a target the caster can't see (gapCloseOutOfSight: one sight line, O(distance)).
     /// Cost: escape is 32 × k distance checks, then up to 6 validations;
     /// gap-close with a targeted ability up to 8 validations, only while the enemy is within its reach.
     /// </summary>
@@ -654,6 +655,7 @@ namespace AbilityAI
                 float d = (enemy.Position - ctx.pawn.Position).LengthHorizontal;
                 float reach = ext.maxRange >= 0f ? ext.maxRange : 40f;
                 if (d < ext.minGapDistance || d > reach) return false;
+                if (ext.gapCloseOutOfSight && GenSight.LineOfSight(ctx.pawn.Position, enemy.Position, ctx.map)) return false;
                 if (self) { target = ctx.pawn; return true; }
                 // Even the cell next to the enemy nearest the caster is out of reach: skip the eight validations
                 if (d > AbilityAIUtility.Range(ability, ext) + 1.5f) return false;

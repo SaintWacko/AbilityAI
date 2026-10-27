@@ -419,6 +419,9 @@ namespace AbilityAI
         /// in the dark (VPE's Shadowskip: 0.29, its own limit), so a bright map doesn't use up the worker's few
         /// validations on cells the ability refuses anyway. 1 = any light.</summary>
         public float cellMaxLight = 1f;
+        /// <summary>Movement: close the gap only while the caster can't see its target. For an ability that only helps
+        /// with something in the way (VPE's Ghostwalk, which walks through walls); escape is unaffected.</summary>
+        public bool gapCloseOutOfSight;
         /// <summary>Recovery: the health conditions it treats. None = the need rule alone.</summary>
         public AbilityAIHealth health;
         /// <summary>AoE hostile: never centre the area within its radius of the caster, for areas that hit the caster
@@ -517,6 +520,8 @@ namespace AbilityAI
             if (cellMaxLight < 0f) yield return "cellMaxLight can't be negative";
             else if (cellMaxLight < 1f && workerClass != null && !typeof(AbilityAIWorker_Movement).IsAssignableFrom(workerClass))
                 yield return $"cellMaxLight is only read by Movement, not {workerClass.Name}";
+            if (gapCloseOutOfSight && workerClass != null && !typeof(AbilityAIWorker_Movement).IsAssignableFrom(workerClass))
+                yield return $"gapCloseOutOfSight is only read by Movement, not {workerClass.Name}";
             if (auraKinds != AbilityAITargetKinds.None)
             {
                 if (auraMin < 1) yield return "auraMin must be at least 1";

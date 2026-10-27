@@ -1545,8 +1545,9 @@ namespace AbilityAI
                     exclusiveDef = null;
                     AbilityAIHooks.NotifyCast(pawn, a, target, dest);
                     // CAI reads its stamp to tell the player's orders from its own: a stamp in the future would
-                    // make a drafted auto-controlled colonist's next order look like CAI's
-                    if (!player) AbilityAICombatAI.HoldForCast(pawn, a, target);
+                    // make a drafted auto-controlled colonist's next order look like CAI's (a colonist casting in a
+                    // break too: the stamp can outlast the break)
+                    if (pawn.Faction == null || !pawn.Faction.IsPlayer) AbilityAICombatAI.HoldForCast(pawn, a, target);
                     if (player) QueueAfterCast(pawn, state);
                     return cast;
                 }

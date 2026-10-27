@@ -409,7 +409,9 @@ namespace AbilityAI
         }
 
         public override bool CanTargetSelf => IsSelfCast || ability.def.verbProperties?.targetParams?.canTargetSelf == true;
-        public override float WarmupSeconds => ability.verb?.verbProps?.warmupTime ?? 0f;
+        // Scaled as Verb.TryStartCastOn scales the warmup stance (Careful Shooter's 1.25)
+        public override float WarmupSeconds => ability.verb == null ? 0f
+            : ability.verb.WarmupTime * ability.pawn.GetStatValue(StatDefOf.AimingDelayFactor);
         public override Verb Verb => ability.verb;
         public override AIAbilityEffects Effects => EffectsOf(ability.def);
         public override bool Hostile => ability.def.hostile;

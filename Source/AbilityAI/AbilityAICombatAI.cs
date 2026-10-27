@@ -157,6 +157,8 @@ namespace AbilityAI
             }
             else if (hold.channel != null && pawn.stances?.curStance == hold.channel) return;
             holds.Remove(pawn);
+            // Otherwise the reference keeps a game the player has left in memory until the next cast
+            if (holds.Count == 0) holdsGame = null;
             if ((int)lastInterrupted.GetValue(hold.data) == hold.stamp) lastInterrupted.SetValue(hold.data, hold.previous);
         }
 

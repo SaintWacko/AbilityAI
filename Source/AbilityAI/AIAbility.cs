@@ -138,7 +138,9 @@ namespace AbilityAI
         bool HasAny(Pawn pawn);
 
         /// <summary>Whether any of them has a def with an AbilityAIExtension. Asked once the pawn is known to be one
-        /// the AI acts for, before the per-pawn interval: one def lookup per ability, no wrappers.</summary>
+        /// the AI acts for, before the per-pawn interval: one def lookup per ability, no wrappers. May answer true more
+        /// loosely where finding out costs more (VEF's: any ability held on an item, AIHeldAbilities); Collect then
+        /// adds only the ones that qualify.</summary>
         bool AnyWithExtension(Pawn pawn);
 
         /// <summary>Append the pawn's abilities of this kind whose def carries an AbilityAIExtension, each as its

@@ -71,7 +71,7 @@ namespace AbilityAI
         /// over vanilla's: asked with the ability's own object (AIAbility.Raw), which a host that never names that
         /// system's types can still compare with the objects it handed out (AIHeldAbilities). Same meaning: any Veto
         /// wins; Claim lets an NPC cast it without the Unclaimed setting; on the player's own pawns only Veto counts.
-        /// Vanilla abilities are not asked here.</summary>
+        /// A voter that throws counts as a Veto. Vanilla abilities are not asked here.</summary>
         public static void RegisterVote(Func<Pawn, object, AbilityAIVote> vote)
         {
             if (vote != null && !votes.Contains(vote)) votes.Add(vote);
@@ -87,10 +87,10 @@ namespace AbilityAI
                 try { v = votes[i](pawn, raw); }
                 catch (Exception e)
                 {
-                    // Asked on every gizmo draw and casting check: one that throws once would throw every time
-                    Log.Error($"[Ability AI] vote {votes[i].Method.DeclaringType?.FullName}.{votes[i].Method.Name} threw, so it is no longer asked: {e}");
-                    votes.RemoveAt(i--);
-                    continue;
+                    // Counted as a veto rather than skipped or dropped: a voter's vetoes keep things hidden (Entad's
+                    // unidentified traits), so a broken one fails closed
+                    Log.ErrorOnce($"[Ability AI] vote {votes[i].Method.DeclaringType?.FullName}.{votes[i].Method.Name} threw, so it counts as a veto: {e}", votes[i].Method.GetHashCode() ^ 0x5A3);
+                    return AbilityAIVote.Veto;
                 }
                 if (v == AbilityAIVote.Veto) return v;
                 if (v == AbilityAIVote.Claim) result = v;

@@ -1544,10 +1544,7 @@ namespace AbilityAI
                         Log.Message($"[Ability AI] {pawn.LabelShort} casts {a.Label} ({worker.GetType().Name}) on {target}");
                     exclusiveDef = null;
                     AbilityAIHooks.NotifyCast(pawn, a, target, dest);
-                    // CAI reads its stamp to tell the player's orders from its own: a stamp in the future would
-                    // make a drafted auto-controlled colonist's next order look like CAI's (a colonist casting in a
-                    // break too: the stamp can outlast the break)
-                    if (pawn.Faction == null || !pawn.Faction.IsPlayer) AbilityAICombatAI.HoldForCast(pawn, a, target);
+                    AbilityAICombatAI.HoldForCast(pawn, a, target, cast);
                     if (player) QueueAfterCast(pawn, state);
                     return cast;
                 }
@@ -2168,6 +2165,8 @@ namespace AbilityAI
 
         static void Postfix(Pawn ___pawn, ref ThinkResult __result)
         {
+            // Before the Enabled check: a hold taken just before the AI was switched off still has to be put back
+            if (AbilityAICombatAI.Holding) AbilityAICombatAI.CheckHold(___pawn);
             if (!AbilityAISettings.Enabled) return;
             // An undrafted colonist's hostility response (Attack or Flee) answers every constant-tree check while a
             // threat is near, so without this the AI would never get a look in for a colonist set to anything but

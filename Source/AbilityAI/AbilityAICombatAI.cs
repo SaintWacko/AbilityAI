@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Reflection;
 using HarmonyLib;
 using UnityEngine;
@@ -17,13 +18,18 @@ namespace AbilityAI
     /// pawn, so a cast here pushes that stamp to the end of the warmup.
     ///
     /// Its cover jobs also make a raider look idle: crouched behind a wall on a combat wait it neither targets nor is
-    /// hurt, which InCombat read as out of a fight. IsCoverJob names those jobs.</summary>
+    /// hurt, which InCombat read as out of a fight. IsCoverJob names those jobs.
+    ///
+    /// The stamp is put back when the cast job ends. CAI tells a player's order on a drafted colonist it auto-controls
+    /// from its own jobs by comparing the job's start tick with that stamp, so a stamp left in the future would make
+    /// the player's next order look like CAI's, and CAI would override it.</summary>
     [StaticConstructorOnStartup]
     internal static class AbilityAICombatAI
     {
         private static readonly Type compType;
         private static readonly FieldInfo dataField;
         private static readonly PropertyInfo lastInterrupted;
+        private static readonly MethodInfo autoControlled;
         private static readonly JobDef gotoCover, gotoDuck, gotoRetreat;
 
         // CAI's reaction holds while now - LastInterrupted <= 45 x body size (its 30 x check is search-and-destroy,
@@ -31,9 +37,21 @@ namespace AbilityAI
         private const int ReactionHold = 45;
         // The ability's own cast after the warmup, and the scan that happens to land on that tick
         private const int MarginTicks = 30;
-        // The stamp stays put if the cast is cut short (target dead, caster staggered), leaving the raider without
-        // CAI's cover or retreat until it runs out: no longer for a walk than CAI's own longest pause
+        // CheckHold puts the stamp back when the job ends, but a pawn whose constant tree isn't checked (despawned
+        // into a transporter, say) keeps it: no longer for a walk than CAI's own longest pause
         private const int MaxWalkTicks = 240;
+
+        private struct Hold
+        {
+            public object data;
+            public int jobId, previous, stamp;
+        }
+
+        // Only while a cast is running: empty almost all the time
+        private static readonly Dictionary<Pawn, Hold> holds = new Dictionary<Pawn, Hold>();
+        private static readonly List<Pawn> tmpGone = new List<Pawn>();
+
+        internal static bool Holding => holds.Count > 0;
 
         static AbilityAICombatAI()
         {
@@ -51,15 +69,19 @@ namespace AbilityAI
             }
             dataField = field;
             lastInterrupted = prop;
+            // Missing in a fork: the player's pawns are then never held, as before auto-control existed
+            autoControlled = AccessTools.PropertyGetter(type, "IsAIAutoControlled");
+            if (autoControlled?.ReturnType != typeof(bool)) autoControlled = null;
             compType = type;
         }
 
         /// <summary>CAI's cover, duck and retreat walks, which it starts for pawns under fire.</summary>
         internal static bool IsCoverJob(JobDef def) => def != null && (def == gotoCover || def == gotoDuck || def == gotoRetreat);
 
-        /// <summary>Keeps CAI's reactions off this NPC until the cast it is starting has gone off. Never shortens
-        /// a hold CAI set itself. Once per cast, so the reflection costs nothing that matters.</summary>
-        internal static void HoldForCast(Pawn pawn, AIAbility ability, LocalTargetInfo target)
+        /// <summary>Keeps CAI's reactions off this pawn until the cast job it is starting has gone off: an NPC, or a
+        /// drafted colonist CAI auto-controls (CAI leaves other colonists alone). Never shortens a hold CAI set
+        /// itself. Once per cast, so the reflection costs nothing that matters.</summary>
+        internal static void HoldForCast(Pawn pawn, AIAbility ability, LocalTargetInfo target, Job cast)
         {
             if (compType == null) return;
             ThingComp comp = null;
@@ -69,6 +91,7 @@ namespace AbilityAI
                 if (compType.IsInstanceOfType(comps[i])) { comp = comps[i]; break; }
             }
             if (comp == null) return;
+            if (pawn.Faction != null && pawn.Faction.IsPlayer && (autoControlled == null || !(bool)autoControlled.Invoke(comp, null))) return;
             object data = dataField.GetValue(comp);
             if (data == null) return;
 
@@ -77,7 +100,28 @@ namespace AbilityAI
             if (ability.IsTouch && target.IsValid)
                 ticks += Mathf.Min(MaxWalkTicks, Mathf.CeilToInt(pawn.Position.DistanceTo(target.Cell) * pawn.TicksPerMoveCardinal));
             int stamp = GenTicks.TicksGame + ticks - (int)(ReactionHold * pawn.RaceProps.baseBodySize);
-            if ((int)lastInterrupted.GetValue(data) < stamp) lastInterrupted.SetValue(data, stamp);
+            int previous = (int)lastInterrupted.GetValue(data);
+            if (previous >= stamp) return;
+            lastInterrupted.SetValue(data, stamp);
+
+            // A pawn that died or left mid-cast never comes back to CheckHold
+            foreach (var p in holds.Keys)
+                if (p.Destroyed || !p.Spawned) tmpGone.Add(p);
+            for (int i = 0; i < tmpGone.Count; i++) holds.Remove(tmpGone[i]);
+            tmpGone.Clear();
+            holds[pawn] = new Hold { data = data, jobId = cast.loadID, previous = previous, stamp = stamp };
+        }
+
+        /// <summary>Puts CAI's stamp back once the cast job is no longer running (cast, cut short, or replaced by
+        /// a player's order). Called at every constant-tree check, so at most 30 ticks late, and at once when the
+        /// job ends on its own. A stamp CAI has moved since is CAI's and stays.</summary>
+        internal static void CheckHold(Pawn pawn)
+        {
+            if (!holds.TryGetValue(pawn, out var hold)) return;
+            Job cur = pawn.CurJob;
+            if (cur != null && cur.loadID == hold.jobId) return;
+            holds.Remove(pawn);
+            if ((int)lastInterrupted.GetValue(hold.data) == hold.stamp) lastInterrupted.SetValue(hold.data, hold.previous);
         }
     }
 }

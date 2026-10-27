@@ -61,7 +61,6 @@ namespace AbilityAI
     {
         private static readonly List<IAbilityAIHook> hooks = new List<IAbilityAIHook>();
         private static readonly List<Func<Pawn, object, AbilityAIVote>> votes = new List<Func<Pawn, object, AbilityAIVote>>();
-        private static readonly HashSet<Func<Pawn, object, AbilityAIVote>> brokenVotes = new HashSet<Func<Pawn, object, AbilityAIVote>>();
 
         public static void Register(IAbilityAIHook hook)
         {
@@ -72,7 +71,7 @@ namespace AbilityAI
         /// over vanilla's: asked with the ability's own object (AIAbility.Raw), which a host that never names that
         /// system's types can still compare with the objects it handed out (AIHeldAbilities). Same meaning: any Veto
         /// wins; Claim lets an NPC cast it without the Unclaimed setting; on the player's own pawns only Veto counts.
-        /// A voter that throws counts as a Veto from then on. Vanilla abilities are not asked here.</summary>
+        /// A voter that throws counts as a Veto for that call. Vanilla abilities are not asked here.</summary>
         public static void RegisterVote(Func<Pawn, object, AbilityAIVote> vote)
         {
             if (vote != null && !votes.Contains(vote)) votes.Add(vote);
@@ -84,16 +83,13 @@ namespace AbilityAI
             var result = AbilityAIVote.NoOpinion;
             for (int i = 0; i < votes.Count; i++)
             {
-                // Counted as a veto rather than skipped or dropped: a voter's vetoes keep things hidden (Entad's
-                // unidentified traits), so a broken one fails closed. It isn't called again, since it is asked on
-                // every gizmo draw.
-                if (brokenVotes.Contains(votes[i])) return AbilityAIVote.Veto;
                 AbilityAIVote v;
                 try { v = votes[i](pawn, raw); }
                 catch (Exception e)
                 {
-                    brokenVotes.Add(votes[i]);
-                    Log.Error($"[Ability AI] vote {votes[i].Method.DeclaringType?.FullName}.{votes[i].Method.Name} threw, so from now on it counts as a veto: {e}");
+                    // A veto for this call rather than skipped or dropped: a voter's vetoes keep things hidden (Entad's
+                    // unidentified traits), so a broken one fails closed, for the ability it threw on only
+                    Log.ErrorOnce($"[Ability AI] vote {votes[i].Method.DeclaringType?.FullName}.{votes[i].Method.Name} threw, so it counts as a veto: {e}", votes[i].Method.GetHashCode() ^ 0x5A3);
                     return AbilityAIVote.Veto;
                 }
                 if (v == AbilityAIVote.Veto) return v;

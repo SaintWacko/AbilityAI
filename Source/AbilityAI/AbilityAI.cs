@@ -333,7 +333,7 @@ namespace AbilityAI
         public float minGapSeconds;
 
         /// <summary>Area affected around the target; negative = read it from the effect comps. Cone and beam hostile
-        /// with avoidAllies: how close to the target an ally may not stand.</summary>
+        /// with avoidAllies: how close to the target an ally may not stand (negative = no such check).</summary>
         public float radius = -1f;
         /// <summary>Pawns the cast must affect (enemies for hostile workers, allies for friendly ones).</summary>
         public int minTargets = 1;

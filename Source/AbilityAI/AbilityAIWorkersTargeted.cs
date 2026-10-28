@@ -84,7 +84,9 @@ namespace AbilityAI
             for (int i = 0; i < cands.Count && i < TargetingUtil.MaxTries; i++)
             {
                 target = AbilityAIUtility.PawnOrCell(ability, cands[i].pawn);
-                if (target.IsValid) break;
+                if (!target.IsValid) continue;
+                ctx.CastAtPrey = ext.whileHunting && cands[i].pawn == ctx.Prey;
+                break;
             }
             cands.Clear();
             return target.IsValid;

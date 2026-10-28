@@ -569,6 +569,10 @@ namespace AbilityAI
         private bool enemyTargetKnown;
         private Pawn prey;
         private bool preyKnown;
+
+        /// <summary>Set by a worker whose target is the hunt's prey (or a cell beside it), so the driver puts the hunt
+        /// back after the cast; an escape from the same rule must leave it unset. Cleared before each worker runs.</summary>
+        public bool CastAtPrey { get; set; }
         private Def approachAbility;
         private int approachExpected;
         private bool drafted;
@@ -1557,6 +1561,7 @@ namespace AbilityAI
                         continue;
                     }
                     exclusiveDef = worker.Exclusive ? a.Def : null;
+                    ctx.CastAtPrey = false;
                     if (!worker.TryFindTarget(ctx, a, out LocalTargetInfo target, out LocalTargetInfo dest))
                     {
                         WhyNot(a, ext, "no target");
@@ -1594,7 +1599,7 @@ namespace AbilityAI
                     AbilityAIHooks.NotifyCast(pawn, a, target, dest);
                     AbilityAICombatAI.HoldForCast(pawn, a, target, cast);
                     if (player) QueueAfterCast(pawn, state);
-                    else if (ext.whileHunting) ResumeHunt(pawn);
+                    else if (ctx.CastAtPrey) ResumeHunt(pawn);
                     return cast;
                 }
                 if (!player) return TryApproach(state, false);
@@ -1634,10 +1639,12 @@ namespace AbilityAI
                 return;
             }
             Job cur = pawn.CurJob;
-            if (cur != null && IsResumable(cur) && cur.def.suspendable) queue.EnqueueFirst(Resume(cur));
+            // A hunt only after a cast at the prey: not after an escape from the hunt
+            if (cur != null && cur.def.suspendable && (IsFightJob(cur.def) || (ctx.CastAtPrey && IsResumable(cur))))
+                queue.EnqueueFirst(Resume(cur));
         }
 
-        // After a whileHunting cast. An NPC's fight job givers pick their target again after a cast, but a hunter's food
+        // After a cast at the prey (ctx.CastAtPrey). An NPC's fight job givers pick their target again after a cast, but a hunter's food
         // giver may pick another prey or none: back to the same one. The clone starts the hunt's driver afresh, as
         // vanilla's own new hunt would (first hit a surprise attack again, a new 5000-tick limit, the player's "attacked
         // by a predator" message again), which is why other casts don't resume it.

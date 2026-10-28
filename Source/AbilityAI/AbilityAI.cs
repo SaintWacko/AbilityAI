@@ -531,6 +531,9 @@ namespace AbilityAI
             if (whileHunting && workerClass != null && !typeof(AbilityAIWorker_Movement).IsAssignableFrom(workerClass)
                 && !typeof(AbilityAIWorker_TargetHostile).IsAssignableFrom(workerClass))
                 yield return $"whileHunting is only read by Movement and Target hostile, not {workerClass.Name}";
+            else if (whileHunting && workerClass != null && typeof(AbilityAIWorker_Movement).IsAssignableFrom(workerClass)
+                && (modes & AbilityAIMoveModes.GapClose) == 0)
+                yield return "whileHunting needs the GapClose mode on a Movement rule: escape never targets the prey";
             if (auraKinds != AbilityAITargetKinds.None)
             {
                 if (auraMin < 1) yield return "auraMin must be at least 1";
@@ -1148,7 +1151,8 @@ namespace AbilityAI
                 if (cur == null) return true;
                 // Fighting back (a hostility response, an animal defending itself or released on a target): attack
                 // jobs can't be casually interrupted, but the cast is part of the fight, and TryGiveJob queues the
-                // attack to resume after it. A tame predator's hunt likewise, for its whileHunting rules.
+                // attack to resume after it. A tame predator's hunt likewise, though Evaluate then tries its whileHunting
+                // rules alone: vanilla never lets anything casually break a hunt.
                 if (IsResumable(cur)) return true;
                 // A constant-tree job ends the current one: never surgery, a bill, or anything the player ordered,
                 // nor a job on the player's do-not-interrupt list (meals, recreation, gatherings by default)
@@ -1479,6 +1483,8 @@ namespace AbilityAI
                 AIAbilitySources.Collect(pawn, abilities);
                 curSet = player && !drafted ? UndraftedSetNow(pawn) : PlayerSet.All;
                 curPlayer = player;
+                // An undrafted player pawn on a hunt is only interrupted for a whileHunting rule (see CanActNowPlayer)
+                bool huntOnly = player && !drafted && pawn.CurJob != null && pawn.CurJob.def == JobDefOf.PredatorHunt;
                 // Only extensions with an npc or friendlyNpc block care, but the hostility test is once per evaluation
                 var role = player ? AbilityAIRole.Player
                     : pawn.HostileTo(Faction.OfPlayer) ? AbilityAIRole.Npc : AbilityAIRole.FriendlyNpc;
@@ -1499,6 +1505,11 @@ namespace AbilityAI
                         if (ext.Worker == null)
                         {
                             if (whyNot != null) WhyNot(a, ext, ext.enabled ? "its worker class is missing" : $"rule is off for {role}");
+                            continue;
+                        }
+                        if (huntOnly && !ext.whileHunting)
+                        {
+                            WhyNot(a, ext, "not used while hunting");
                             continue;
                         }
                         if (!InSet(ext.Worker, curSet))
@@ -1583,7 +1594,7 @@ namespace AbilityAI
                     AbilityAIHooks.NotifyCast(pawn, a, target, dest);
                     AbilityAICombatAI.HoldForCast(pawn, a, target, cast);
                     if (player) QueueAfterCast(pawn, state);
-                    else ResumeHunt(pawn);
+                    else if (ext.whileHunting) ResumeHunt(pawn);
                     return cast;
                 }
                 if (!player) return TryApproach(state, false);
@@ -1626,9 +1637,10 @@ namespace AbilityAI
             if (cur != null && IsResumable(cur) && cur.def.suspendable) queue.EnqueueFirst(Resume(cur));
         }
 
-        // An NPC's fight job givers pick their target again after a cast, but a hunter's food giver may pick another
-        // prey or none: back to the same one. The clone starts the hunt's driver afresh, as vanilla's own new hunt
-        // would (first hit a surprise attack again, a new 5000-tick limit).
+        // After a whileHunting cast. An NPC's fight job givers pick their target again after a cast, but a hunter's food
+        // giver may pick another prey or none: back to the same one. The clone starts the hunt's driver afresh, as
+        // vanilla's own new hunt would (first hit a surprise attack again, a new 5000-tick limit, the player's "attacked
+        // by a predator" message again), which is why other casts don't resume it.
         private static void ResumeHunt(Pawn pawn)
         {
             Job cur = pawn.CurJob;

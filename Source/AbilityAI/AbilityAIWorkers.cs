@@ -625,6 +625,7 @@ namespace AbilityAI
     /// goes if that gains at least 4 tiles. A targeted ability's cells can be limited to dark ones (cellMaxLight).
     /// Any rule's gap-close can be limited to a target the caster can't see (gapCloseOutOfSight: one sight line,
     /// O(distance)); an NPC's own target is in sight when it is picked, so that mostly means a player's melee order.
+    /// whileHunting: with no enemy target, the prey of the caster's hunt is closed on by the same rules.
     /// Cost: escape is 32 × k distance checks, then up to 6 validations;
     /// gap-close with a targeted ability up to 8 validations, only while the enemy is within its reach.
     /// </summary>
@@ -651,7 +652,8 @@ namespace AbilityAI
                 if (self) { target = ctx.pawn; return true; }
                 if (TryEscapeCell(ctx, ability, out IntVec3 cell)) { target = cell; return true; }
             }
-            if ((ext.modes & AbilityAIMoveModes.GapClose) != 0 && !ctx.UsesRanged && ctx.EnemyTarget is Pawn enemy)
+            if ((ext.modes & AbilityAIMoveModes.GapClose) != 0 && !ctx.UsesRanged
+                && (ctx.EnemyTarget as Pawn ?? (ext.whileHunting ? ctx.Prey : null)) is Pawn enemy)
             {
                 float d = (enemy.Position - ctx.pawn.Position).LengthHorizontal;
                 float reach = ext.maxRange >= 0f ? ext.maxRange : 40f;

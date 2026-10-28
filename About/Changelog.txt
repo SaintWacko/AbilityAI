@@ -1,0 +1,17 @@
+Changelog
+Ability AI
+
+## 1.0.0
+
+- First release. The ability AI that used to ship inside Entad Framework is now its own mod, so Entad Framework and Bastle Framework share one copy. Requires Harmony. Builds for RimWorld 1.6 and 1.7.
+- Other factions' pawns, animals and mechs use their abilities in combat: vanilla, Royalty psycasts, Vanilla Expanded Framework abilities and Vanilla Psycasts Expanded psycasts. Each group can be switched off in the settings.
+- Other factions use every ability that has an Ability AI rule, even when the mod that adds the ability doesn't ask for it. The "Also use abilities no mod claims" setting, on by default, turns this off.
+- Player autocast for each pawn and ability, from a right-click menu on the ability's button: Off, Stationary (cast from where the pawn stands) or Full (walk into range, cast, walk back or to new cover). Undrafted pawns can cast by situation, such as healing or putting out fires.
+- Per-pawn psycast limits for autocast: max heat and min psyfocus.
+- Rules for 75 Vanilla Psycasts Expanded psycasts, priced through VPE's own cost methods so Psycasts² changes apply.
+- Skip for Royalty and VPE: rescue a downed or hurt ally, repel an enemy that has reached someone who can't fight it off, and (Royalty's Skip only) escape when the caster is in trouble. Each use has its own setting.
+- Two casters on the same side never use a helping ability on the same pawn at once.
+- Better Autocasting for VPE: a setting picks which mod controls the psycasts both mods have rules for. Switching carries each colonist's on/off choice across.
+- CAI 5000: casts are no longer cut off by CAI's cover and retreat moves, and pawns crouched behind cover still count as in combat. Two settings let CAI interrupt casts again, one for other factions and one for your auto-controlled pawns.
+- An Ability AI rule that uses auraKinds without a radius now logs a config error at startup instead of never firing.
+- A dev mode log explains each cast, and why a pawn casts nothing.

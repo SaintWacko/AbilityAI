@@ -66,7 +66,8 @@ namespace AbilityAI
     /// radius (default 5); preferGrouped multiplies the score by them, and avoidAllies skips enemies with anyone on
     /// the caster's side (Friendlies, of allyKinds) within that radius (a berserk enemy attacks whoever is nearest). An ally in a
     /// hostile break is skipped, and avoided like a friendly, unless MayHitBrokenAllies. The best five are validated.
-    /// Approach: the same out to range + approachDistance.
+    /// Approach: the same out to range + approachDistance. whileHunting: the prey of the caster's hunt is a candidate
+    /// too, scored as its current target.
     /// Cost: k WouldAffect checks, k² distance checks only with grouping, k×a with meleeOnly or avoidAllies.
     /// </summary>
     public class AbilityAIWorker_TargetHostile : AbilityAIWorker
@@ -113,31 +114,44 @@ namespace AbilityAI
             bool grouping = ext.preferGrouped || ext.minTargets > 1;
             bool spareBroken = !AbilityAIUtility.MayHitBrokenAllies(ext);
             Thing current = ctx.EnemyTarget;
+            Pawn prey = ext.whileHunting ? ctx.Prey : null;
+            bool preySeen = false;
             for (int i = 0; i < enemies.Count; i++)
             {
                 Pawn e = enemies[i];
-                float d = (e.Position - ctx.pawn.Position).LengthHorizontalSquared;
-                if (d > maxSq || d < minSq) continue;
+                // A prey of a faction is hostile to its hunter, so it can be here too
+                if (e == prey) preySeen = true;
                 if (spareBroken && ctx.IsBrokenAlly(e)) continue;
-                if (!AbilityAIUtility.WouldAffect(ability, ext, e)) continue;
-                if (ext.meleeOnly && !AbilityAIUtility.InMeleeWithSide(ctx, e)) continue;
-                float score = 1f;
-                if (e == current) score += 1f;
-                if (AbilityAIUtility.AimsAt(e, ctx.pawn)) score += 1f;
-                score *= Mathf.Clamp(e.kindDef.combatPower / 100f, 0.5f, 3f);
-                if (grouping)
-                {
-                    int group = 1;
-                    for (int j = 0; j < enemies.Count; j++)
-                        if (j != i && (enemies[j].Position - e.Position).LengthHorizontalSquared <= near2
-                            && (!spareBroken || !ctx.IsBrokenAlly(enemies[j]))) group++;
-                    if (group < ext.minTargets) continue;
-                    if (ext.preferGrouped) score *= group;
-                }
-                if (ext.avoidAllies && AbilityAIUtility.AllyWithin(ctx, ext, e.Position, near2, spareBroken, false)) continue;
-                score /= 1f + Mathf.Sqrt(d) / Mathf.Max(range, 1f);
-                cands.Add(new TargetingUtil.Cand { pawn = e, score = score });
+                Consider(ctx, ability, e, e == current || e == prey, range, maxSq, minSq, near2, grouping, spareBroken);
             }
+            if (prey != null && !preySeen)
+                Consider(ctx, ability, prey, true, range, maxSq, minSq, near2, grouping, spareBroken);
+        }
+
+        private void Consider(AbilityAIContext ctx, AIAbility ability, Pawn e, bool isCurrent, float range, float maxSq, float minSq,
+            float near2, bool grouping, bool spareBroken)
+        {
+            float d = (e.Position - ctx.pawn.Position).LengthHorizontalSquared;
+            if (d > maxSq || d < minSq) return;
+            if (!AbilityAIUtility.WouldAffect(ability, ext, e)) return;
+            if (ext.meleeOnly && !AbilityAIUtility.InMeleeWithSide(ctx, e)) return;
+            float score = 1f;
+            if (isCurrent) score += 1f;
+            if (AbilityAIUtility.AimsAt(e, ctx.pawn)) score += 1f;
+            score *= Mathf.Clamp(e.kindDef.combatPower / 100f, 0.5f, 3f);
+            if (grouping)
+            {
+                var enemies = ctx.Enemies;
+                int group = 1;
+                for (int j = 0; j < enemies.Count; j++)
+                    if (enemies[j] != e && (enemies[j].Position - e.Position).LengthHorizontalSquared <= near2
+                        && (!spareBroken || !ctx.IsBrokenAlly(enemies[j]))) group++;
+                if (group < ext.minTargets) return;
+                if (ext.preferGrouped) score *= group;
+            }
+            if (ext.avoidAllies && AbilityAIUtility.AllyWithin(ctx, ext, e.Position, near2, spareBroken, false)) return;
+            score /= 1f + Mathf.Sqrt(d) / Mathf.Max(range, 1f);
+            cands.Add(new TargetingUtil.Cand { pawn = e, score = score });
         }
     }
 

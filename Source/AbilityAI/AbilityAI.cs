@@ -423,6 +423,10 @@ namespace AbilityAI
         /// <summary>Movement: close the gap only while the caster can't see its target. For an ability that only helps
         /// with something in the way (VPE's Ghostwalk, which walks through walls); escape is unaffected.</summary>
         public bool gapCloseOutOfSight;
+        /// <summary>Movement, Target hostile: also act while the caster hunts for food (PredatorHunt), with its prey
+        /// as the target: a leap or sprint at a fleeing deer, a quill at it. Hunting then counts as being in combat for
+        /// this rule. The prey is never one of the caster's enemies for any other rule.</summary>
+        public bool whileHunting;
         /// <summary>Recovery: the health conditions it treats. None = the need rule alone.</summary>
         public AbilityAIHealth health;
         /// <summary>AoE hostile: never centre the area within its radius of the caster, for areas that hit the caster
@@ -524,6 +528,9 @@ namespace AbilityAI
                 yield return $"cellMaxLight is only read by Movement, not {workerClass.Name}";
             if (gapCloseOutOfSight && workerClass != null && !typeof(AbilityAIWorker_Movement).IsAssignableFrom(workerClass))
                 yield return $"gapCloseOutOfSight is only read by Movement, not {workerClass.Name}";
+            if (whileHunting && workerClass != null && !typeof(AbilityAIWorker_Movement).IsAssignableFrom(workerClass)
+                && !typeof(AbilityAIWorker_TargetHostile).IsAssignableFrom(workerClass))
+                yield return $"whileHunting is only read by Movement and Target hostile, not {workerClass.Name}";
             if (auraKinds != AbilityAITargetKinds.None)
             {
                 if (auraMin < 1) yield return "auraMin must be at least 1";
@@ -557,6 +564,8 @@ namespace AbilityAI
         private bool friendlyTurretsBuilt;
         private Thing enemyTarget;
         private bool enemyTargetKnown;
+        private Pawn prey;
+        private bool preyKnown;
         private Def approachAbility;
         private int approachExpected;
         private bool drafted;
@@ -573,7 +582,7 @@ namespace AbilityAI
             tick = t;
             approachAbility = walkingFor;
             approachExpected = expected;
-            combatKnown = enemiesBuilt = alliesBuilt = aimsBuilt = friendliesBuilt = brokenBuilt = supportBuilt = enemyTargetKnown = false;
+            combatKnown = enemiesBuilt = alliesBuilt = aimsBuilt = friendliesBuilt = brokenBuilt = supportBuilt = enemyTargetKnown = preyKnown = false;
             friendlyTurretsBuilt = false;
         }
 
@@ -589,8 +598,29 @@ namespace AbilityAI
             brokenAllies.Clear();
             supportAllies.Clear();
             enemyTarget = null;
+            prey = null;
             pawn = null;
             map = null;
+        }
+
+        /// <summary>The pawn the caster is hunting for food (PredatorHunt's target), while it is alive, standing and on
+        /// this map; null otherwise, and once the hunt has turned to eating the corpse. Only rules with whileHunting
+        /// read it: it never joins Enemies, or a roar meant for raiders would go off at a deer. A prey of a faction is
+        /// hostile to its hunter (vanilla's predator rule), so it may also be in Enemies.</summary>
+        public Pawn Prey
+        {
+            get
+            {
+                if (!preyKnown)
+                {
+                    preyKnown = true;
+                    var job = pawn.CurJob;
+                    if (job != null && job.def == JobDefOf.PredatorHunt && job.targetA.Thing is Pawn p
+                        && p.Spawned && p.Map == map && !p.Dead && !p.Downed)
+                        prey = p;
+                }
+                return prey;
+            }
         }
 
         public const int RecentTicks = 600;
@@ -1118,8 +1148,8 @@ namespace AbilityAI
                 if (cur == null) return true;
                 // Fighting back (a hostility response, an animal defending itself or released on a target): attack
                 // jobs can't be casually interrupted, but the cast is part of the fight, and TryGiveJob queues the
-                // attack to resume after it
-                if (IsFightJob(cur.def)) return true;
+                // attack to resume after it. A tame predator's hunt likewise, for its whileHunting rules.
+                if (IsResumable(cur)) return true;
                 // A constant-tree job ends the current one: never surgery, a bill, or anything the player ordered,
                 // nor a job on the player's do-not-interrupt list (meals, recreation, gatherings by default)
                 return !cur.playerForced && cur.def.casualInterruptible && !AbilityAIBlockedJobs.IsBlocked(cur.def);
@@ -1133,6 +1163,11 @@ namespace AbilityAI
         }
 
         private static bool IsFightJob(JobDef def) => def == JobDefOf.AttackStatic || def == JobDefOf.AttackMelee;
+
+        // Jobs a cast may break into and that go on after it. A hunt only while it is a chase: once the prey is dead the
+        // job's target is the corpse and the hunter is eating.
+        private static bool IsResumable(Job job) =>
+            IsFightJob(job.def) || (job.def == JobDefOf.PredatorHunt && job.targetA.Thing is Pawn);
 
         /// <summary>Whether an undrafted player pawn should keep the quick 30-tick check: it fights back
         /// (FightsUndrafted) and is in a fight by InCombat's undrafted meaning, or it is fleeing. A pawn that doesn't
@@ -1150,7 +1185,8 @@ namespace AbilityAI
                 || (mind.lastRangedHarmTick > 0 && tick - mind.lastRangedHarmTick < AbilityAIContext.RecentTicks));
             if (job != null && job.exitMapOnArrival && recent) return true;
             if (!FightsUndrafted(pawn)) return false;
-            return recent || (job != null && IsFightJob(job.def)) || (mind != null && mind.enemyTarget != null);
+            // A hunt: at the slow interval a leap at the prey would come after the chase is over
+            return recent || (job != null && IsResumable(job)) || (mind != null && mind.enemyTarget != null);
         }
 
         /// <summary>Whether this player pawn fights back while undrafted: a colonist or colony subhuman with the
@@ -1169,10 +1205,11 @@ namespace AbilityAI
 
         // The set for the pawn in ctx now, undrafted: every worker while it fights back (fighting by InCombat's
         // undrafted meaning: a hostile target, or attacked or hurt in the last 10 s; an enemy elsewhere on the map
-        // doesn't count), the fleeing set while it runs, else the safe set
+        // doesn't count) or hunts (only whileHunting rules then pass CombatAllows), the fleeing set while it runs,
+        // else the safe set
         private static PlayerSet UndraftedSetNow(Pawn pawn)
         {
-            if (FightsUndrafted(pawn) && ctx.InCombat) return PlayerSet.All;
+            if (FightsUndrafted(pawn) && (ctx.InCombat || ctx.Prey != null)) return PlayerSet.All;
             return AbilityAIUtility.IsFleeing(ctx) ? PlayerSet.Fleeing : PlayerSet.Safe;
         }
 
@@ -1546,6 +1583,7 @@ namespace AbilityAI
                     AbilityAIHooks.NotifyCast(pawn, a, target, dest);
                     AbilityAICombatAI.HoldForCast(pawn, a, target, cast);
                     if (player) QueueAfterCast(pawn, state);
+                    else ResumeHunt(pawn);
                     return cast;
                 }
                 if (!player) return TryApproach(state, false);
@@ -1585,7 +1623,17 @@ namespace AbilityAI
                 return;
             }
             Job cur = pawn.CurJob;
-            if (cur != null && IsFightJob(cur.def) && cur.def.suspendable) queue.EnqueueFirst(Resume(cur));
+            if (cur != null && IsResumable(cur) && cur.def.suspendable) queue.EnqueueFirst(Resume(cur));
+        }
+
+        // An NPC's fight job givers pick their target again after a cast, but a hunter's food giver may pick another
+        // prey or none: back to the same one. The clone starts the hunt's driver afresh, as vanilla's own new hunt
+        // would (first hit a surprise attack again, a new 5000-tick limit).
+        private static void ResumeHunt(Pawn pawn)
+        {
+            Job cur = pawn.CurJob;
+            if (cur != null && cur.def == JobDefOf.PredatorHunt && IsResumable(cur) && cur.def.suspendable)
+                pawn.jobs.jobQueue.EnqueueFirst(Resume(cur));
         }
 
         // Clone copies loadID; two live jobs with one id break loading a save made while both exist
@@ -1723,7 +1771,7 @@ namespace AbilityAI
             if (curSet == PlayerSet.Fleeing && worker.ForFleeing) return true;
             switch (worker.Combat)
             {
-                case AbilityAICombat.InCombat: return ctx.InCombat;
+                case AbilityAICombat.InCombat: return ctx.InCombat || (worker.ext.whileHunting && ctx.Prey != null);
                 case AbilityAICombat.OutOfCombat: return !ctx.InCombat;
                 default: return true;
             }

@@ -105,9 +105,9 @@
   <AAI_Section_Cai>Combat AI (CAI 5000)</AAI_Section_Cai>
   <AAI_CaiHoldNpcs>Other factions' casts can't be cut off by CAI</AAI_CaiHoldNpcs>
   <AAI_CaiHoldNpcs_Tip>CAI 5000 sends pawns under fire to cover, to duck or to retreat, and that cancels a psycast's warmup. With this on, CAI waits until the cast has gone off (and until a channelled effect such as Frost Ray's ray has ended, up to 10 seconds) before it moves the pawn. With it off, CAI reacts as it would without Ability AI.</AAI_CaiHoldNpcs_Tip>
-  <AAI_CaiHoldColonists>Auto-controlled colonists' casts can't be cut off by CAI</AAI_CaiHoldColonists>
-  <AAI_CaiHoldColonists_Tip>The same for drafted colonists you have handed to CAI's auto-control. Colonists not on auto-control are never moved by CAI, so this doesn't affect them.</AAI_CaiHoldColonists_Tip>
-  <AAI_Cai_Desc>Turn these off to compare how pawns fight when CAI may interrupt their casts.</AAI_Cai_Desc>
+  <AAI_CaiHoldColonists>Your auto-controlled pawns' casts can't be cut off by CAI</AAI_CaiHoldColonists>
+  <AAI_CaiHoldColonists_Tip>The same for your drafted colonists and mechs that you have handed to CAI's auto-control. CAI never moves your pawns that aren't on auto-control, so this doesn't affect them.</AAI_CaiHoldColonists_Tip>
+  <AAI_Cai_Desc>Switch off to compare how pawns fight when CAI may interrupt their casts.</AAI_Cai_Desc>
   <AAI_DebugLog>Log ability AI decisions</AAI_DebugLog>
   <AAI_DebugLog_Tip>Writes a line to the log each time a pawn decides to cast something, naming the rule it used. When a pawn with abilities set up for this mod checks and casts nothing, it also writes why, at most once every 10 seconds per pawn.</AAI_DebugLog_Tip>
   <AAI_Reset>Reset all</AAI_Reset>

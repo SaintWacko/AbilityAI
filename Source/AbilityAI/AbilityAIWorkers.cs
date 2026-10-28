@@ -744,6 +744,7 @@ namespace AbilityAI
     /// nearest threat. Not cast when it would add nothing: smoke while the caster stands in smoke, a spawned thing
     /// (the skipshield) while one already stands within the ability's radius of the caster, anything else (a wall)
     /// while the caster already has half cover from the nearest threat. A wall is never raised onto a pawn.
+    /// A self-cast ring (Ice Wall) walls in everyone near the caster, so it has its own rule: see TryRing.
     /// Cost: k checks of each enemy's target, then up to 3 validations.
     /// </summary>
     public class AbilityAIWorker_Cover : AbilityAIWorker
@@ -758,6 +759,16 @@ namespace AbilityAI
             bool wall = effects.wall;
             if (smoke && pawn.Position.AnyGas(ctx.map, GasType.BlindSmoke)) return false;
             if (spawns != null && SpawnedNear(ctx, spawns, Mathf.Max(AbilityAIUtility.Radius(ability, ext), 1.5f))) return false;
+            if (AbilityAIUtility.IsSelfCast(ability))
+            {
+                float ring = AbilityAIUtility.Radius(ability, ext);
+                if (ring > 0f)
+                {
+                    if (!TryRing(ctx, ring)) return false;
+                    target = pawn;
+                    return true;
+                }
+            }
 
             int threats = ctx.RecentlyShot(pawn) ? 1 : 0;
             Pawn nearest = null;
@@ -773,12 +784,8 @@ namespace AbilityAI
             }
             if (threats < ext.minThreats) return false;
             if (!smoke && spawns == null && nearest != null && CoverUtility.CalculateOverallBlockChance(pawn, nearest.Position, ctx.map) >= 0.5f) return false;
-            // Cover the ability shapes around its caster itself (Ice Wall's ring): only with every enemy outside it,
-            // or the ring would shut a shooter or a charging melee enemy in with the caster
             if (AbilityAIUtility.IsSelfCast(ability))
             {
-                float ring = AbilityAIUtility.Radius(ability, ext);
-                if (ring > 0f && TargetingUtil.AnyWithin(enemies, pawn.Position, ring * ring)) return false;
                 target = pawn;
                 return true;
             }
@@ -800,6 +807,38 @@ namespace AbilityAI
                 if (AbilityAIDriver.Valid(ability, c)) { target = c; return true; }
             }
             return false;
+        }
+
+        // A ring blocks fire both ways and keeps everyone inside it in, so it is worth raising only when walling in
+        // helps the side inside: the operator saw Ice Wall shut four shooting colonists in and their melee fighters
+        // out. Cast when the enemy fire on the pawns inside is at least minThreats and either outnumbers the shooters
+        // inside (caster included), or a downed ally or one under healthThreshold who is being shot at is inside.
+        // Never with an enemy inside (it would be shut in with them) or an ally inside in melee (an enemy inside, or
+        // one it is walking out to). Cost: a pass over the allies, the aim counts the evaluation builds anyway.
+        private bool TryRing(AbilityAIContext ctx, float ring)
+        {
+            Pawn pawn = ctx.pawn;
+            float r2 = ring * ring;
+            if (TargetingUtil.AnyWithin(ctx.Enemies, pawn.Position, r2)) return false;
+            int threats = 0, shooters = 0;
+            bool shot = false, helpless = false;
+            var allies = ctx.Allies;
+            for (int i = 0; i < allies.Count; i++)
+            {
+                Pawn p = allies[i];
+                if ((p.Position - pawn.Position).LengthHorizontalSquared > r2) continue;
+                if (p.CurJobDef == JobDefOf.AttackMelee) return false;
+                int aimed = ctx.AimedAtCount(p);
+                bool hit = ctx.RecentlyShot(p);
+                threats += aimed;
+                shot |= hit;
+                if (AbilityAIContext.FightsAtRange(p)) shooters++;
+                if ((aimed > 0 || hit) && (p.health.summaryHealth?.SummaryHealthPercent ?? 1f) < ext.healthThreshold) helpless = true;
+            }
+            if (threats == 0 && shot) threats = 1;
+            if (threats < ext.minThreats) return false;
+            if (threats > shooters || helpless) return true;
+            return TargetingUtil.AnyWithin(ctx.DownedAllies, pawn.Position, r2);
         }
 
         private static bool SpawnedNear(AbilityAIContext ctx, ThingDef def, float radius)

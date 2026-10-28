@@ -1891,6 +1891,10 @@ namespace AbilityAI
         public static bool SkipRepel = true;
         public static bool SkipRescue = true;
         public static bool SkipEscape = true;
+        /// <summary>Keep CAI 5000's reactions off a pawn while it casts (AbilityAICombatAI): other factions' pawns, and
+        /// drafted colonists CAI auto-controls.</summary>
+        public static bool CaiHoldNpcs = true;
+        public static bool CaiHoldColonists = true;
 
         public static bool SkipAllowed(AbilityAISkipMode mode)
         {
@@ -1927,6 +1931,7 @@ namespace AbilityAI
                     Enabled = VanillaStandDown = true;
                     MinGapSeconds = DefaultMinGapSeconds;
                     SkipRepel = SkipRescue = SkipEscape = true;
+                    CaiHoldNpcs = CaiHoldColonists = true;
                     DebugLog = false;
                     break;
                 case Tab.OtherFactions:
@@ -1980,6 +1985,8 @@ namespace AbilityAI
             Scribe_Values.Look(ref SkipRepel, "abilityAI_skipRepel", true);
             Scribe_Values.Look(ref SkipRescue, "abilityAI_skipRescue", true);
             Scribe_Values.Look(ref SkipEscape, "abilityAI_skipEscape", true);
+            Scribe_Values.Look(ref CaiHoldNpcs, "abilityAI_caiHoldNpcs", true);
+            Scribe_Values.Look(ref CaiHoldColonists, "abilityAI_caiHoldColonists", true);
             Scribe_Values.Look(ref DebugLog, "abilityAI_debugLog", false);
         }
 
@@ -2044,6 +2051,14 @@ namespace AbilityAI
                 list.CheckboxLabeled("AAI_SkipRescue".Translate(), ref SkipRescue, "AAI_SkipRescue_Tip".Translate());
                 list.CheckboxLabeled("AAI_SkipEscape".Translate(), ref SkipEscape, "AAI_SkipEscape_Tip".Translate());
                 Hint(list, "AAI_Skip_Desc");
+            }
+            if (AbilityAICombatAI.Loaded)
+            {
+                Section(list, "AAI_Section_Cai");
+                list.CheckboxLabeled("AAI_CaiHoldNpcs".Translate(), ref CaiHoldNpcs, "AAI_CaiHoldNpcs_Tip".Translate());
+                if (AbilityAICombatAI.SeesAutoControl)
+                    list.CheckboxLabeled("AAI_CaiHoldColonists".Translate(), ref CaiHoldColonists, "AAI_CaiHoldColonists_Tip".Translate());
+                Hint(list, "AAI_Cai_Desc");
             }
             if (Prefs.DevMode)
             {

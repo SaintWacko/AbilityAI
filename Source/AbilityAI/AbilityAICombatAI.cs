@@ -58,6 +58,9 @@ namespace AbilityAI
         private static Game holdsGame;
 
         internal static bool Holding => holds.Count > 0;
+        /// <summary>CAI is loaded and its stamp was found: the hold settings are shown.</summary>
+        internal static bool Loaded => compType != null;
+        internal static bool SeesAutoControl => autoControlled != null;
 
         static AbilityAICombatAI()
         {
@@ -97,7 +100,12 @@ namespace AbilityAI
                 if (compType.IsInstanceOfType(comps[i])) { comp = comps[i]; break; }
             }
             if (comp == null) return;
-            if (pawn.Faction != null && pawn.Faction.IsPlayer && (autoControlled == null || !(bool)autoControlled.Invoke(comp, null))) return;
+            // Switching a hold setting off leaves holds already placed to CheckHold, which still puts the stamp back
+            if (pawn.Faction != null && pawn.Faction.IsPlayer)
+            {
+                if (!AbilityAISettings.CaiHoldColonists || autoControlled == null || !(bool)autoControlled.Invoke(comp, null)) return;
+            }
+            else if (!AbilityAISettings.CaiHoldNpcs) return;
             object data = dataField.GetValue(comp);
             if (data == null) return;
 

@@ -827,7 +827,7 @@ namespace AbilityAI
             {
                 Pawn p = allies[i];
                 if ((p.Position - pawn.Position).LengthHorizontalSquared > r2) continue;
-                if (p.CurJobDef == JobDefOf.AttackMelee) return false;
+                if (p.CurJobDef == JobDefOf.AttackMelee || AbilityAIUtility.InMelee(ctx, p)) return false;
                 int aimed = ctx.AimedAtCount(p);
                 bool hit = ctx.RecentlyShot(p);
                 threats += aimed;
@@ -835,6 +835,7 @@ namespace AbilityAI
                 if (AbilityAIContext.FightsAtRange(p)) shooters++;
                 if ((aimed > 0 || hit) && (p.health.summaryHealth?.SummaryHealthPercent ?? 1f) < ext.healthThreshold) helpless = true;
             }
+            // A hit with nobody aiming is one shooter out of sight; with aimers it is probably one of them
             if (threats == 0 && shot) threats = 1;
             if (threats < ext.minThreats) return false;
             if (threats > shooters || helpless) return true;

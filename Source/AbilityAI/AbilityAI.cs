@@ -606,6 +606,7 @@ namespace AbilityAI
             supportAllies.Clear();
             enemyTarget = null;
             prey = null;
+            CastAtPrey = false;
             pawn = null;
             map = null;
         }

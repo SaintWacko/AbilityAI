@@ -659,7 +659,7 @@ namespace AbilityAI
                 float reach = ext.maxRange >= 0f ? ext.maxRange : 40f;
                 if (d < ext.minGapDistance || d > reach) return false;
                 if (ext.gapCloseOutOfSight && GenSight.LineOfSight(ctx.pawn.Position, enemy.Position, ctx.map)) return false;
-                bool prey = enemy == ctx.Prey;
+                bool prey = ext.whileHunting && enemy == ctx.Prey;
                 if (self) { target = ctx.pawn; ctx.CastAtPrey = prey; return true; }
                 // Even the cell next to the enemy nearest the caster is out of reach: skip the eight validations
                 if (d > AbilityAIUtility.Range(ability, ext) + 1.5f) return false;

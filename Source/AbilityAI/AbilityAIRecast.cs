@@ -290,7 +290,8 @@ namespace AbilityAI
                     }
                     else if (s.thing.Map != map)
                     {
-                        // Carried to another map (a gravship): the spot goes with it
+                        // On another map without Notify_Landed having moved the spot (a way of moving things this
+                        // mod doesn't know): the spot goes with it
                         spots.RemoveAt(i);
                         if (s.marker != null) RemoveMarker(s);
                         s.due = false;
@@ -409,6 +410,7 @@ namespace AbilityAI
                 if (spot == null) continue;
                 from.spots.Remove(spot);
                 if (spot.marker != null) RemoveMarker(spot);
+                if (spot.due) from.dueCount--;
                 spot.due = false;
                 spot.claimant = null;
                 spot.anchor = thing.Position;
@@ -471,6 +473,7 @@ namespace AbilityAI
                 if (spots == null) spots = new List<RecastSpot>();
                 // A def from a mod since removed
                 spots.RemoveAll(s => s == null || s.thingDef == null);
+                for (int i = 0; i < spots.Count; i++) CompRecastSpot.Mark(spots[i].thing, true);
             }
         }
     }

@@ -570,6 +570,10 @@ namespace AbilityAI
         private Pawn prey;
         private bool preyKnown;
 
+        /// <summary>A drafted player pawn on a melee attack job (ChargeGapClose): the pawn it attacks, while alive and
+        /// standing on this map. The driver then tries only Movement gap-close rules, aimed at it, with escape off.</summary>
+        public Pawn ChargeTarget { get; internal set; }
+
         /// <summary>Set by a worker whose target is the hunt's prey (or a cell beside it), so the driver puts the hunt
         /// back after the cast; an escape from the same rule must leave it unset. Cleared before each worker runs.</summary>
         public bool CastAtPrey { get; set; }
@@ -607,6 +611,7 @@ namespace AbilityAI
             enemyTarget = null;
             prey = null;
             CastAtPrey = false;
+            ChargeTarget = null;
             pawn = null;
             map = null;
         }
@@ -1165,6 +1170,8 @@ namespace AbilityAI
             }
             // Our own walk into range (Full mode) is a move, but casting from it is what it is for
             if (state != null && state.approachJobId >= 0 && cur != null && cur.loadID == state.approachJobId) return true;
+            // A melee attack order is a move too, but a leap at its target only shortens it (Evaluate tries nothing else)
+            if (IsCharging(pawn)) return true;
             if (pawn.pather != null && pawn.pather.Moving) return false;
             JobDef job = cur?.def;
             return job == null || job == JobDefOf.Wait_Combat || job == JobDefOf.Wait || job == JobDefOf.Wait_MaintainPosture
@@ -1172,6 +1179,15 @@ namespace AbilityAI
         }
 
         private static bool IsFightJob(JobDef def) => def == JobDefOf.AttackStatic || def == JobDefOf.AttackMelee;
+
+        private static bool IsCharging(Pawn pawn) =>
+            AbilityAISettings.ChargeGapClose && pawn.Drafted && pawn.CurJob != null && pawn.CurJob.def == JobDefOf.AttackMelee;
+
+        private static Pawn ChargeTargetOf(Pawn pawn) =>
+            pawn.CurJob.targetA.Thing is Pawn p && p.Spawned && p.Map == pawn.Map && !p.Dead && !p.Downed ? p : null;
+
+        private static bool ChargeRule(AbilityAIExtension ext) =>
+            ext.Worker is AbilityAIWorker_Movement && (ext.modes & AbilityAIMoveModes.GapClose) != 0;
 
         // Jobs a cast may break into and that go on after it. A hunt only while it is a chase: once the prey is dead the
         // job's target is the corpse and the hunter is eating.
@@ -1432,7 +1448,7 @@ namespace AbilityAI
             if (!player)
                 return pawn.Drafted ? "drafted" : $"in a mental state ({pawn.MentalStateDef?.defName})";
             if (pawn.InMentalState) return $"in a mental state ({pawn.MentalStateDef.defName})";
-            if (pawn.Drafted) return "moving, or on a drafted order other than holding or shooting";
+            if (pawn.Drafted) return "moving, or on a drafted order other than holding, shooting or a melee attack";
             if (!AbilityAISettings.UndraftedAutocast) return "undrafted casting is off";
             if (pawn.GetPosture() != PawnPosture.Standing) return "lying down";
             if (pawn.carryTracker?.CarriedThing != null) return "carrying something";
@@ -1490,6 +1506,16 @@ namespace AbilityAI
                 curPlayer = player;
                 // An undrafted player pawn on a hunt is only interrupted for a whileHunting rule (see CanActNowPlayer)
                 bool huntOnly = player && !drafted && pawn.CurJob != null && pawn.CurJob.def == JobDefOf.PredatorHunt;
+                bool charging = player && IsCharging(pawn);
+                if (charging)
+                {
+                    ctx.ChargeTarget = ChargeTargetOf(pawn);
+                    if (ctx.ChargeTarget == null)
+                    {
+                        WhyNot(null, null, "on a melee order at nothing a leap could reach");
+                        return null;
+                    }
+                }
                 // Only extensions with an npc or friendlyNpc block care, but the hostility test is once per evaluation
                 var role = player ? AbilityAIRole.Player
                     : pawn.HostileTo(Faction.OfPlayer) ? AbilityAIRole.Npc : AbilityAIRole.FriendlyNpc;
@@ -1515,6 +1541,11 @@ namespace AbilityAI
                         if (huntOnly && !ext.whileHunting)
                         {
                             WhyNot(a, ext, "not used while hunting");
+                            continue;
+                        }
+                        if (charging && !ChargeRule(ext))
+                        {
+                            WhyNot(a, ext, "only gap-close rules run during a melee order");
                             continue;
                         }
                         if (!InSet(ext.Worker, curSet))
@@ -1606,7 +1637,7 @@ namespace AbilityAI
                 if (!player) return TryApproach(state, false);
                 if (returnDue) return ReturnJob(pawn, state);
                 // Full walks are drafted only, one at a time, and not while the last one is still on its way back
-                if (!drafted || state.home.IsValid) return null;
+                if (!drafted || charging || state.home.IsValid) return null;
                 return TryApproach(state, true);
             }
             finally
@@ -1791,7 +1822,9 @@ namespace AbilityAI
             if (curSet == PlayerSet.Fleeing && worker.ForFleeing) return true;
             switch (worker.Combat)
             {
-                case AbilityAICombat.InCombat: return ctx.InCombat || (worker.ext.whileHunting && ctx.Prey != null);
+                // A melee order counts as a fight even at a target that isn't hostile
+                case AbilityAICombat.InCombat:
+                    return ctx.InCombat || ctx.ChargeTarget != null || (worker.ext.whileHunting && ctx.Prey != null);
                 case AbilityAICombat.OutOfCombat: return !ctx.InCombat;
                 default: return true;
             }
@@ -1939,6 +1972,8 @@ namespace AbilityAI
         public static bool UndraftedAutocast = true;
         public static bool ShowMarker = true;
         public static bool ReturnToCover;
+        /// <summary>A drafted pawn on a melee attack order may cast its gap-close movement abilities at that target.</summary>
+        public static bool ChargeGapClose = true;
         /// <summary>Better Autocasting for VPE decides the colonists' psycasts both mods have rules for (default: Ability
         /// AI does).</summary>
         public static bool BetterAutocastOwns;
@@ -2006,7 +2041,7 @@ namespace AbilityAI
                     Hostiles = NonHostiles = Animals = Mechs = Approach = Unclaimed = true;
                     break;
                 case Tab.YourPawns:
-                    PlayerAutocast = UndraftedAutocast = ShowMarker = true;
+                    PlayerAutocast = UndraftedAutocast = ShowMarker = ChargeGapClose = true;
                     ReturnToCover = false;
                     UndraftedIntervalTicks = DefaultUndraftedIntervalTicks;
                     AbilityAIBlockedJobs.Reset();
@@ -2042,6 +2077,7 @@ namespace AbilityAI
             AbilityAIBlockedJobs.ExposeData();
             Scribe_Values.Look(ref ShowMarker, "abilityAI_showMarker", true);
             Scribe_Values.Look(ref ReturnToCover, "abilityAI_returnToCover", false);
+            Scribe_Values.Look(ref ChargeGapClose, "abilityAI_chargeGapClose", true);
             Scribe_Values.Look(ref BetterAutocastOwns, "abilityAI_betterAutocastOwns", false);
             Scribe_Values.Look(ref CalmBreaks, "abilityAI_calmBreaks", DefaultCalmBreaks);
             Scribe_Values.Look(ref CalmRange, "abilityAI_calmRange", DefaultCalmRange);
@@ -2155,6 +2191,7 @@ namespace AbilityAI
         {
             list.CheckboxLabeled("AAI_PlayerAutocast".Translate(), ref PlayerAutocast, "AAI_PlayerAutocast_Tip".Translate());
             list.CheckboxLabeled("AAI_ShowMarker".Translate(), ref ShowMarker, "AAI_ShowMarker_Tip".Translate());
+            list.CheckboxLabeled("AAI_ChargeGapClose".Translate(), ref ChargeGapClose, "AAI_ChargeGapClose_Tip".Translate());
             Section(list, "AAI_Section_Undrafted");
             list.CheckboxLabeled("AAI_UndraftedAutocast".Translate(), ref UndraftedAutocast, "AAI_UndraftedAutocast_Tip".Translate());
             if (UndraftedAutocast)

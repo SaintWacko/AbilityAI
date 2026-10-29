@@ -462,6 +462,8 @@ namespace AbilityAI
     /// </summary>
     public class AbilityAIWorker_AoEFriendly : AbilityAIWorker
     {
+        // Its self-cast branch counts the allies in reach itself; a cast at an ally is not an area around the caster
+        protected internal override bool CountsAffectedAroundCaster => true;
         private struct Spot { public IntVec3 cell; public int count; public float dist; }
         private static readonly List<Pawn> near = new List<Pawn>();
         private static readonly List<Spot> spots = new List<Spot>();

@@ -491,8 +491,9 @@ namespace AbilityAI
         // casters, the rest of the method's rule is applied here instead. Decided once per runtime comp type: a
         // subclass that declares its own AICanTargetNow is asked as usual, since its author's rule may be real.
         // RequiresTrainable says no once the trick is learned (the trained animal's own think tree casts it then),
-        // which is the only time the player can set it to autocast at all: the gizmo is hidden until then.
-        private enum PlayerAIRule : byte { Ask, TargetIsPawn, TargetAimsAtCaster, Allow }
+        // which is the only time the player can set it to autocast at all: the gizmo is hidden until then. A mode
+        // saved before the trick was lost goes back to the comp's own rule.
+        private enum PlayerAIRule : byte { Ask, TargetIsPawn, TargetAimsAtCaster, TrickLearned }
         private static readonly Dictionary<Type, PlayerAIRule> playerAIRules = new Dictionary<Type, PlayerAIRule>();
 
         private static bool CompAllowsTarget(CompAbilityEffect comp, LocalTargetInfo target, bool playerCaster)
@@ -504,13 +505,15 @@ namespace AbilityAI
                 var declaring = type.GetMethod(nameof(CompAbilityEffect.AICanTargetNow), new[] { typeof(LocalTargetInfo) })?.DeclaringType;
                 rule = declaring == typeof(CompAbilityEffect_GiveHediff) ? PlayerAIRule.TargetIsPawn
                      : declaring == typeof(CompAbilityEffect_FireBurst) ? PlayerAIRule.TargetAimsAtCaster
-                     : declaring == typeof(CompAbilityEffect_RequiresTrainable) ? PlayerAIRule.Allow
+                     : declaring == typeof(CompAbilityEffect_RequiresTrainable) ? PlayerAIRule.TrickLearned
                      : PlayerAIRule.Ask;
                 playerAIRules[type] = rule;
             }
             switch (rule)
             {
-                case PlayerAIRule.Allow: return true;
+                case PlayerAIRule.TrickLearned:
+                    return comp.parent.pawn?.training?.HasLearned(((CompAbilityEffect_RequiresTrainable)comp).Props.trainableDef) == true
+                        || comp.AICanTargetNow(target);
                 case PlayerAIRule.TargetIsPawn: return target.Pawn != null;
                 case PlayerAIRule.TargetAimsAtCaster:
                     return target.Thing is Pawn p && p.TargetCurrentlyAimingAt == comp.parent.pawn;

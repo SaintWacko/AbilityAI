@@ -325,14 +325,16 @@ namespace AbilityAI
         // A Movement rule (Power Leap, Shadowskip, Ghostwalk) or a Skip Escape rule (Royalty's Skip) moves the caster in
         // the in-place mode too: drafted autocast runs every worker while holding position, gap-close and escape
         // included. "Stationary" would promise the pawn stays put, so these get the plain "Autocast" label that touch
-        // abilities have. Skip with only Rescue and Repel (VPE's) moves other pawns and keeps "Stationary".
+        // abilities have. Skip with only Rescue and Repel (VPE's) moves other pawns and keeps "Stationary". A Recast
+        // rule walks the caster into range of the spot, so it is plain "Autocast" too.
         private static bool MovesCaster(Def def)
         {
             var exts = def.modExtensions;
             if (exts == null) return false;
             for (int i = 0; i < exts.Count; i++)
                 if (exts[i] is AbilityAIExtension ext && (ext.Worker is AbilityAIWorker_Movement
-                    || ext.Worker is AbilityAIWorker_Skip && ext.skipMode == AbilityAISkipMode.Escape)) return true;
+                    || ext.Worker is AbilityAIWorker_Skip && ext.skipMode == AbilityAISkipMode.Escape
+                    || ext.Worker is AbilityAIWorker_Recast)) return true;
             return false;
         }
 

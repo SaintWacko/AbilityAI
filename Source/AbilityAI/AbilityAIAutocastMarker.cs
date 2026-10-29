@@ -122,6 +122,8 @@ namespace AbilityAI
             if (ability?.pawn == null || !AutocastMarker.Offers(ability)) return;
             string mode = AbilityAIAutocast.Label(AbilityAIAutocast.ModeFor(ability.pawn, ability.def), ability.def);
             __result += "\n\n" + "AAI_Autocast_Hint".Translate(mode).Colorize(ColoredText.SubtleGrayColor);
+            string recast = AbilityAIRecast.Hint(ability.def);
+            if (recast != null) __result += "\n" + recast.Colorize(ColoredText.SubtleGrayColor);
         }
     }
 }

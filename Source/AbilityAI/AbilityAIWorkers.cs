@@ -49,6 +49,10 @@ namespace AbilityAI
         /// <summary>See AbilityAIExtension.exclusive.</summary>
         public bool Exclusive => ext.exclusive ?? DefaultExclusive;
 
+        /// <summary>The driver tries this worker from the constant think tree. False for one whose casting happens
+        /// elsewhere (Recast, as Basic work): the rule still counts for the autocast menu and the stand-down.</summary>
+        public virtual bool DriverCasts => true;
+
         /// <summary>A target worth casting at now, or false. The driver runs AbilityAIDriver.Valid on the result
         /// once more, so a worker only needs to call it where it is choosing between candidates.</summary>
         public abstract bool TryFindTarget(AbilityAIContext ctx, AIAbility ability, out LocalTargetInfo target, out LocalTargetInfo dest);

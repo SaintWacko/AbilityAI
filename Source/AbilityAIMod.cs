@@ -89,6 +89,8 @@ namespace AbilityAI
     {
         static AbilityAIStartup()
         {
+            var abilityDefs = DefDatabase<AbilityDef>.AllDefsListForReading;
+            for (int i = 0; i < abilityDefs.Count; i++) AbilityAIRecast.Note(abilityDefs[i]);
             var harmony = new Harmony("saintwacko.abilityai");
             foreach (var type in AccessTools.GetTypesFromAssembly(typeof(AbilityAIStartup).Assembly))
             {

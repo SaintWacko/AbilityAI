@@ -8,6 +8,8 @@ Ability AI
 - Other factions use every ability that has an Ability AI rule, even when the mod that adds the ability doesn't ask for it. The "Also use abilities no mod claims" setting, on by default, turns this off.
 - Player autocast for each pawn and ability, from a right-click menu on the ability's button: Off, Stationary (cast from where the pawn stands) or Full (walk into range, cast, walk back or to new cover). Undrafted pawns can cast by situation, such as healing or putting out fires.
 - A drafted pawn you order to attack someone in melee uses a movement ability set to autocast, such as Power Leap, to close the distance, then carries on with the attack. A setting in the Your pawns tab turns this off.
+- Area abilities that need no target, such as Terror Roar, can now be cast by the caster-centred and ally-area rules. The check that only accepts hostile targets was asked about the caster itself and always refused.
+- Trained animals can autocast abilities their training unlocks, such as War trumpet and Thrumbo roar. These were always refused before.
 - Per-pawn psycast limits for autocast: max heat and min psyfocus.
 - Rules for 75 Vanilla Psycasts Expanded psycasts, priced through VPE's own cost methods so Psycasts² changes apply.
 - Skip for Royalty and VPE: rescue a downed or hurt ally, repel an enemy that has reached someone who can't fight it off, and (Royalty's Skip only) escape when the caster is in trouble. Each use has its own setting.

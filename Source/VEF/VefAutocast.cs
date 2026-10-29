@@ -166,6 +166,8 @@ namespace AbilityAI.Vef
             if (!AutocastMarker.Offers(a)) return;
             string mode = AbilityAIAutocast.Label(AbilityAIAutocast.ModeFor(ability.pawn, ability.def), ability.def, a.IsTouch);
             __result += "\n\n" + "AAI_Autocast_Hint".Translate(mode).Colorize(ColoredText.SubtleGrayColor);
+            string recast = AbilityAIRecast.Hint(ability.def);
+            if (recast != null) __result += "\n" + recast.Colorize(ColoredText.SubtleGrayColor);
         }
     }
 }

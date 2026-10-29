@@ -115,4 +115,20 @@
   <AAI_Reset>Reset all</AAI_Reset>
   <AAI_Reset_Confirm>Reset every Ability AI setting, on every tab, to its default?</AAI_Reset_Confirm>
   <AAI_ResetTab>Reset this tab</AAI_ResetTab>
+
+  <AAI_Section_Recast>Recasting</AAI_Section_Recast>
+  <AAI_RecastTrackNewCasts>Keep up new casts</AAI_RecastTrackNewCasts>
+  <AAI_RecastTrackNewCasts_Tip>When a colonist casts a psycast that leaves something behind for a while (solar pinhole, ice crystal), remember the spot. Colonists with that psycast on autocast then recast it there before it runs out, and a recast marker shows the spot once it has. Off: only things switched on with their own Recast gizmo are kept up.</AAI_RecastTrackNewCasts_Tip>
+  <AAI_RecastAt>Recast with {0}% of its time left</AAI_RecastAt>
+  <AAI_RecastAt_Gone>Recast once it has run out</AAI_RecastAt_Gone>
+  <AAI_RecastAt_Tip>How early a colonist comes to recast a kept-up psycast. At 0% it is recast only after it is gone, so the light or cooling stops for a while.</AAI_RecastAt_Tip>
+  <AAI_Recast_Desc>Recasting is Basic work: colonists do it between other jobs in Work tab order, never while drafted, and each goes for the nearest spot nobody else is heading to.</AAI_Recast_Desc>
+  <AAI_Recast_Hint>On autocast, this pawn helps keep up every {0} your colonists cast: it recasts one before it runs out, as Basic work, and a recast marker shows where one ran out.</AAI_Recast_Hint>
+  <AAI_RecastToggle>Recast</AAI_RecastToggle>
+  <AAI_RecastToggle_Desc>On: before this {0} runs out, a colonist with the psycast on autocast recasts it here, and a recast marker shows the spot if it runs out first. Off: it is left to run out.</AAI_RecastToggle_Desc>
+  <AAI_RecastMarker_Label>{0} (recast marker)</AAI_RecastMarker_Label>
+  <AAI_RecastMarker_Inspect>Waiting for a colonist with this psycast on autocast.</AAI_RecastMarker_Inspect>
+  <AAI_RecastMarker_Claimed>{0} is coming to recast it.</AAI_RecastMarker_Claimed>
+  <AAI_RecastMarker_Remove>Remove marker</AAI_RecastMarker_Remove>
+  <AAI_RecastMarker_Remove_Desc>Stop keeping this spot up. Nobody recasts here unless it is cast again.</AAI_RecastMarker_Remove_Desc>
 </LanguageData>

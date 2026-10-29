@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Recasting (Source/AbilityAI/AbilityAIRecast.cs, AbilityAIRecastWork.cs). The marker is drawn as a ghost of the
+     thing it stands for and is never saved: the map's spots make it again on load. The work giver is Basic work, so
+     the Work tab orders recasting against everything else a colonist does; it needs Royalty, as every psycast does. -->
+<Defs>
+
+  <ThingDef>
+    <defName>AAI_RecastMarker</defName>
+    <label>recast marker</label>
+    <description>Marks where a kept-up psycast ran out. A colonist with that psycast set to autocast comes and casts it here again, as Basic work.</description>
+    <thingClass>AbilityAI.RecastMarker</thingClass>
+    <category>Ethereal</category>
+    <altitudeLayer>Blueprint</altitudeLayer>
+    <drawerType>RealtimeOnly</drawerType>
+    <tickerType>Never</tickerType>
+    <selectable>true</selectable>
+    <useHitPoints>false</useHitPoints>
+    <rotatable>false</rotatable>
+    <isSaveable>false</isSaveable>
+  </ThingDef>
+
+  <JobDef>
+    <defName>AAI_RecastWalk</defName>
+    <driverClass>AbilityAI.JobDriver_RecastWalk</driverClass>
+    <reportString>going to recast a psycast.</reportString>
+    <casualInterruptible>true</casualInterruptible>
+  </JobDef>
+
+  <WorkGiverDef MayRequire="Ludeon.RimWorld.Royalty">
+    <defName>AAI_Recast</defName>
+    <label>recast psycasts</label>
+    <giverClass>AbilityAI.WorkGiver_Recast</giverClass>
+    <workType>BasicWorker</workType>
+    <verb>recast</verb>
+    <gerund>recasting</gerund>
+    <priorityInType>10</priorityInType>
+  </WorkGiverDef>
+
+</Defs>

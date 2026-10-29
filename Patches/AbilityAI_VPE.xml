@@ -11,7 +11,7 @@
      Love, Luck Transfer, Health Swap, Essence Transfer, Location Swap, Farskip, Nightstep, Neuroquake, Timequake),
      crafting and utility ones (Enchant, Mend, Power, constructs, Psyring, Transmute, Recharge, Corpsetalk, Word of
      Trust/Productivity/Alliance/Joy/Inspiration/Progress/Foretelling/Animals, Mind Wipe, Bliss, Darkvision, Group
-     Link, Solar Pinhole, Skipdoor, Crop Burst, Tree Sprout, Shrineshield, Ice Crystal, Cold Zone), map-wide
+     Link, Skipdoor, Crop Burst, Tree Sprout, Shrineshield, Cold Zone), map-wide
      ones (Soothe, Eclipse, Intensify Shadows, Raid Pause, Hurricane, Bend Probability, Manhunter Pulse, Animal
      Allies), the ones that put the caster in a coma (Mass Hallucination, Fire Beam, Blizzard, Time Reversal, Season
      Timeskip, Timeskip Meditation, Skillroll, Resurrect, Reverse Engineer, Summon Pack), corpse targets (Enthrall,
@@ -1479,6 +1479,37 @@
                 <priority>3</priority>
                 <minTargets>2</minTargets>
                 <targetKinds>Animal</targetKinds>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Solar Pinhole: leaves Royalty's pinhole, kept up as Royalty's is (Recast: Basic work for the player's
+             colonists, never NPCs); recast in place, since the new one wipes the old. A pinhole cast with either
+             psycast may be recast with the other. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_SolarPinhole"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_SolarPinhole"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Recast</workerClass>
+                <recastThing>SolarPinhole</recastThing>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Ice Crystal: kept up the same way. VEF won't place it on a cell with a building, so while the old one
+             stands the recast goes on the free cell beside it, and the next one back on the first. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_IceCrystal"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_IceCrystal"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Recast</workerClass>
+                <recastThing>VPE_IceCrystal</recastThing>
               </li>
             </value>
           </match>

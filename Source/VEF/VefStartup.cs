@@ -1,6 +1,7 @@
 using System;
 using System.Runtime.CompilerServices;
 using HarmonyLib;
+using VEF.Abilities;
 using Verse;
 using VefAbility = VEF.Abilities.Ability;
 
@@ -18,6 +19,9 @@ namespace AbilityAI.Vef
         {
             VefAIAbility.Init();
             AIAbilitySources.Register(VefAIAbility.Source);
+            var defs = DefDatabase<VEF.Abilities.AbilityDef>.AllDefsListForReading;
+            for (int i = 0; i < defs.Count; i++) AbilityAIRecast.Note(defs[i]);
+            AbilityAIRecast.RegisterLifetime(SpawnedLifetime);
             AbilityAIAutocast.WorldReady += VefAutocast.ConvertAll;
             var harmony = new Harmony("saintwacko.abilityai.vef");
             foreach (var type in AccessTools.GetTypesFromAssembly(typeof(VefStartup).Assembly))
@@ -26,6 +30,26 @@ namespace AbilityAI.Vef
                 try { harmony.CreateClassProcessor(type).Patch(); }
                 catch (Exception e) { Log.Error($"[Ability AI] Patch {type.FullName} failed; that one feature is off, the rest still works: {e}"); }
             }
+        }
+
+        // When a thing VEF's spawn abilities left runs out, for recasting. Ability_SpawnBuilding sets finalTick after the
+        // spawn (so this is read later, never from the spawn itself), and a building it gave a damage per tick (its
+        // power) wears down first if its hit points run out sooner. Ability_Spawn counts down CompDuration instead.
+        private static int SpawnedLifetime(Thing thing)
+        {
+            var building = thing.TryGetComp<CompSpawnedBuilding>();
+            if (building != null)
+            {
+                int end = building.finalTick > 0 ? building.finalTick : -1;
+                if (building.damagePerTick > 0)
+                {
+                    int worn = building.lastDamageTick + thing.HitPoints / building.damagePerTick;
+                    end = end < 0 ? worn : Math.Min(end, worn);
+                }
+                return end;
+            }
+            var duration = thing.TryGetComp<CompDuration>();
+            return duration != null ? Find.TickManager.TicksGame + duration.durationTicksLeft : -1;
         }
     }
 

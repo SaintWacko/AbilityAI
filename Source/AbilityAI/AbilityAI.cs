@@ -443,6 +443,8 @@ namespace AbilityAI
         /// <summary>Cone hostile: width at the far end of the cone; Beam hostile: width all along the beam (at least 1.5).
         /// Negative = read it from the effects, else 1 (a line).</summary>
         public float coneWidth = -1f;
+        /// <summary>Recast: the thing the ability leaves behind that the player's colonists keep up.</summary>
+        public ThingDef recastThing;
         /// <summary>Changes to this rule for every caster that isn't the player's own pawn.</summary>
         public AbilityAIOverride npc;
         /// <summary>Further changes, over npc, for casters not hostile to the player (visitors, traders, allied
@@ -542,6 +544,10 @@ namespace AbilityAI
             if (gapCloseJobTarget && workerClass != null && (!typeof(AbilityAIWorker_Movement).IsAssignableFrom(workerClass)
                 || (modes & AbilityAIMoveModes.GapClose) == 0))
                 yield return "gapCloseJobTarget is only read by a Movement rule with the GapClose mode";
+            if (workerClass != null && typeof(AbilityAIWorker_Recast).IsAssignableFrom(workerClass) && recastThing == null)
+                yield return "a Recast rule needs a recastThing";
+            else if (recastThing != null && workerClass != null && !typeof(AbilityAIWorker_Recast).IsAssignableFrom(workerClass))
+                yield return $"recastThing is only read by Recast, not {workerClass.Name}";
             if (auraKinds != AbilityAITargetKinds.None)
             {
                 if (auraMin < 1) yield return "auraMin must be at least 1";
@@ -1094,7 +1100,7 @@ namespace AbilityAI
         /// stops at one dictionary lookup. Without a target the cheapest cost the psycast can have is used (asked
         /// while choosing candidates); with one, the cost for that target (Word of Serenity costs more for a worse
         /// break).</summary>
-        private static bool PsycastWithinLimits(AIAbility a, LocalTargetInfo target)
+        internal static bool PsycastWithinLimits(AIAbility a, LocalTargetInfo target)
         {
             if (!a.IsPsycast) return true;
             Pawn pawn = a.Pawn;
@@ -1585,6 +1591,8 @@ namespace AbilityAI
                             if (whyNot != null) WhyNot(a, ext, ext.enabled ? "its worker class is missing" : $"rule is off for {role}");
                             continue;
                         }
+                        // Recast is Basic work (AbilityAIRecastWork), not a cast from the constant tree
+                        if (!ext.Worker.DriverCasts) continue;
                         if (huntOnly && !ext.whileHunting)
                         {
                             WhyNot(a, ext, "not used while hunting");
@@ -2050,6 +2058,11 @@ namespace AbilityAI
         /// drafted colonists CAI auto-controls.</summary>
         public static bool CaiHoldNpcs = true;
         public static bool CaiHoldColonists = true;
+        /// <summary>Recast: a kept-up thing is due with this fraction of its lifetime left (0 = once it is gone).</summary>
+        public const float DefaultRecastAt = 0.05f;
+        public static float RecastAt = DefaultRecastAt;
+        /// <summary>Recast: a colonist's cast of an ability with a Recast rule starts a spot to keep up.</summary>
+        public static bool RecastTrackNewCasts = true;
 
         public static bool SkipAllowed(AbilityAISkipMode mode)
         {
@@ -2093,8 +2106,9 @@ namespace AbilityAI
                     Hostiles = NonHostiles = Animals = Mechs = Approach = Unclaimed = true;
                     break;
                 case Tab.YourPawns:
-                    PlayerAutocast = UndraftedAutocast = ShowMarker = ChargeGapClose = true;
+                    PlayerAutocast = UndraftedAutocast = ShowMarker = ChargeGapClose = RecastTrackNewCasts = true;
                     ReturnToCover = false;
+                    RecastAt = DefaultRecastAt;
                     UndraftedIntervalTicks = DefaultUndraftedIntervalTicks;
                     AbilityAIBlockedJobs.Reset();
                     if (BetterAutocastOwns)
@@ -2131,6 +2145,9 @@ namespace AbilityAI
             Scribe_Values.Look(ref ReturnToCover, "abilityAI_returnToCover", false);
             Scribe_Values.Look(ref ChargeGapClose, "abilityAI_chargeGapClose", true);
             Scribe_Values.Look(ref BetterAutocastOwns, "abilityAI_betterAutocastOwns", false);
+            Scribe_Values.Look(ref RecastTrackNewCasts, "abilityAI_recastTrackNewCasts", true);
+            Scribe_Values.Look(ref RecastAt, "abilityAI_recastAt", DefaultRecastAt);
+            RecastAt = Mathf.Clamp(RecastAt, 0f, 0.5f);
             Scribe_Values.Look(ref CalmBreaks, "abilityAI_calmBreaks", DefaultCalmBreaks);
             Scribe_Values.Look(ref CalmRange, "abilityAI_calmRange", DefaultCalmRange);
             CalmRange = Mathf.Clamp(CalmRange, 5f, 60f);
@@ -2266,6 +2283,15 @@ namespace AbilityAI
             if (list.RadioButton("AAI_ReturnTo_Cover".Translate(), ReturnToCover, 0f, "AAI_ReturnTo_Cover_Tip".Translate()))
                 ReturnToCover = true;
             Out(list);
+            if (AbilityAIRecast.Any)
+            {
+                Section(list, "AAI_Section_Recast");
+                list.CheckboxLabeled("AAI_RecastTrackNewCasts".Translate(), ref RecastTrackNewCasts, "AAI_RecastTrackNewCasts_Tip".Translate());
+                list.Label(RecastAt <= 0f ? "AAI_RecastAt_Gone".Translate() : "AAI_RecastAt".Translate(Mathf.RoundToInt(RecastAt * 100f)),
+                    -1f, "AAI_RecastAt_Tip".Translate());
+                RecastAt = Mathf.Round(list.Slider(RecastAt, 0f, 0.5f) * 100f) / 100f;
+                Hint(list, "AAI_Recast_Desc");
+            }
             if (BetterAutocastActive)
             {
                 bool before = BetterAutocastOwns;

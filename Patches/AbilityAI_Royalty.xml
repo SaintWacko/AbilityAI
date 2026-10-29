@@ -6,7 +6,7 @@
      costs only its own rule: a conditional with no nomatch succeeds when its xpath finds nothing, and the sequence
      goes on to the next one.
      Left out on purpose: Beckon, Flashstorm, Neuroquake, manhunter pulse, mass chaos
-     skip, farskip, chunkskip, solar pinhole, neural heat dump and the social Word of psycasts other than serenity.
+     skip, farskip, chunkskip, neural heat dump and the social Word of psycasts other than serenity.
      approachDistance (how far a ranged NPC, or a player pawn set to "Full Autocast", walks to get a target into
      range) is only on the enemy-targeted rules: their workers are the ones that can pick a target to walk toward.
      Chaos skip is left without one, since its target is an enemy already in melee.
@@ -286,6 +286,42 @@
               </li>
             </value>
           </match>
+        </li>
+
+        <!-- Solar pinhole: kept up by the player's colonists (Recast: Basic work, never NPCs). A new pinhole wipes
+             the old one on its cell, so it is recast in place. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="SolarPinhole"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="SolarPinhole"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Recast</workerClass>
+                <recastThing>SolarPinhole</recastThing>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- The pinhole itself selectable, so it shows its recast toggle (vanilla's can't be clicked at all).
+             Shared with VPE's Solar Pinhole, which leaves the same thing. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/ThingDef[defName="SolarPinhole"]/selectable</xpath>
+          <match Class="PatchOperationReplace">
+            <xpath>Defs/ThingDef[defName="SolarPinhole"]/selectable</xpath>
+            <value>
+              <selectable>true</selectable>
+            </value>
+          </match>
+          <nomatch Class="PatchOperationConditional">
+            <xpath>Defs/ThingDef[defName="SolarPinhole"]</xpath>
+            <match Class="PatchOperationAdd">
+              <xpath>Defs/ThingDef[defName="SolarPinhole"]</xpath>
+              <value>
+                <selectable>true</selectable>
+              </value>
+            </match>
+          </nomatch>
         </li>
 
       </operations>

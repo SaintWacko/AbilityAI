@@ -42,6 +42,8 @@ namespace AbilityAI.Vpe
                 if (key is string name && DefDatabase<VefAbilityDef>.GetNamedSilentFail(name) is VefAbilityDef def) handled.Add(def);
 
             VefAIAbility.RegisterPlayerAutocaster(Ceded);
+            // Spots cast with a psycast BA decides keep no marker and aren't recast while it does
+            AbilityAIRecast.Ceded = def => AbilityAISettings.BetterAutocastOwns && def is VefAbilityDef d && handled.Contains(d);
             AbilityAIAutocast.OwnerChanged += OwnerChanged;
             VefAutocast.BeforeConvertAll += WorldReady;
             AbilityAISettings.BetterAutocastActive = true;

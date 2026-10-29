@@ -44,7 +44,7 @@
   <AAI_BlockedJobs_GroupOff>Other jobs that can be interrupted</AAI_BlockedJobs_GroupOff>
   <AAI_BlockedJobs_Reset>Reset to defaults</AAI_BlockedJobs_Reset>
   <AAI_ChargeGapClose>Leap at the target of a melee attack order</AAI_ChargeGapClose>
-  <AAI_ChargeGapClose_Tip>When you order a drafted pawn to attack someone in melee, it may use a movement ability set to autocast (Power Leap, Blink, Shadowskip, Ghostwalk) to close the distance, then carries on with the attack. Only while the target is further away than the ability's minimum, and only movement abilities: nothing else is cast during the charge, and the pawn never uses one to run away from the fight you ordered.</AAI_ChargeGapClose_Tip>
+  <AAI_ChargeGapClose_Tip>When you order a drafted pawn to attack someone in melee, it may use a movement ability set to autocast (such as Vanilla Psycasts Expanded's Power Leap, Shadowskip and Ghostwalk) to close the distance, then carries on with the attack. Only while the target is further away than the ability's minimum, and only movement abilities: nothing else is cast during the charge, and the pawn never uses one to run away from the fight you ordered.</AAI_ChargeGapClose_Tip>
   <AAI_ShowMarker>Mark abilities that can autocast</AAI_ShowMarker>
   <AAI_ShowMarker_Tip>Draws a small grey ring on the button of every ability your pawn could autocast but isn't set to.</AAI_ShowMarker_Tip>
   <AAI_Autocast_Hint>Right-click to set autocast (now: {0}).</AAI_Autocast_Hint>

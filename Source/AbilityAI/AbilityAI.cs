@@ -1180,8 +1180,10 @@ namespace AbilityAI
 
         private static bool IsFightJob(JobDef def) => def == JobDefOf.AttackStatic || def == JobDefOf.AttackMelee;
 
+        // The player's own order only: another mod's AI (CAI's auto-control) starts melee attacks for drafted pawns too
         private static bool IsCharging(Pawn pawn) =>
-            AbilityAISettings.ChargeGapClose && pawn.Drafted && pawn.CurJob != null && pawn.CurJob.def == JobDefOf.AttackMelee;
+            AbilityAISettings.ChargeGapClose && pawn.Drafted && pawn.CurJob != null && pawn.CurJob.def == JobDefOf.AttackMelee
+            && pawn.CurJob.playerForced;
 
         private static Pawn ChargeTargetOf(Pawn pawn) =>
             pawn.CurJob.targetA.Thing is Pawn p && p.Spawned && p.Map == pawn.Map && !p.Dead && !p.Downed ? p : null;
@@ -1448,7 +1450,9 @@ namespace AbilityAI
             if (!player)
                 return pawn.Drafted ? "drafted" : $"in a mental state ({pawn.MentalStateDef?.defName})";
             if (pawn.InMentalState) return $"in a mental state ({pawn.MentalStateDef.defName})";
-            if (pawn.Drafted) return "moving, or on a drafted order other than holding, shooting or a melee attack";
+            if (pawn.Drafted)
+                return AbilityAISettings.ChargeGapClose ? "moving, or on a drafted order other than holding, shooting or a melee attack"
+                    : "moving, or on a drafted order other than holding or shooting";
             if (!AbilityAISettings.UndraftedAutocast) return "undrafted casting is off";
             if (pawn.GetPosture() != PawnPosture.Standing) return "lying down";
             if (pawn.carryTracker?.CarriedThing != null) return "carrying something";

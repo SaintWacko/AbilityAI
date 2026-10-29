@@ -626,7 +626,8 @@ namespace AbilityAI
     /// Any rule's gap-close can be limited to a target the caster can't see (gapCloseOutOfSight: one sight line,
     /// O(distance)); an NPC's own target is in sight when it is picked, so that mostly means a player's melee order.
     /// whileHunting: with no enemy target, the prey of the caster's hunt is closed on by the same rules.
-    /// During a drafted pawn's melee order (ctx.ChargeTarget) only gap-close runs, at the ordered target.
+    /// During a drafted pawn's melee order (ctx.ChargeTarget) only gap-close runs, at the ordered target, for a ranged
+    /// pawn too.
     /// Cost: escape is 32 × k distance checks, then up to 6 validations;
     /// gap-close with a targeted ability up to 8 validations, only while the enemy is within its reach.
     /// </summary>
@@ -654,7 +655,8 @@ namespace AbilityAI
                 if (self) { target = ctx.pawn; return true; }
                 if (TryEscapeCell(ctx, ability, out IntVec3 cell)) { target = cell; return true; }
             }
-            if ((ext.modes & AbilityAIMoveModes.GapClose) != 0 && !ctx.UsesRanged
+            // A gunner the player ordered into melee is going there anyway
+            if ((ext.modes & AbilityAIMoveModes.GapClose) != 0 && (!ctx.UsesRanged || ctx.ChargeTarget != null)
                 && (ctx.ChargeTarget ?? ctx.EnemyTarget as Pawn ?? (ext.whileHunting ? ctx.Prey : null)) is Pawn enemy)
             {
                 float d = (enemy.Position - ctx.pawn.Position).LengthHorizontal;

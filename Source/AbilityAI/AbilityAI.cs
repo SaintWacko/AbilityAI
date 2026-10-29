@@ -1076,6 +1076,11 @@ namespace AbilityAI
         private static bool claimsBuilt;
         // The candidate being tried, while its worker is exclusive: Valid refuses a target a mate has claimed for it
         private static Def exclusiveDef;
+        private static bool affectedCounted;
+
+        /// <summary>True while the worker being tried counts an area cast's affected pawns around the caster itself
+        /// (AbilityAIWorker.CountsAffectedAroundCaster).</summary>
+        internal static bool AffectedCounted => evaluating && affectedCounted;
 
         /// <summary>True while TryGiveJob evaluates a pawn under the player rules: workers read it for rules that
         /// differ for the player's own pawns (what Calm will end, how far it walks).</summary>
@@ -1635,6 +1640,7 @@ namespace AbilityAI
                         continue;
                     }
                     exclusiveDef = worker.Exclusive ? a.Def : null;
+                    affectedCounted = worker.CountsAffectedAroundCaster;
                     ctx.CastAtPrey = false;
                     if (!worker.TryFindTarget(ctx, a, out LocalTargetInfo target, out LocalTargetInfo dest))
                     {
@@ -1670,12 +1676,14 @@ namespace AbilityAI
                     if (AbilityAISettings.DebugLog && Prefs.DevMode)
                         Log.Message($"[Ability AI] {pawn.LabelShort} casts {a.Label} ({worker.GetType().Name}) on {target}");
                     exclusiveDef = null;
+                    affectedCounted = false;
                     AbilityAIHooks.NotifyCast(pawn, a, target, dest);
                     AbilityAICombatAI.HoldForCast(pawn, a, target, cast);
                     if (player) QueueAfterCast(pawn, state);
                     else if (ctx.CastAtPrey) ResumeHunt(pawn);
                     return cast;
                 }
+                affectedCounted = false;
                 if (!player) return TryApproach(state, false);
                 if (returnDue) return ReturnJob(pawn, state);
                 // Full walks are drafted only, one at a time, and not while the last one is still on its way back
@@ -1689,6 +1697,7 @@ namespace AbilityAI
                 claims.Clear();
                 claimsBuilt = false;
                 exclusiveDef = null;
+                affectedCounted = false;
                 // The wrappers hold their pawns: don't keep them past the evaluation
                 collected.Clear();
                 curSet = PlayerSet.All;

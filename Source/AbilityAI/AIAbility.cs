@@ -454,7 +454,9 @@ namespace AbilityAI
         }
 
         // The caster, or the cell it stands on for an ability that wants a location (AbilityAIUtility.PawnOrCell)
-        private bool AreaAroundCaster(LocalTargetInfo target) => !ability.def.targetRequired
+        // Only while a worker that counted the affected pawns itself (AoEHostileSelf) is choosing or confirming: a
+        // self-buff worker's comps may judge the caster for real
+        private bool AreaAroundCaster(LocalTargetInfo target) => AbilityAIDriver.AffectedCounted && !ability.def.targetRequired
             && (target.Thing == ability.pawn || (!target.HasThing && target.Cell == ability.pawn.Position));
 
         // The verb's check runs every comp's Valid on the target again, which an area cast at the caster fails (see
@@ -488,7 +490,9 @@ namespace AbilityAI
         // target (Painblock, Focus, Invisibility, Burden... never fired). For those comps, and only for player
         // casters, the rest of the method's rule is applied here instead. Decided once per runtime comp type: a
         // subclass that declares its own AICanTargetNow is asked as usual, since its author's rule may be real.
-        private enum PlayerAIRule : byte { Ask, TargetIsPawn, TargetAimsAtCaster }
+        // RequiresTrainable says no once the trick is learned (the trained animal's own think tree casts it then),
+        // which is the only time the player can set it to autocast at all: the gizmo is hidden until then.
+        private enum PlayerAIRule : byte { Ask, TargetIsPawn, TargetAimsAtCaster, Allow }
         private static readonly Dictionary<Type, PlayerAIRule> playerAIRules = new Dictionary<Type, PlayerAIRule>();
 
         private static bool CompAllowsTarget(CompAbilityEffect comp, LocalTargetInfo target, bool playerCaster)
@@ -500,11 +504,13 @@ namespace AbilityAI
                 var declaring = type.GetMethod(nameof(CompAbilityEffect.AICanTargetNow), new[] { typeof(LocalTargetInfo) })?.DeclaringType;
                 rule = declaring == typeof(CompAbilityEffect_GiveHediff) ? PlayerAIRule.TargetIsPawn
                      : declaring == typeof(CompAbilityEffect_FireBurst) ? PlayerAIRule.TargetAimsAtCaster
+                     : declaring == typeof(CompAbilityEffect_RequiresTrainable) ? PlayerAIRule.Allow
                      : PlayerAIRule.Ask;
                 playerAIRules[type] = rule;
             }
             switch (rule)
             {
+                case PlayerAIRule.Allow: return true;
                 case PlayerAIRule.TargetIsPawn: return target.Pawn != null;
                 case PlayerAIRule.TargetAimsAtCaster:
                     return target.Thing is Pawn p && p.TargetCurrentlyAimingAt == comp.parent.pawn;

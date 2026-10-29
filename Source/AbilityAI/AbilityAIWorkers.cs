@@ -35,6 +35,10 @@ namespace AbilityAI
         /// combat (nobody has hit it yet), so these also skip the combat-mode check while it flees.</summary>
         protected internal virtual bool ForFleeing => false;
 
+        /// <summary>An area cast at the caster whose affected pawns this worker counts itself: the ability's comps
+        /// are then not asked about the caster (VanillaAIAbility.ValidIgnoringRange).</summary>
+        protected internal virtual bool CountsAffectedAroundCaster => false;
+
         /// <summary>The worker casts at enemies. Read by ability systems that can't tell from the def whether an
         /// ability is an attack (VEF's, when isPositive isn't set), which is what the Interrupt worker asks of an
         /// enemy's running cast.</summary>
@@ -996,6 +1000,7 @@ namespace AbilityAI
     public class AbilityAIWorker_AoEHostileSelf : AbilityAIWorker
     {
         public override bool TargetsEnemies => true;
+        protected internal override bool CountsAffectedAroundCaster => true;
         private struct Spot { public IntVec3 cell; public int count; public float dist; }
         private static readonly List<Thing> targets = new List<Thing>();
         private static readonly List<Thing> near = new List<Thing>();

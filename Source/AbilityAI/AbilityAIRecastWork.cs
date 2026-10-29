@@ -122,6 +122,10 @@ namespace AbilityAI
                             Job cast = a.MakeCastJob(cell, cell);
                             if (cast == null) continue;
                             s.Claim(pawn, cast.loadID);
+                            // A cast the verb refuses on start ends at once and drops the claim: without the wait the
+                            // next work check would hand out the same cast in the same tick. A cast that lands makes
+                            // the spot no longer due, so the wait costs nothing then.
+                            s.Wait(pawn, tick + RetryTicks);
                             if (AbilityAISettings.DebugLog && Prefs.DevMode)
                                 Log.Message($"[Ability AI] {pawn.LabelShort} recasts {a.Label} at {cell}");
                             return cast;
@@ -130,7 +134,10 @@ namespace AbilityAI
                         {
                             if (AbilityAISettings.DebugLog && Prefs.DevMode)
                                 Log.Message($"[Ability AI] {pawn.LabelShort} walks to {stand} to recast {a.Label} at {cell}");
-                            return JobMaker.MakeJob(AbilityAIRecastDefOf.AAI_RecastWalk, s.anchor, stand);
+                            Job walk = JobMaker.MakeJob(AbilityAIRecastDefOf.AAI_RecastWalk, s.anchor, stand);
+                            // Claimed now, so the walk finds this spot and not another thing's at the same cell
+                            s.Claim(pawn, walk.loadID);
+                            return walk;
                         }
                     }
                     s.Wait(pawn, tick + RetryTicks);

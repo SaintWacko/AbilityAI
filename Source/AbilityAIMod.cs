@@ -89,8 +89,6 @@ namespace AbilityAI
     {
         static AbilityAIStartup()
         {
-            var abilityDefs = DefDatabase<AbilityDef>.AllDefsListForReading;
-            for (int i = 0; i < abilityDefs.Count; i++) AbilityAIRecast.Note(abilityDefs[i]);
             var harmony = new Harmony("saintwacko.abilityai");
             foreach (var type in AccessTools.GetTypesFromAssembly(typeof(AbilityAIStartup).Assembly))
             {
@@ -100,6 +98,13 @@ namespace AbilityAI
                 try { harmony.CreateClassProcessor(type).Patch(); }
                 catch (Exception e) { Log.Error($"[Ability AI] Patch {type.FullName} failed; that one feature is off, the rest still works: {e}"); }
             }
+            // After the patches, so a def problem here can't keep them from being applied
+            try
+            {
+                var abilityDefs = DefDatabase<AbilityDef>.AllDefsListForReading;
+                for (int i = 0; i < abilityDefs.Count; i++) AbilityAIRecast.Note(abilityDefs[i]);
+            }
+            catch (Exception e) { Log.Error($"[Ability AI] Setting up recasting failed; nothing is recast: {e}"); }
         }
     }
 

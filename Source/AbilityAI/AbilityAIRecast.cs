@@ -226,8 +226,8 @@ namespace AbilityAI
 
         public void ExposeData()
         {
-            // A reference to a destroyed thing would not resolve on load
-            if (Scribe.mode == LoadSaveMode.Saving && thing != null && thing.Destroyed) thing = null;
+            // A reference to a thing no longer on a map would not resolve on load
+            if (Scribe.mode == LoadSaveMode.Saving && thing != null && (thing.Destroyed || !thing.Spawned)) thing = null;
             Scribe_Values.Look(ref anchor, "anchor");
             Scribe_Defs.Look(ref thingDef, "thingDef");
             Scribe_References.Look(ref thing, "thing");
@@ -427,7 +427,8 @@ namespace AbilityAI
         public override void PostSpawnSetup(bool respawningAfterLoad)
         {
             base.PostSpawnSetup(respawningAfterLoad);
-            if (!respawningAfterLoad) RecastSpots.Of(parent.Map)?.Notify_Spawned(parent);
+            // A gravship carrying it to another map isn't a cast
+            if (!respawningAfterLoad && !parent.BeingTransportedOnGravship) RecastSpots.Of(parent.Map)?.Notify_Spawned(parent);
         }
 
         public override IEnumerable<Gizmo> CompGetGizmosExtra()

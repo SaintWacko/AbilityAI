@@ -1325,7 +1325,8 @@ namespace AbilityAI
             if (!HasWorker(ability.Def, PlayerSet.All)) return false;
             switch (ControlOf(pawn))
             {
-                case Control.NPC: return AbilityAIHooks.Allowed(pawn, ability);
+                // Only a rule the driver casts from: a Recast rule is the player's alone, so an NPC's own AI keeps it
+                case Control.NPC: return HasDriverWorker(ability.Def) && AbilityAIHooks.Allowed(pawn, ability);
                 case Control.Player:
                     if (!PlayerAllowed(pawn, ability)) return false;
                     return pawn.Drafted || (AbilityAISettings.UndraftedAutocast && HasWorker(ability.Def, UndraftedReach(pawn)));
@@ -1360,6 +1361,14 @@ namespace AbilityAI
                 && !pawn.InMentalState)
                 return HasWorker(ability.def, PlayerSet.All) && AbilityAIHooks.NotVetoed(pawn, ability);
             return Handles(pawn, ability);
+        }
+
+        private static bool HasDriverWorker(Def def)
+        {
+            var exts = def.modExtensions;
+            for (int i = 0; i < exts.Count; i++)
+                if (exts[i] is AbilityAIExtension ext && ext.Worker != null && ext.Worker.DriverCasts) return true;
+            return false;
         }
 
         /// <summary>Any of its extensions has a working worker (TryGiveJob tries them all) in the given set.</summary>

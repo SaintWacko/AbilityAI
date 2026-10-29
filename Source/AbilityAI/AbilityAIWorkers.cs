@@ -617,7 +617,7 @@ namespace AbilityAI
 
     /// <summary>
     /// Movement: close on the enemy or get away from it. Self-cast abilities (Sprint) are cast when either applies;
-    /// targeted ones (Blink) pick a cell.
+    /// targeted ones (Shadowskip) pick a cell.
     /// Gap-close (melee pawns only): the current enemy target is further than minGapDistance (default 6) and within
     /// maxRange (default 40; a targeted ability also needs it in reach); a targeted ability lands next to it.
     /// Escape: health under healthThreshold, fleeing, or a ranged pawn caught in melee, with an enemy within 12 tiles;

@@ -1450,6 +1450,8 @@ namespace AbilityAI
             if (!player)
                 return pawn.Drafted ? "drafted" : $"in a mental state ({pawn.MentalStateDef?.defName})";
             if (pawn.InMentalState) return $"in a mental state ({pawn.MentalStateDef.defName})";
+            if (pawn.Drafted && AbilityAISettings.ChargeGapClose && pawn.CurJob?.def == JobDefOf.AttackMelee && !pawn.CurJob.playerForced)
+                return "on a melee attack the player didn't order";
             if (pawn.Drafted)
                 return AbilityAISettings.ChargeGapClose ? "moving, or on a drafted order other than holding, shooting or a melee attack"
                     : "moving, or on a drafted order other than holding or shooting";

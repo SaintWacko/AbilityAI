@@ -374,6 +374,8 @@ namespace AbilityAI
                     if (spots[i].anchor == thing.Position && spots[i].thingDef == thing.def) spot = spots[i];
             if (spot != null)
             {
+                if (spot.thing != null && spot.thing != thing) CompRecastSpot.Mark(spot.thing, false);
+                CompRecastSpot.Mark(thing, true);
                 spot.thing = thing;
                 spot.startTick = tick;
                 if (castWith != null) spot.CastDef = castWith.Def;
@@ -389,6 +391,31 @@ namespace AbilityAI
             }
             if (caster == null || !AbilityAISettings.RecastTrackNewCasts || castWith.PlayerAutocastElsewhere) return;
             spots.Add(new RecastSpot(thing, castWith.Def, tick));
+            CompRecastSpot.Mark(thing, true);
+        }
+
+        /// <summary>A kept-up thing set down by a gravship: its spot moves to where it landed, from whichever map
+        /// still has it. A map left without a grav anchor is abandoned with its spots, so then the thing's own
+        /// record that it was kept up starts a new one.</summary>
+        internal static void Notify_Landed(Thing thing, bool kept)
+        {
+            var here = Of(thing.Map);
+            if (here == null) return;
+            var maps = Find.Maps;
+            for (int m = 0; m < maps.Count; m++)
+            {
+                var from = Of(maps[m]);
+                var spot = from?.For(thing);
+                if (spot == null) continue;
+                from.spots.Remove(spot);
+                if (spot.marker != null) RemoveMarker(spot);
+                spot.due = false;
+                spot.claimant = null;
+                spot.anchor = thing.Position;
+                here.spots.Add(spot);
+                return;
+            }
+            if (kept) here.spots.Add(new RecastSpot(thing, null, Find.TickManager.TicksGame));
         }
 
         private bool HasClaim(Pawn p, ThingDef def)
@@ -404,13 +431,18 @@ namespace AbilityAI
         {
             var spot = For(thing);
             if (spot != null) Remove(spot);
-            else spots.Add(new RecastSpot(thing, null, Find.TickManager.TicksGame));
+            else
+            {
+                spots.Add(new RecastSpot(thing, null, Find.TickManager.TicksGame));
+                CompRecastSpot.Mark(thing, true);
+            }
         }
 
         internal void Remove(RecastSpot spot)
         {
             if (!spots.Remove(spot)) return;
             if (spot.due) dueCount--;
+            CompRecastSpot.Mark(spot.thing, false);
             RemoveMarker(spot);
         }
 
@@ -446,11 +478,29 @@ namespace AbilityAI
     /// <summary>On a thing a Recast rule names (added at startup by AbilityAIRecast.Note).</summary>
     public class CompRecastSpot : ThingComp
     {
+        // A spot keeps this thing up. Saved with the thing, so a gravship that abandons the spot's map along with
+        // its spots still lands it as kept up (RecastSpots.Notify_Landed).
+        private bool kept;
+
+        internal static void Mark(Thing thing, bool on)
+        {
+            var comp = thing?.TryGetComp<CompRecastSpot>();
+            if (comp != null) comp.kept = on;
+        }
+
         public override void PostSpawnSetup(bool respawningAfterLoad)
         {
             base.PostSpawnSetup(respawningAfterLoad);
-            // A gravship carrying it to another map isn't a cast
-            if (!respawningAfterLoad && !parent.BeingTransportedOnGravship) RecastSpots.Of(parent.Map)?.Notify_Spawned(parent);
+            if (respawningAfterLoad) return;
+            // A gravship setting it down isn't a cast
+            if (parent.BeingTransportedOnGravship) RecastSpots.Notify_Landed(parent, kept);
+            else RecastSpots.Of(parent.Map)?.Notify_Spawned(parent);
+        }
+
+        public override void PostExposeData()
+        {
+            base.PostExposeData();
+            Scribe_Values.Look(ref kept, "aaiRecastKept");
         }
 
         public override IEnumerable<Gizmo> CompGetGizmosExtra()

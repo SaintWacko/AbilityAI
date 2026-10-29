@@ -427,6 +427,11 @@ namespace AbilityAI
         /// as the target: a leap or sprint at a fleeing deer, a quill at it. Hunting then counts as being in combat for
         /// this rule. The prey is never one of the caster's enemies for any other rule.</summary>
         public bool whileHunting;
+        /// <summary>Movement gap-close: with no enemy pawn to close on, take the target of the caster's melee attack job,
+        /// building or pawn, downed or not hostile (a door a manhunter breaks, a turret a pet is sent at, a wild animal
+        /// the player ordered attacked); a building is landed beside on a cell it can be touched from. The melee job
+        /// then counts as being in combat for this rule.</summary>
+        public bool gapCloseJobTarget;
         /// <summary>Recovery: the health conditions it treats. None = the need rule alone.</summary>
         public AbilityAIHealth health;
         /// <summary>AoE hostile: never centre the area within its radius of the caster, for areas that hit the caster
@@ -534,6 +539,9 @@ namespace AbilityAI
             else if (whileHunting && workerClass != null && typeof(AbilityAIWorker_Movement).IsAssignableFrom(workerClass)
                 && (modes & AbilityAIMoveModes.GapClose) == 0)
                 yield return "whileHunting needs the GapClose mode on a Movement rule: escape never targets the prey";
+            if (gapCloseJobTarget && workerClass != null && (!typeof(AbilityAIWorker_Movement).IsAssignableFrom(workerClass)
+                || (modes & AbilityAIMoveModes.GapClose) == 0))
+                yield return "gapCloseJobTarget is only read by a Movement rule with the GapClose mode";
             if (auraKinds != AbilityAITargetKinds.None)
             {
                 if (auraMin < 1) yield return "auraMin must be at least 1";
@@ -574,6 +582,30 @@ namespace AbilityAI
         /// standing on this map. The driver then tries only Movement gap-close rules, aimed at it, with escape off.</summary>
         public Pawn ChargeTarget { get; internal set; }
 
+        /// <summary>On the player's melee order (ChargeGapClose): only gap-close runs, escape is off.</summary>
+        public bool Charging { get; internal set; }
+
+        private Thing meleeJobTarget;
+        private bool meleeJobTargetKnown;
+
+        /// <summary>What the caster's melee attack job is aimed at, building or pawn (downed and non-hostile ones
+        /// included), while it stands on this map; null without such a job. For gapCloseJobTarget rules.</summary>
+        public Thing MeleeJobTarget
+        {
+            get
+            {
+                if (!meleeJobTargetKnown)
+                {
+                    meleeJobTargetKnown = true;
+                    var job = pawn.CurJob;
+                    if (job != null && job.def == JobDefOf.AttackMelee && job.targetA.Thing is Thing t && t != pawn
+                        && t.Spawned && t.Map == map && !(t is Pawn p && p.Dead))
+                        meleeJobTarget = t;
+                }
+                return meleeJobTarget;
+            }
+        }
+
         /// <summary>Set by a worker whose target is the hunt's prey (or a cell beside it), so the driver puts the hunt
         /// back after the cast; an escape from the same rule must leave it unset. Cleared before each worker runs.</summary>
         public bool CastAtPrey { get; set; }
@@ -593,7 +625,7 @@ namespace AbilityAI
             tick = t;
             approachAbility = walkingFor;
             approachExpected = expected;
-            combatKnown = enemiesBuilt = alliesBuilt = aimsBuilt = friendliesBuilt = brokenBuilt = supportBuilt = enemyTargetKnown = preyKnown = false;
+            combatKnown = enemiesBuilt = alliesBuilt = aimsBuilt = friendliesBuilt = brokenBuilt = supportBuilt = enemyTargetKnown = preyKnown = meleeJobTargetKnown = false;
             friendlyTurretsBuilt = false;
         }
 
@@ -612,6 +644,8 @@ namespace AbilityAI
             prey = null;
             CastAtPrey = false;
             ChargeTarget = null;
+            Charging = false;
+            meleeJobTarget = null;
             pawn = null;
             map = null;
         }
@@ -1232,11 +1266,11 @@ namespace AbilityAI
 
         // The set for the pawn in ctx now, undrafted: every worker while it fights back (fighting by InCombat's
         // undrafted meaning: a hostile target, or attacked or hurt in the last 10 s; an enemy elsewhere on the map
-        // doesn't count) or hunts (only whileHunting rules then pass CombatAllows), the fleeing set while it runs,
-        // else the safe set
+        // doesn't count), hunts or is on a melee job (only whileHunting or gapCloseJobTarget rules then pass
+        // CombatAllows), the fleeing set while it runs, else the safe set
         private static PlayerSet UndraftedSetNow(Pawn pawn)
         {
-            if (FightsUndrafted(pawn) && (ctx.InCombat || ctx.Prey != null)) return PlayerSet.All;
+            if (FightsUndrafted(pawn) && (ctx.InCombat || ctx.Prey != null || ctx.MeleeJobTarget != null)) return PlayerSet.All;
             return AbilityAIUtility.IsFleeing(ctx) ? PlayerSet.Fleeing : PlayerSet.Safe;
         }
 
@@ -1515,8 +1549,10 @@ namespace AbilityAI
                 bool charging = player && IsCharging(pawn);
                 if (charging)
                 {
+                    ctx.Charging = true;
                     ctx.ChargeTarget = ChargeTargetOf(pawn);
-                    if (ctx.ChargeTarget == null)
+                    // A downed pawn or a building is still a target for a gapCloseJobTarget rule
+                    if (ctx.ChargeTarget == null && ctx.MeleeJobTarget == null)
                     {
                         WhyNot(null, null, "on a melee order at nothing a leap could reach");
                         return null;
@@ -1830,7 +1866,8 @@ namespace AbilityAI
             {
                 // A melee order counts as a fight even at a target that isn't hostile
                 case AbilityAICombat.InCombat:
-                    return ctx.InCombat || ctx.ChargeTarget != null || (worker.ext.whileHunting && ctx.Prey != null);
+                    return ctx.InCombat || ctx.Charging || (worker.ext.whileHunting && ctx.Prey != null)
+                        || (worker.ext.gapCloseJobTarget && ctx.MeleeJobTarget != null);
                 case AbilityAICombat.OutOfCombat: return !ctx.InCombat;
                 default: return true;
             }

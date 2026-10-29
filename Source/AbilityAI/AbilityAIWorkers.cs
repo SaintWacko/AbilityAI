@@ -626,8 +626,9 @@ namespace AbilityAI
     /// Any rule's gap-close can be limited to a target the caster can't see (gapCloseOutOfSight: one sight line,
     /// O(distance)); an NPC's own target is in sight when it is picked, so that mostly means a player's melee order.
     /// whileHunting: with no enemy target, the prey of the caster's hunt is closed on by the same rules.
-    /// During a drafted pawn's melee order (ctx.ChargeTarget) only gap-close runs, at the ordered target, for a ranged
-    /// pawn too.
+    /// During a drafted pawn's melee order (ctx.Charging) only gap-close runs, at the ordered target, for a ranged
+    /// pawn too. gapCloseJobTarget: with no enemy pawn (or prey), the target of the caster's melee attack job, a
+    /// building included, which is landed beside on a cell it can be touched from.
     /// Cost: escape is 32 × k distance checks, then up to 6 validations;
     /// gap-close with a targeted ability up to 8 validations, only while the enemy is within its reach.
     /// </summary>
@@ -650,26 +651,38 @@ namespace AbilityAI
             if (self && AbilityAIUtility.Has(ctx.pawn, AbilityAIUtility.Hediff(ability, ext))) return false;
 
             // The player ordered this pawn into melee: getting away would undo the order
-            if ((ext.modes & AbilityAIMoveModes.Escape) != 0 && ctx.ChargeTarget == null && WantsEscape(ctx))
+            if ((ext.modes & AbilityAIMoveModes.Escape) != 0 && !ctx.Charging && WantsEscape(ctx))
             {
                 if (self) { target = ctx.pawn; return true; }
                 if (TryEscapeCell(ctx, ability, out IntVec3 cell)) { target = cell; return true; }
             }
             // A gunner the player ordered into melee is going there anyway
-            if ((ext.modes & AbilityAIMoveModes.GapClose) != 0 && (!ctx.UsesRanged || ctx.ChargeTarget != null)
-                && (ctx.ChargeTarget ?? ctx.EnemyTarget as Pawn ?? (ext.whileHunting ? ctx.Prey : null)) is Pawn enemy)
+            if ((ext.modes & AbilityAIMoveModes.GapClose) != 0 && (!ctx.UsesRanged || ctx.Charging)
+                && GapCloseTarget(ctx) is Thing goal)
             {
-                float d = (enemy.Position - ctx.pawn.Position).LengthHorizontal;
+                float d = (goal.Position - ctx.pawn.Position).LengthHorizontal;
                 float reach = ext.maxRange >= 0f ? ext.maxRange : 40f;
                 if (d < ext.minGapDistance || d > reach) return false;
-                if (ext.gapCloseOutOfSight && GenSight.LineOfSight(ctx.pawn.Position, enemy.Position, ctx.map)) return false;
-                bool prey = ext.whileHunting && enemy == ctx.Prey;
+                if (ext.gapCloseOutOfSight && GenSight.LineOfSight(ctx.pawn.Position, goal.Position, ctx.map)) return false;
+                bool prey = ext.whileHunting && goal == ctx.Prey;
                 if (self) { target = ctx.pawn; ctx.CastAtPrey = prey; return true; }
-                // Even the cell next to the enemy nearest the caster is out of reach: skip the eight validations
-                if (d > AbilityAIUtility.Range(ability, ext) + 1.5f) return false;
-                if (TryCellNear(ctx, ability, enemy, ext.cellMaxLight, out IntVec3 cell)) { target = cell; ctx.CastAtPrey = prey; return true; }
+                // Even the cell beside the target nearest the caster is out of reach: skip the validations. A building's
+                // Position is its centre, so its half size is added.
+                float pad = 1.5f + (goal is Pawn ? 0f : Mathf.Max(goal.def.size.x, goal.def.size.z) / 2f);
+                if (d > AbilityAIUtility.Range(ability, ext) + pad) return false;
+                if (TryCellNear(ctx, ability, goal, ext.cellMaxLight, out IntVec3 cell)) { target = cell; ctx.CastAtPrey = prey; return true; }
             }
             return false;
+        }
+
+        // The player's melee order, else the enemy pawn the caster fights, else its prey (whileHunting), else whatever
+        // its melee job attacks (gapCloseJobTarget)
+        private Thing GapCloseTarget(AbilityAIContext ctx)
+        {
+            if (ctx.ChargeTarget != null) return ctx.ChargeTarget;
+            if (ctx.EnemyTarget is Pawn enemy) return enemy;
+            if (ext.whileHunting && ctx.Prey != null) return ctx.Prey;
+            return ext.gapCloseJobTarget ? ctx.MeleeJobTarget : null;
         }
 
         private bool WantsEscape(AbilityAIContext ctx)
@@ -680,14 +693,29 @@ namespace AbilityAI
             return ctx.NearestEnemy(out float d) != null && d <= EscapeDangerRange * EscapeDangerRange;
         }
 
-        // The standable cell next to the enemy nearest the caster that the ability accepts
-        private static bool TryCellNear(AbilityAIContext ctx, AIAbility ability, Pawn enemy, float maxLight, out IntVec3 best)
+        // The standable cell next to the target nearest the caster that the ability accepts; beside a building, only
+        // a cell it can be touched from (no corner cut past a wall)
+        private static bool TryCellNear(AbilityAIContext ctx, AIAbility ability, Thing goal, float maxLight, out IntVec3 best)
         {
             best = IntVec3.Invalid;
             float bestD = float.MaxValue;
+            if (!(goal is Pawn))
+            {
+                foreach (IntVec3 c in GenAdj.CellsAdjacent8Way(goal))
+                {
+                    if (!c.InBounds(ctx.map) || !c.Standable(ctx.map)) continue;
+                    if (maxLight < 1f && ctx.map.glowGrid.GroundGlowAt(c) > maxLight) continue;
+                    float d = (c - ctx.pawn.Position).LengthHorizontalSquared;
+                    if (d >= bestD || !ReachabilityImmediate.CanReachImmediate(c, goal, ctx.map, PathEndMode.Touch, ctx.pawn)
+                        || !AbilityAIDriver.Valid(ability, c)) continue;
+                    bestD = d;
+                    best = c;
+                }
+                return best.IsValid;
+            }
             for (int i = 0; i < 8; i++)
             {
-                IntVec3 c = enemy.Position + GenAdj.AdjacentCells[i];
+                IntVec3 c = goal.Position + GenAdj.AdjacentCells[i];
                 // Vanilla's jump verbs refuse a cell nobody can stand on; VEF's location targeting doesn't, and VPE's
                 // Power Leap would land the caster inside a wall
                 if (!c.InBounds(ctx.map) || !c.Standable(ctx.map)) continue;

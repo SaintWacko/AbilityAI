@@ -412,6 +412,11 @@ namespace AbilityAI
                         SetMode(pawns[i], def, m == AbilityAIAutocastMode.Full && pawns[i].drafter == null ? AbilityAIAutocastMode.Stationary : m);
                 }));
             }
+            // Markers to be cast at, from here rather than the Architect menu so it doesn't get a button per thing
+            ThingDef recastThing = AbilityAIRecast.RuleOf(def)?.recastThing;
+            if (recastThing != null && RecastSpots.Of(clicked.MapHeld) != null)
+                options.Add(new FloatMenuOption("AAI_RecastPlace".Translate(recastThing.label) + "...",
+                    () => Find.DesignatorManager.Select(new Designator_RecastMarker(recastThing, def))));
             Find.WindowStack.Add(new FloatMenu(options, "AAI_Mode_Title".Translate(title.NullOrEmpty() ? (string)def.LabelCap : title)));
         }
     }

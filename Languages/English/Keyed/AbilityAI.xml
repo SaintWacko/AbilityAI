@@ -123,7 +123,7 @@
   <AAI_RecastAt_Gone>Recast once it has run out</AAI_RecastAt_Gone>
   <AAI_RecastAt_Tip>How early a colonist comes to recast a kept-up psycast. At 0% it is recast only after it is gone, so the light or cooling stops for a while.</AAI_RecastAt_Tip>
   <AAI_Recast_Desc>Recasting is Basic work: colonists do it between other jobs in Work tab order, never while drafted, and each goes for the nearest spot nobody else is heading to.</AAI_Recast_Desc>
-  <AAI_Recast_Hint>On autocast, this pawn helps keep up every {0} your colonists cast: it recasts one before it runs out, as Basic work, and a recast marker shows where one ran out.</AAI_Recast_Hint>
+  <AAI_Recast_Hint>On autocast, this pawn helps keep up every {0} your colonists cast: it recasts one before it runs out, as Basic work, and casts at recast markers (where one ran out, or placed from this menu).</AAI_Recast_Hint>
   <AAI_RecastToggle>Recast</AAI_RecastToggle>
   <AAI_RecastToggle_Desc>On: before this {0} runs out, a colonist with the psycast on autocast recasts it here, and a recast marker shows the spot if it runs out first. Off: it is left to run out.</AAI_RecastToggle_Desc>
   <AAI_RecastMarker_Label>{0} (recast marker)</AAI_RecastMarker_Label>
@@ -131,4 +131,9 @@
   <AAI_RecastMarker_Claimed>{0} is coming to recast it.</AAI_RecastMarker_Claimed>
   <AAI_RecastMarker_Remove>Remove marker</AAI_RecastMarker_Remove>
   <AAI_RecastMarker_Remove_Desc>Stop keeping this spot up. Nobody recasts here unless it is cast again.</AAI_RecastMarker_Remove_Desc>
+  <AAI_RecastPlace>Place {0} markers</AAI_RecastPlace>
+  <AAI_RecastPlace_Desc>Click to put down recast markers for {0}, as many as you like; right-click or Escape to stop. Colonists with the psycast on autocast cast one at each marker as Basic work, then keep it up.</AAI_RecastPlace_Desc>
+  <AAI_RecastPlace_Blocked>Something is in the way there.</AAI_RecastPlace_Blocked>
+  <AAI_RecastPlace_Taken>There is already a marker or a kept-up one there.</AAI_RecastPlace_Taken>
+  <AAI_RecastPlace_Standing>A {0} is already there. Select it and switch on Recast to keep it up.</AAI_RecastPlace_Standing>
 </LanguageData>

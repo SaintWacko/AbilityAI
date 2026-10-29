@@ -149,6 +149,14 @@ namespace AbilityAI
 
         public RecastSpot() { }
 
+        internal RecastSpot(IntVec3 cell, ThingDef thingDef, Def castDef, int tick)
+        {
+            anchor = cell;
+            this.thingDef = thingDef;
+            startTick = tick;
+            CastDef = castDef;
+        }
+
         internal RecastSpot(Thing thing, Def castDef, int tick)
         {
             anchor = thing.Position;
@@ -395,6 +403,36 @@ namespace AbilityAI
             CompRecastSpot.Mark(thing, true);
         }
 
+        /// <summary>Whether the player may put a marker for this thing at cell: the cells it would cover are open
+        /// (no wall or other building, nothing that fills the cell, a building's on ground a pawn could stand on),
+        /// and no spot of the same thing is there yet. The ability's own rules aren't asked: a pawn's psyfocus or
+        /// cooldown would refuse a place that is fine, and the recast checks them (falling back to a cell beside
+        /// the marker) when someone comes to cast.</summary>
+        internal AcceptanceReport CanPlace(IntVec3 cell, ThingDef def)
+        {
+            if (!cell.InBounds(map) || cell.Fogged(map)) return false;
+            foreach (IntVec3 c in GenAdj.OccupiedRect(cell, Rot4.North, def.Size))
+            {
+                if (!c.InBounds(map) || c.Fogged(map) || c.Filled(map)) return "AAI_RecastPlace_Blocked".Translate();
+                if (def.category == ThingCategory.Building ? c.GetFirstBuilding(map) != null || !c.Standable(map) : c.GetEdifice(map) != null)
+                    return "AAI_RecastPlace_Blocked".Translate();
+            }
+            for (int i = 0; i < spots.Count; i++)
+                if (spots[i].thingDef == def && (spots[i].anchor == cell || spots[i].thing != null && spots[i].thing.OccupiedRect().Contains(cell)))
+                    return "AAI_RecastPlace_Taken".Translate();
+            var things = cell.GetThingList(map);
+            for (int i = 0; i < things.Count; i++)
+                if (things[i].def == def) return "AAI_RecastPlace_Standing".Translate(def.label);
+            return true;
+        }
+
+        /// <summary>A marker the player put down: a spot with nothing standing for it yet, due at once.</summary>
+        internal void Place(IntVec3 cell, ThingDef def, Def castDef)
+        {
+            spots.Add(new RecastSpot(cell, def, castDef, Find.TickManager.TicksGame));
+            Refresh();
+        }
+
         /// <summary>A kept-up thing set down by a gravship: its spot moves to where it landed, from whichever map
         /// still has it. A map left without a grav anchor is abandoned with its spots, so then the thing's own
         /// record that it was kept up starts a new one.</summary>
@@ -522,6 +560,43 @@ namespace AbilityAI
                 isActive = () => spots.For(thing) != null,
                 toggleAction = () => spots.Toggle(thing),
             };
+        }
+    }
+
+    /// <summary>Puts recast markers down, one per click, until right-click or Escape: opened from the autocast menu of
+    /// an ability with a Recast rule, never from the Architect menu. Colonists with the ability on autocast then cast
+    /// at the markers as Basic work, as for a kept-up thing that ran out.</summary>
+    public class Designator_RecastMarker : Designator
+    {
+        private static readonly Color CannotPlaceColor = new Color(1f, 0.25f, 0.25f, 0.45f);
+
+        private readonly ThingDef thingDef;
+        private readonly Def castDef;
+
+        public Designator_RecastMarker(ThingDef thingDef, Def castDef)
+        {
+            this.thingDef = thingDef;
+            this.castDef = castDef;
+            defaultLabel = "AAI_RecastPlace".Translate(thingDef.label);
+            defaultDesc = "AAI_RecastPlace_Desc".Translate(thingDef.label);
+            icon = thingDef.uiIcon;
+            useMouseIcon = true;
+            soundSucceeded = SoundDefOf.Designate_PlaceBuilding;
+        }
+
+        public override bool CanRemainSelected() => RecastSpots.Of(Map) != null;
+
+        public override AcceptanceReport CanDesignateCell(IntVec3 loc) =>
+            RecastSpots.Of(Map)?.CanPlace(loc, thingDef) ?? AcceptanceReport.WasRejected;
+
+        public override void DesignateSingleCell(IntVec3 c) => RecastSpots.Of(Map)?.Place(c, thingDef, castDef);
+
+        public override void SelectedUpdate()
+        {
+            IntVec3 cell = UI.MouseCell();
+            if (!cell.InBounds(Map) || thingDef.graphic == null || thingDef.graphic == BaseContent.BadGraphic) return;
+            Color color = CanDesignateCell(cell).Accepted ? RecastSpots.GhostColor : CannotPlaceColor;
+            GhostDrawer.DrawGhostThing(cell, Rot4.North, thingDef, null, color, AltitudeLayer.Blueprint, drawPlaceWorkers: false);
         }
     }
 

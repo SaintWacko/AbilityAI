@@ -7,7 +7,7 @@
   <ThingDef>
     <defName>AAI_RecastMarker</defName>
     <label>recast marker</label>
-    <description>Marks where a kept-up psycast ran out. A colonist with that psycast set to autocast comes and casts it here again, as Basic work.</description>
+    <description>Marks where a kept-up psycast ran out, or where one was asked for. A colonist with that psycast set to autocast comes and casts it here again, as Basic work.</description>
     <thingClass>AbilityAI.RecastMarker</thingClass>
     <category>Ethereal</category>
     <altitudeLayer>Blueprint</altitudeLayer>

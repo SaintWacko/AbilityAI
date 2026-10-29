@@ -630,7 +630,8 @@ namespace AbilityAI
     /// pawn too. gapCloseJobTarget: with no enemy pawn (or prey), the target of the caster's melee attack job, a
     /// building included, which is landed beside on a cell it can be touched from.
     /// Cost: escape is 32 × k distance checks, then up to 6 validations;
-    /// gap-close with a targeted ability up to 8 validations, only while the enemy is within its reach.
+    /// gap-close with a targeted ability up to 8 validations (one per cell around a building's edge), only while the
+    /// target is within its reach.
     /// </summary>
     public class AbilityAIWorker_Movement : AbilityAIWorker
     {
@@ -662,14 +663,14 @@ namespace AbilityAI
             {
                 float d = (goal.Position - ctx.pawn.Position).LengthHorizontal;
                 float reach = ext.maxRange >= 0f ? ext.maxRange : 40f;
-                if (d < ext.minGapDistance || d > reach) return false;
+                // A building's Position is its centre: measure the gap to its edge
+                float half = goal is Pawn ? 0f : Mathf.Max(goal.def.size.x, goal.def.size.z) / 2f;
+                if (d - half < ext.minGapDistance || d > reach) return false;
                 if (ext.gapCloseOutOfSight && GenSight.LineOfSight(ctx.pawn.Position, goal.Position, ctx.map)) return false;
                 bool prey = ext.whileHunting && goal == ctx.Prey;
                 if (self) { target = ctx.pawn; ctx.CastAtPrey = prey; return true; }
-                // Even the cell beside the target nearest the caster is out of reach: skip the validations. A building's
-                // Position is its centre, so its half size is added.
-                float pad = 1.5f + (goal is Pawn ? 0f : Mathf.Max(goal.def.size.x, goal.def.size.z) / 2f);
-                if (d > AbilityAIUtility.Range(ability, ext) + pad) return false;
+                // Even the cell beside the target nearest the caster is out of reach: skip the validations
+                if (d > AbilityAIUtility.Range(ability, ext) + 1.5f + half) return false;
                 if (TryCellNear(ctx, ability, goal, ext.cellMaxLight, out IntVec3 cell)) { target = cell; ctx.CastAtPrey = prey; return true; }
             }
             return false;
@@ -679,7 +680,8 @@ namespace AbilityAI
         // its melee job attacks (gapCloseJobTarget)
         private Thing GapCloseTarget(AbilityAIContext ctx)
         {
-            if (ctx.ChargeTarget != null) return ctx.ChargeTarget;
+            // Only what the player ordered attacked: never a stale enemy target or a melee threat instead
+            if (ctx.Charging) return ctx.ChargeTarget ?? (ext.gapCloseJobTarget ? ctx.MeleeJobTarget : null);
             if (ctx.EnemyTarget is Pawn enemy) return enemy;
             if (ext.whileHunting && ctx.Prey != null) return ctx.Prey;
             return ext.gapCloseJobTarget ? ctx.MeleeJobTarget : null;
@@ -703,7 +705,8 @@ namespace AbilityAI
             {
                 foreach (IntVec3 c in GenAdj.CellsAdjacent8Way(goal))
                 {
-                    if (!c.InBounds(ctx.map) || !c.Standable(ctx.map)) continue;
+                    // A door or turret's surroundings are where traps go
+                    if (!c.InBounds(ctx.map) || !c.Standable(ctx.map) || c.GetFirstThing<Building_Trap>(ctx.map) != null) continue;
                     if (maxLight < 1f && ctx.map.glowGrid.GroundGlowAt(c) > maxLight) continue;
                     float d = (c - ctx.pawn.Position).LengthHorizontalSquared;
                     if (d >= bestD || !ReachabilityImmediate.CanReachImmediate(c, goal, ctx.map, PathEndMode.Touch, ctx.pawn)

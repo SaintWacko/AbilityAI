@@ -1366,6 +1366,7 @@ namespace AbilityAI
         private static bool HasDriverWorker(Def def)
         {
             var exts = def.modExtensions;
+            if (exts == null) return false;
             for (int i = 0; i < exts.Count; i++)
                 if (exts[i] is AbilityAIExtension ext && ext.Worker != null && ext.Worker.DriverCasts) return true;
             return false;

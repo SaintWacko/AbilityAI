@@ -226,8 +226,9 @@ namespace AbilityAI
 
         public void ExposeData()
         {
-            // A reference to a thing no longer on a map would not resolve on load
-            if (Scribe.mode == LoadSaveMode.Saving && thing != null && (thing.Destroyed || !thing.Spawned)) thing = null;
+            // A reference to a destroyed thing would not resolve on load. One in transit (on a gravship) is saved
+            // with its ship, so its reference stays.
+            if (Scribe.mode == LoadSaveMode.Saving && thing != null && thing.Destroyed) thing = null;
             Scribe_Values.Look(ref anchor, "anchor");
             Scribe_Defs.Look(ref thingDef, "thingDef");
             Scribe_References.Look(ref thing, "thing");
@@ -277,7 +278,28 @@ namespace AbilityAI
             for (int i = spots.Count - 1; i >= 0; i--)
             {
                 RecastSpot s = spots[i];
-                if (s.thing != null && (s.thing.Destroyed || !s.thing.Spawned || s.thing.Map != map)) s.thing = null;
+                if (s.thing != null)
+                {
+                    if (s.thing.Destroyed) s.thing = null;
+                    else if (!s.thing.Spawned)
+                    {
+                        // In transit: nothing to recast and no marker until it lands somewhere
+                        if (s.marker != null) RemoveMarker(s);
+                        if (s.due) s.due = false;
+                        continue;
+                    }
+                    else if (s.thing.Map != map)
+                    {
+                        // Carried to another map (a gravship): the spot goes with it
+                        spots.RemoveAt(i);
+                        if (s.marker != null) RemoveMarker(s);
+                        s.due = false;
+                        s.claimant = null;
+                        s.anchor = s.thing.Position;
+                        Of(s.thing.Map)?.spots.Add(s);
+                        continue;
+                    }
+                }
                 bool dormant = s.Dormant;
                 bool wantMarker = s.thing == null && !dormant;
                 if (wantMarker && (s.marker == null || !s.marker.Spawned)) SpawnMarker(s);

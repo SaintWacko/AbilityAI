@@ -99,7 +99,9 @@ namespace AbilityAI
                 for (int i = 0; i < list.Count; i++)
                 {
                     var s = list[i];
-                    if (!s.due || s.Waiting(pawn, tick) || s.ClaimedByOther(pawn) || s.Dormant || !Serves(s.thingDef)) continue;
+                    // A spot this pawn is already walking to or casting at isn't handed out again: a second walk would
+                    // take over the claim, and the think tree would drop it as a repeat of the running one
+                    if (!s.due || s.Waiting(pawn, tick) || s.claimant != null && s.ClaimHolds() || s.Dormant || !Serves(s.thingDef)) continue;
                     candidates.Add(s);
                 }
                 sortFrom = pawn.Position;

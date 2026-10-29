@@ -19,9 +19,6 @@ namespace AbilityAI.Vef
         {
             VefAIAbility.Init();
             AIAbilitySources.Register(VefAIAbility.Source);
-            var defs = DefDatabase<VEF.Abilities.AbilityDef>.AllDefsListForReading;
-            for (int i = 0; i < defs.Count; i++) AbilityAIRecast.Note(defs[i]);
-            AbilityAIRecast.RegisterLifetime(SpawnedLifetime);
             AbilityAIAutocast.WorldReady += VefAutocast.ConvertAll;
             var harmony = new Harmony("saintwacko.abilityai.vef");
             foreach (var type in AccessTools.GetTypesFromAssembly(typeof(VefStartup).Assembly))
@@ -30,6 +27,14 @@ namespace AbilityAI.Vef
                 try { harmony.CreateClassProcessor(type).Patch(); }
                 catch (Exception e) { Log.Error($"[Ability AI] Patch {type.FullName} failed; that one feature is off, the rest still works: {e}"); }
             }
+            // After the patches, as in the core assembly
+            try
+            {
+                var defs = DefDatabase<VEF.Abilities.AbilityDef>.AllDefsListForReading;
+                for (int i = 0; i < defs.Count; i++) AbilityAIRecast.Note(defs[i]);
+                AbilityAIRecast.RegisterLifetime(SpawnedLifetime);
+            }
+            catch (Exception e) { Log.Error($"[Ability AI] Setting up recasting for VEF abilities failed; they are not recast: {e}"); }
         }
 
         // When a thing VEF's spawn abilities left runs out, for recasting. Ability_SpawnBuilding sets finalTick after the

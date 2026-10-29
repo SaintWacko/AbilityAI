@@ -11,7 +11,7 @@ Ability AI
 - Per-pawn psycast limits for autocast: max heat and min psyfocus.
 - Rules for 75 Vanilla Psycasts Expanded psycasts, priced through VPE's own cost methods so Psycasts² changes apply.
 - Skip for Royalty and VPE: rescue a downed or hurt ally, repel an enemy that has reached someone who can't fight it off, and (Royalty's Skip only) escape when the caster is in trouble. Each use has its own setting.
-- A new whileHunting rule option lets predators use an ability on the animal they are hunting, such as a leap at a fleeing deer, and then carry on with the hunt. It is for mods that add predator abilities: none of this mod's own rules use it. Tame predators use such a rule when the ability is set to autocast.
+- A new whileHunting rule option lets predators use an ability on the animal they are hunting, such as a leap at a fleeing deer, and then carry on with the hunt. It is for mods that add predator abilities: none of this mod's own rules use it. Tame predators use such a rule when the ability is set to autocast. A gapCloseJobTarget option lets a leap close on whatever the pawn's melee attack is aimed at, a door or turret included.
 - Two casters on the same side never use a helping ability on the same pawn at once.
 - Better Autocasting for VPE: a setting picks which mod controls the psycasts both mods have rules for. Switching carries each colonist's on/off choice across.
 - CAI 5000: casts are no longer cut off by CAI's cover and retreat moves, and pawns crouched behind cover still count as in combat. Two settings let CAI interrupt casts again, one for other factions and one for your auto-controlled pawns.

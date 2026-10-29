@@ -419,9 +419,26 @@ namespace AbilityAI
         public override bool ValidIgnoringRange(LocalTargetInfo target)
         {
             if (!target.IsValid) return false;
+            var comps = ability.EffectComps;
+            if (AreaAroundCaster(target))
+            {
+                // An area ability with no target (TerrorRoar, Bastle's DreadHowl) is cast at the caster, and its comps'
+                // Valid judge each pawn it reaches (OnlyTargetHostiles: HostileTo(caster), never true; AnimalRoar: the
+                // caster's own hearing). Vanilla never asks them about the caster: its gizmo and
+                // JobGiver_AICastAbilityOnSelf queue the cast straight away and GetAffectedTargets asks them per pawn.
+                // A comp that turns the caster down is such a per-pawn judge and is left out, its AICanTargetNow too;
+                // the worker has counted who would be affected. Other comps' AI rules still apply.
+                if (!ability.CanApplyOn(target)) return false;
+                if (comps != null)
+                {
+                    bool player = AbilityAIDriver.EvaluatingPlayer;
+                    for (int i = 0; i < comps.Count; i++)
+                        if (comps[i].Valid(target, false) && !CompAllowsTarget(comps[i], target, player)) return false;
+                }
+                return !(ability is Psycast area) || PsycastValidOn(area, target);
+            }
             // The comps' own Valid first and quietly: some comps' CanApplyOn calls Valid with messages on
             // (CompAbilityEffect_Wallraise), which would post "occupied cells" for every spot the AI tries
-            var comps = ability.EffectComps;
             if (comps != null)
                 for (int i = 0; i < comps.Count; i++)
                     if (!comps[i].Valid(target, false)) return false;
@@ -436,7 +453,13 @@ namespace AbilityAI
             return true;
         }
 
-        public override bool ValidInRange(LocalTargetInfo target) => ability.verb.ValidateTarget(target, false);
+        // The caster, or the cell it stands on for an ability that wants a location (AbilityAIUtility.PawnOrCell)
+        private bool AreaAroundCaster(LocalTargetInfo target) => !ability.def.targetRequired
+            && (target.Thing == ability.pawn || (!target.HasThing && target.Cell == ability.pawn.Position));
+
+        // The verb's check runs every comp's Valid on the target again, which an area cast at the caster fails (see
+        // ValidIgnoringRange); the caster is always in range of itself
+        public override bool ValidInRange(LocalTargetInfo target) => AreaAroundCaster(target) || ability.verb.ValidateTarget(target, false);
 
         public override float PsyfocusCost(LocalTargetInfo target)
         {

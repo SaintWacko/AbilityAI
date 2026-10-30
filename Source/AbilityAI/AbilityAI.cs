@@ -1526,6 +1526,10 @@ namespace AbilityAI
             Log.Message($"[Ability AI] {pawn.LabelShort} ({who}) casts nothing: {text}");
         }
 
+        // LocalTargetInfo.ToString() prints the load id (Thing_Human763), which nobody reading the log can match to a pawn
+        private static string TargetLabel(LocalTargetInfo target) =>
+            target.HasThing ? target.Thing.LabelShort : target.Cell.ToString();
+
         private static void WhyNot(AIAbility a, AbilityAIExtension ext, string reason)
         {
             if (whyNot == null) return;
@@ -1733,12 +1737,12 @@ namespace AbilityAI
                     if (!dest.IsValid) dest = target;
                     if (!Valid(a, target))
                     {
-                        if (whyNot != null) WhyNot(a, ext, $"the ability refused {target}");
+                        if (whyNot != null) WhyNot(a, ext, $"the ability refused {TargetLabel(target)}");
                         continue;
                     }
                     if (player && !PsycastWithinLimits(a, target))
                     {
-                        if (whyNot != null) WhyNot(a, ext, $"over this pawn's autocast limits for {target}");
+                        if (whyNot != null) WhyNot(a, ext, $"over this pawn's autocast limits for {TargetLabel(target)}");
                         continue;
                     }
                     // Made before anything is recorded: another system's ability may still refuse at this point
@@ -1746,7 +1750,7 @@ namespace AbilityAI
                     Job cast = a.MakeCastJob(target, dest);
                     if (cast == null)
                     {
-                        if (whyNot != null) WhyNot(a, ext, $"refused when its cast job was made, at {target}");
+                        if (whyNot != null) WhyNot(a, ext, $"refused when its cast job was made, at {TargetLabel(target)}");
                         continue;
                     }
 
@@ -1757,7 +1761,7 @@ namespace AbilityAI
                         state.abilityNext[a.Def] = tick + Mathf.RoundToInt(ext.minGapSeconds * GenTicks.TicksPerRealSecond);
                     }
                     if (AbilityAISettings.DebugLog && Prefs.DevMode)
-                        Log.Message($"[Ability AI] {pawn.LabelShort} casts {a.Label} ({worker.GetType().Name}) on {(target.HasThing ? target.Thing.LabelShort : target.Cell.ToString())}");
+                        Log.Message($"[Ability AI] {pawn.LabelShort} casts {a.Label} ({worker.GetType().Name}) on {TargetLabel(target)}");
                     exclusiveDef = null;
                     affectedCounted = false;
                     AbilityAIHooks.NotifyCast(pawn, a, target, dest);

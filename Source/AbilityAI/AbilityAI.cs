@@ -1757,7 +1757,7 @@ namespace AbilityAI
                         state.abilityNext[a.Def] = tick + Mathf.RoundToInt(ext.minGapSeconds * GenTicks.TicksPerRealSecond);
                     }
                     if (AbilityAISettings.DebugLog && Prefs.DevMode)
-                        Log.Message($"[Ability AI] {pawn.LabelShort} casts {a.Label} ({worker.GetType().Name}) on {target}");
+                        Log.Message($"[Ability AI] {pawn.LabelShort} casts {a.Label} ({worker.GetType().Name}) on {(target.HasThing ? target.Thing.LabelShort : target.Cell.ToString())}");
                     exclusiveDef = null;
                     affectedCounted = false;
                     AbilityAIHooks.NotifyCast(pawn, a, target, dest);

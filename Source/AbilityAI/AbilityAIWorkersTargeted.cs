@@ -414,9 +414,9 @@ namespace AbilityAI
             int checkedCount = 0;
             for (int i = 0; i < packs.Count && checkedCount < MaxPacksChecked; i++)
             {
-                if (packs[i].IsForbidden(pawn)) continue;
+                if (packs[i].IsForbidden(pawn) || !pawn.CanReserve(packs[i])) continue;
                 checkedCount++;
-                if (pawn.CanReach(packs[i], PathEndMode.OnCell, Danger.Some)) return true;
+                if (pawn.CanReach(packs[i], PathEndMode.OnCell, Danger.Deadly)) return true;
             }
             return false;
         }
@@ -463,7 +463,9 @@ namespace AbilityAI
                 }
                 default:
                 {
-                    if (gene.hemogenPacksAllowed && PackReachable(pawn)) break;
+                    // Vanilla takes a pack only when a whole one fits
+                    if (gene.hemogenPacksAllowed && gene.Max - gene.Value >= JobGiver_GetHemogen.HemogenPackHemogenGain
+                        && PackReachable(pawn)) break;
                     var list = ctx.SupportAllies;
                     for (int i = 0; i < list.Count; i++)
                     {

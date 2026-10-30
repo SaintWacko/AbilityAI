@@ -411,18 +411,19 @@ namespace AbilityAI
         internal AcceptanceReport CanPlace(IntVec3 cell, ThingDef def)
         {
             if (!cell.InBounds(map) || cell.Fogged(map)) return false;
-            foreach (IntVec3 c in GenAdj.OccupiedRect(cell, Rot4.North, def.Size))
-            {
-                if (!c.InBounds(map) || c.Fogged(map) || c.Filled(map)) return "AAI_RecastPlace_Blocked".Translate();
-                if (def.category == ThingCategory.Building ? c.GetFirstBuilding(map) != null || !c.Standable(map) : c.GetEdifice(map) != null)
-                    return "AAI_RecastPlace_Blocked".Translate();
-            }
+            // Before the open-cell checks: a standing ice crystal is itself the building that would block the cell
             for (int i = 0; i < spots.Count; i++)
                 if (spots[i].thingDef == def && (spots[i].anchor == cell || spots[i].thing != null && spots[i].thing.OccupiedRect().Contains(cell)))
                     return "AAI_RecastPlace_Taken".Translate();
             var things = cell.GetThingList(map);
             for (int i = 0; i < things.Count; i++)
                 if (things[i].def == def) return "AAI_RecastPlace_Standing".Translate(def.label);
+            foreach (IntVec3 c in GenAdj.OccupiedRect(cell, Rot4.North, def.Size))
+            {
+                if (!c.InBounds(map) || c.Fogged(map) || c.Filled(map)) return "AAI_RecastPlace_Blocked".Translate();
+                if (def.category == ThingCategory.Building ? c.GetFirstBuilding(map) != null || !c.Standable(map) : c.GetEdifice(map) != null)
+                    return "AAI_RecastPlace_Blocked".Translate();
+            }
             return true;
         }
 

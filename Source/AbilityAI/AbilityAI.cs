@@ -251,6 +251,8 @@ namespace AbilityAI
         Disease = 2,
         /// <summary>A missing body part not replaced by a prosthetic.</summary>
         MissingParts = 4,
+        /// <summary>Bleeding at least minBleedRate per day (any bleeding at 0).</summary>
+        Bleeding = 8,
     }
 
     /// <summary>Whose version of a rule applies: the extension as written for the player's pawns, its npc block for
@@ -378,7 +380,7 @@ namespace AbilityAI
         /// <summary>Rescue: only allies downed by pain alone.</summary>
         public bool painShockOnly;
         /// <summary>Rescue: only allies bleeding at least this much per day (1 = 100%/day; 0 = any). For abilities
-        /// that only stop bleeding (VPE's Stabilize).</summary>
+        /// that only stop bleeding (VPE's Stabilize). Also the rate the Bleeding health condition starts at.</summary>
         public float minBleedRate;
         /// <summary>Defensive: only shooters count as trouble (minThreats), not melee or low health. For protection
         /// that only stops projectiles (VPE's Overshield).</summary>
@@ -432,8 +434,22 @@ namespace AbilityAI
         /// the player ordered attacked); a building is landed beside on a cell it can be touched from. The melee job
         /// then counts as being in combat for this rule.</summary>
         public bool gapCloseJobTarget;
-        /// <summary>Recovery: the health conditions it treats. None = the need rule alone.</summary>
+        /// <summary>Recovery: the health conditions it treats. None = the need rule alone. AoE friendly: only allies
+        /// with one of these count.</summary>
         public AbilityAIHealth health;
+        /// <summary>AoE hostile, AoE friendly: centre only on things of these defs, never on a pawn or a cell (Runesmith's
+        /// runecircles, which every Invoke targets). A thing with a faction counts only when it is the caster's. The
+        /// radius is then what the effect reaches around the thing.</summary>
+        public List<ThingDef> anchorThings;
+        /// <summary>AoE hostile, AoE friendly: centre only on corpses of these kinds (Hemosage's Corpse Explosion), of
+        /// pawns with no faction or one hostile to the caster: never the caster's own dead, or a friend's.</summary>
+        public AbilityAITargetKinds anchorCorpses = AbilityAITargetKinds.None;
+        /// <summary>AoE friendly: not with an enemy inside the radius, for an effect that reaches whoever stands there
+        /// (Runesmith's buffs and heal).</summary>
+        public bool avoidEnemies;
+        /// <summary>Only on the map the player is looking at: for an ability whose effect lands on that map rather than
+        /// the caster's (Runesmith's Invokes read Find.CurrentMap).</summary>
+        public bool currentMapOnly;
         /// <summary>AoE hostile: never centre the area within its radius of the caster, for areas that hit the caster
         /// too (berserk pulse). Unlike a fixed minRange it follows the radius when a stat or another mod scales it.</summary>
         public bool avoidSelf;
@@ -523,6 +539,16 @@ namespace AbilityAI
             if (minTargets < 1) yield return "minTargets must be at least 1";
             if (approachDistance < 0f) yield return "approachDistance can't be negative";
             if (minBleedRate < 0f) yield return "minBleedRate can't be negative";
+            bool anchored = (anchorThings != null && anchorThings.Count > 0) || anchorCorpses != AbilityAITargetKinds.None;
+            if (anchored && workerClass != null && !typeof(AbilityAIWorker_AoEHostile).IsAssignableFrom(workerClass)
+                && !typeof(AbilityAIWorker_AoEFriendly).IsAssignableFrom(workerClass))
+                yield return $"anchorThings and anchorCorpses are only read by AoE hostile and AoE friendly, not {workerClass.Name}";
+            if (anchorThings != null && anchorThings.Contains(null)) yield return "anchorThings names a def that doesn't exist";
+            if (avoidEnemies && workerClass != null && !typeof(AbilityAIWorker_AoEFriendly).IsAssignableFrom(workerClass))
+                yield return $"avoidEnemies is only read by AoE friendly, not {workerClass.Name}";
+            if (health != AbilityAIHealth.None && workerClass != null && !typeof(AbilityAIWorker_Recovery).IsAssignableFrom(workerClass)
+                && !typeof(AbilityAIWorker_AoEFriendly).IsAssignableFrom(workerClass))
+                yield return $"health is only read by Recovery and AoE friendly, not {workerClass.Name}";
             if (rangedOnly && minThreats < 1) yield return "rangedOnly needs minThreats of at least 1";
             if (targetKinds == AbilityAITargetKinds.None) yield return "targetKinds is empty: the rule could never target anyone";
             else if (targetKinds == AbilityAITargetKinds.Turret && workerClass != null
@@ -1102,9 +1128,19 @@ namespace AbilityAI
         /// break).</summary>
         internal static bool PsycastWithinLimits(AIAbility a, LocalTargetInfo target)
         {
-            if (!a.IsPsycast) return true;
             Pawn pawn = a.Pawn;
-            if (!AbilityAIAutocast.TryGetLimits(pawn, out float heatCap, out float focusFloor)) return true;
+            bool any = AbilityAIAutocast.TryGetLimits(pawn, out float heatCap, out float focusFloor, out float hemogenFloor);
+            // Psycast or not: Biotech's own hemogen abilities spend the same reserve
+            if (hemogenFloor > 0f)
+            {
+                float hemogen = a.HemogenCost;
+                if (hemogen > float.Epsilon)
+                {
+                    var gene = pawn.genes?.GetFirstGeneOfType<Gene_Hemogen>();
+                    if (gene != null && gene.Value - hemogen < hemogenFloor * gene.Max - 0.001f) return false;
+                }
+            }
+            if (!any || !a.IsPsycast) return true;
             var pe = pawn.psychicEntropy;
             if (pe == null) return true;
             if (heatCap < 1f)
@@ -1867,9 +1903,10 @@ namespace AbilityAI
             state.returnTries = 0;
         }
 
-        // requires (the caster's weapon) and maxLight (the light where it stands)
+        // requires (the caster's weapon), maxLight (the light where it stands) and currentMapOnly
         private static bool CasterSuits(AbilityAIExtension ext)
         {
+            if (ext.currentMapOnly && ctx.map != Find.CurrentMap) return false;
             if (ext.maxLight < 1f && ctx.map.glowGrid.GroundGlowAt(ctx.pawn.Position) > ext.maxLight) return false;
             switch (ext.requires)
             {
@@ -1881,6 +1918,7 @@ namespace AbilityAI
 
         private static string CasterSuitsWhy(AbilityAIExtension ext)
         {
+            if (ext.currentMapOnly && ctx.map != Find.CurrentMap) return "its effect lands on the map in view, and this isn't it";
             if (ext.maxLight < 1f && ctx.map.glowGrid.GroundGlowAt(ctx.pawn.Position) > ext.maxLight) return "too bright where it stands";
             return ext.requires == AbilityAIRequires.Melee ? "needs a melee weapon" : "needs a ranged weapon";
         }

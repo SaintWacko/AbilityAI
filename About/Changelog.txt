@@ -19,4 +19,5 @@ Ability AI
 - CAI 5000: casts are no longer cut off by CAI's cover and retreat moves, and pawns crouched behind cover still count as in combat. Two settings let CAI interrupt casts again, one for other factions and one for your auto-controlled pawns.
 - An Ability AI rule that uses auraKinds without a radius now logs a config error at startup instead of never firing.
 - Colonists keep up solar pinholes (Royalty and VPE) and VPE ice crystals cast by the colony. A colonist with the psycast on autocast recasts each one before it runs out, as Basic work, so the Work tab decides when. Where one ran out first, a recast marker shows the spot. Pinholes are now selectable so their Recast toggle can be reached.
+- Recast markers can be placed by hand from the psycast's right-click menu ("Place ... markers"). Colonists with the psycast on autocast then cast at each marker. A marker can be removed from its own button.
 - A dev mode log explains each cast, and why a pawn casts nothing.

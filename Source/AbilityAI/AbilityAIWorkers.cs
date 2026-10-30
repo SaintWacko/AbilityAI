@@ -298,26 +298,27 @@ namespace AbilityAI
 
         /// <summary>A building on this cell that the caster's side would not want burnt or broken: its own faction's,
         /// or a faction's not hostile to it.</summary>
-        public static bool FriendlyBuildingAt(AbilityAIContext ctx, IntVec3 c)
+        public static bool FriendlyBuildingAt(AbilityAIContext ctx, IntVec3 c, Thing except = null)
         {
             var things = c.GetThingList(ctx.map);
             for (int i = 0; i < things.Count; i++)
             {
                 Thing t = things[i];
-                if (t.def.category == ThingCategory.Building && t.Faction != null && !t.HostileTo(ctx.pawn)) return true;
+                if (t != except && t.def.category == ThingCategory.Building && t.Faction != null && !t.HostileTo(ctx.pawn)) return true;
             }
             return false;
         }
 
         /// <summary>FriendlyBuildingAt on any cell within the radius. Cost: one thing-list read per cell (about 300
         /// at radius 10).</summary>
-        public static bool FriendlyBuildingWithin(AbilityAIContext ctx, IntVec3 centre, float radius)
+        /// <summary>except: a building that doesn't count (the anchor the area is centred on).</summary>
+        public static bool FriendlyBuildingWithin(AbilityAIContext ctx, IntVec3 centre, float radius, Thing except = null)
         {
             int n = GenRadial.NumCellsInRadius(Mathf.Min(radius, GenRadial.MaxRadialPatternRadius));
             for (int i = 0; i < n; i++)
             {
                 IntVec3 c = centre + GenRadial.RadialPattern[i];
-                if (c.InBounds(ctx.map) && FriendlyBuildingAt(ctx, c)) return true;
+                if (c.InBounds(ctx.map) && FriendlyBuildingAt(ctx, c, except)) return true;
             }
             return false;
         }
@@ -329,6 +330,69 @@ namespace AbilityAI
             if (AbilityAIDriver.Valid(ability, pawnTarget)) return pawnTarget;
             var cellTarget = new LocalTargetInfo(target.Position);
             return AbilityAIDriver.Valid(ability, cellTarget) ? cellTarget : LocalTargetInfo.Invalid;
+        }
+
+        /// <summary>How badly the pawn needs the rule's health conditions treated, 0 = not at all (or the rule names
+        /// none). Injured: 1 - summary health, under healthThreshold with an injury still healing; Bleeding: the bleed
+        /// rate per day, capped at 1, from minBleedRate; Disease, MissingParts: 0.5. Cost: field reads, plus a cached
+        /// hediff read each for Disease and MissingParts and a pass over the hediffs for Bleeding.</summary>
+        public static float HealthWant(AbilityAIExtension ext, Pawn p)
+        {
+            var health = ext.health;
+            if (health == AbilityAIHealth.None) return 0f;
+            var set = p.health?.hediffSet;
+            if (set == null) return 0f;
+            float want = 0f;
+            if ((health & AbilityAIHealth.Injured) != 0)
+            {
+                float h = p.health.summaryHealth.SummaryHealthPercent;
+                if (h < ext.healthThreshold && set.HasNaturallyHealingInjury()) want = 1f - h;
+            }
+            if ((health & AbilityAIHealth.Bleeding) != 0)
+            {
+                float bleed = set.BleedRateTotal;
+                if (bleed > float.Epsilon && bleed >= ext.minBleedRate) want = Mathf.Max(want, Mathf.Min(bleed, 1f));
+            }
+            if ((health & AbilityAIHealth.Disease) != 0 && set.HasImmunizableNotImmuneHediff()) want = Mathf.Max(want, 0.5f);
+            if ((health & AbilityAIHealth.MissingParts) != 0 && set.GetMissingPartsCommonAncestors().Count > 0) want = Mathf.Max(want, 0.5f);
+            return want;
+        }
+
+        public static bool Anchored(AbilityAIExtension ext) =>
+            (ext.anchorThings != null && ext.anchorThings.Count > 0) || ext.anchorCorpses != AbilityAITargetKinds.None;
+
+        /// <summary>The things an anchored rule may centre on (anchorThings, anchorCorpses), between minRange and
+        /// range of the caster. Cost: one lister read per def plus one for corpses, a distance check per thing.</summary>
+        public static void CollectAnchors(AbilityAIContext ctx, AbilityAIExtension ext, float range, List<Thing> into)
+        {
+            var lister = ctx.map.listerThings;
+            Faction own = ctx.pawn.Faction;
+            IntVec3 from = ctx.pawn.Position;
+            float maxSq = range * range, minSq = ext.minRange * ext.minRange;
+            var defs = ext.anchorThings;
+            if (defs != null)
+                for (int d = 0; d < defs.Count; d++)
+                {
+                    var things = lister.ThingsOfDef(defs[d]);
+                    for (int i = 0; i < things.Count; i++)
+                    {
+                        Thing t = things[i];
+                        if (t.Faction != null && t.Faction != own) continue;
+                        float dist = (t.Position - from).LengthHorizontalSquared;
+                        if (dist <= maxSq && dist >= minSq) into.Add(t);
+                    }
+                }
+            if (ext.anchorCorpses == AbilityAITargetKinds.None) return;
+            var corpses = lister.ThingsInGroup(ThingRequestGroup.Corpse);
+            for (int i = 0; i < corpses.Count; i++)
+            {
+                if (!(corpses[i] is Corpse c) || c.InnerPawn == null) continue;
+                float dist = (c.Position - from).LengthHorizontalSquared;
+                if (dist > maxSq || dist < minSq || !IsOfKind(ext.anchorCorpses, c.InnerPawn)) continue;
+                Faction f = c.InnerPawn.Faction;
+                if (f != null && (own == null || !f.HostileTo(own))) continue;
+                into.Add(c);
+            }
         }
 
         /// <summary>Running away: panicking, on a flee job, or leaving the map while fighting.</summary>
@@ -365,8 +429,10 @@ namespace AbilityAI
     /// avoidSelf: no centre within the radius of the caster (an area that hits its caster); avoidBuildings: no centre
     /// with a friendly building inside. A rule naming Turret in targetKinds also counts and centres on hostile
     /// turrets (Haywire); allyKinds narrows who avoidAllies keeps clear of (AbilityAIUtility.AllyWithin).
-    /// Cost: k WouldAffect checks and k² distance checks, then up to 10 target validations; with avoidBuildings a
-    /// pass over the cells in the radius for each of the five.
+    /// Anchored (anchorThings, anchorCorpses): the candidate centres are those things instead of the enemies
+    /// (AbilityAIUtility.CollectAnchors), each scored by the enemies within the radius of it, the rest as above.
+    /// Cost: k WouldAffect checks and k² distance checks (k × anchors when anchored), then up to 10 target
+    /// validations; with avoidBuildings a pass over the cells in the radius for each of the five.
     /// </summary>
     public class AbilityAIWorker_AoEHostile : AbilityAIWorker
     {
@@ -374,6 +440,7 @@ namespace AbilityAI
         private struct Centre { public Thing thing; public int count; public float distSq; }
         private static readonly List<Centre> centres = new List<Centre>();
         private static readonly List<Thing> targets = new List<Thing>();
+        private static readonly List<Thing> anchors = new List<Thing>();
         private static readonly List<bool> affected = new List<bool>();
         private const int MaxTries = 5;
 
@@ -384,8 +451,9 @@ namespace AbilityAI
             float radius = AbilityAIUtility.Radius(ability, ext);
             for (int i = 0; i < centres.Count && i < MaxTries; i++)
             {
-                if (ext.avoidBuildings && AbilityAIUtility.FriendlyBuildingWithin(ctx, centres[i].thing.Position, radius)) continue;
-                target = AbilityAIUtility.PawnOrCell(ability, centres[i].thing);
+                Thing centre = centres[i].thing;
+                if (ext.avoidBuildings && AbilityAIUtility.FriendlyBuildingWithin(ctx, centre.Position, radius, centre)) continue;
+                target = AbilityAIUtility.PawnOrCell(ability, centre);
                 if (target.IsValid) break;
             }
             centres.Clear();
@@ -428,6 +496,14 @@ namespace AbilityAI
             }
             if (affectable < ext.minTargets) { targets.Clear(); return false; }
 
+            if (AbilityAIUtility.Anchored(ext))
+            {
+                ScoreAnchors(ctx, range, r2, radius, spareBroken);
+                targets.Clear();
+                centres.Sort((a, b) => a.count != b.count ? b.count.CompareTo(a.count) : a.distSq.CompareTo(b.distSq));
+                return centres.Count > 0;
+            }
+
             for (int i = 0; i < targets.Count; i++)
             {
                 Thing e = targets[i];
@@ -449,6 +525,27 @@ namespace AbilityAI
             centres.Sort((a, b) => a.count != b.count ? b.count.CompareTo(a.count) : a.distSq.CompareTo(b.distSq));
             return centres.Count > 0;
         }
+
+        // Fills centres from the anchors (unsorted), with targets and affected already filled in
+        private void ScoreAnchors(AbilityAIContext ctx, float range, float r2, float radius, bool spareBroken)
+        {
+            anchors.Clear();
+            AbilityAIUtility.CollectAnchors(ctx, ext, range, anchors);
+            IntVec3 from = ctx.pawn.Position;
+            for (int i = 0; i < anchors.Count; i++)
+            {
+                IntVec3 c = anchors[i].Position;
+                float d = (c - from).LengthHorizontalSquared;
+                if (ext.avoidSelf && d <= r2) continue;
+                int count = 0;
+                for (int j = 0; j < targets.Count; j++)
+                    if (affected[j] && (targets[j].Position - c).LengthHorizontalSquared <= r2) count++;
+                if (count < ext.minTargets) continue;
+                if (ext.avoidAllies && radius > 0f && AbilityAIUtility.AllyWithin(ctx, ext, c, r2, spareBroken, false)) continue;
+                centres.Add(new Centre { thing = anchors[i], count = count, distSq = d });
+            }
+            anchors.Clear();
+        }
     }
 
     /// <summary>
@@ -463,6 +560,9 @@ namespace AbilityAI
     /// nearby allies, m²/2 candidate cells × m distance checks (about 500 for 10) plus up to 4 reachability checks;
     /// once per 10 s after a walk starts, once per 2 s while no spot is found. Targeted cast: k² distance checks,
     /// then up to 5 target validations, best ally first.
+    /// health: only allies with one of those conditions count (AbilityAIUtility.HealthWant). avoidEnemies: no centre,
+    /// and no approach cell, with an enemy inside the radius. Anchored (anchorThings, anchorCorpses): targeted casts
+    /// centre on those things instead of on allies, scored the same way (allies × anchors distance checks).
     /// </summary>
     public class AbilityAIWorker_AoEFriendly : AbilityAIWorker
     {
@@ -487,7 +587,7 @@ namespace AbilityAI
             IntVec3 from = pawn.Position;
             float maxSq = ext.approachDistance * ext.approachDistance;
             float lookSq = (ext.approachDistance + radius) * (ext.approachDistance + radius);
-            bool selfCounts = !AbilityAIUtility.Has(pawn, hediff) && AbilityAIUtility.Fits(ext, pawn);
+            bool selfCounts = Gains(pawn, hediff);
 
             // Allies (not the caster) that would gain the buff and could be covered from a reachable cell
             near.Clear();
@@ -495,7 +595,7 @@ namespace AbilityAI
             for (int i = 0; i < allies.Count; i++)
             {
                 Pawn a = allies[i];
-                if (a == pawn || AbilityAIUtility.Has(a, hediff) || !AbilityAIUtility.Fits(ext, a)) continue;
+                if (a == pawn || !Gains(a, hediff)) continue;
                 if ((a.Position - from).LengthHorizontalSquared <= lookSq) near.Add(a);
             }
             int here = CountNear(from, r2) + (selfCounts ? 1 : 0);
@@ -538,6 +638,7 @@ namespace AbilityAI
         {
             float d = (c - from).LengthHorizontalSquared;
             if (d > maxSq || c == from || !c.InBounds(ctx.map) || !c.Standable(ctx.map)) return;
+            if (ext.avoidEnemies && EnemyWithin(ctx, c, r2)) return;
             int n = CountNear(c, r2) + (selfCounts ? 1 : 0);
             if (n >= floor) spots.Add(new Spot { cell = c, count = n, dist = d });
         }
@@ -560,8 +661,9 @@ namespace AbilityAI
 
             if (AbilityAIUtility.IsSelfCast(ability))
             {
-                int n = Count(allies, ctx.pawn.Position, r2, hediff);
+                int n = Count(ctx, allies, ctx.pawn.Position, r2, hediff);
                 if (n < ext.minTargets) return false;
+                if (ext.avoidEnemies && EnemyWithin(ctx, ctx.pawn.Position, r2)) return false;
                 // Walking to a better spot: don't shout on the way unless this cell is already as good
                 if (ctx.ApproachExpected(ability) > n) return false;
                 target = ctx.pawn;
@@ -573,35 +675,68 @@ namespace AbilityAI
             // Every ally that would gather enough, best first: the best one can fail validation (out of sight) while
             // the next would pass
             centres.Clear();
-            for (int i = 0; i < allies.Count; i++)
+            if (AbilityAIUtility.Anchored(ext))
             {
-                float d = (allies[i].Position - ctx.pawn.Position).LengthHorizontalSquared;
-                if (d > maxSq) continue;
-                int n = Count(allies, allies[i].Position, r2, hediff);
-                if (n >= ext.minTargets) centres.Add(new Centre { pawn = allies[i], count = n, distSq = d });
+                anchors.Clear();
+                AbilityAIUtility.CollectAnchors(ctx, ext, range, anchors);
+                for (int i = 0; i < anchors.Count; i++) AddCentre(ctx, allies, anchors[i], r2, maxSq, hediff);
+                anchors.Clear();
             }
+            else
+                for (int i = 0; i < allies.Count; i++) AddCentre(ctx, allies, allies[i], r2, maxSq, hediff);
             centres.Sort(MostThenNearest);
             for (int i = 0; i < centres.Count && i < MaxTries; i++)
             {
-                target = AbilityAIUtility.PawnOrCell(ability, centres[i].pawn);
+                target = AbilityAIUtility.PawnOrCell(ability, centres[i].thing);
                 if (target.IsValid) break;
             }
             centres.Clear();
             return target.IsValid;
         }
 
-        private struct Centre { public Pawn pawn; public int count; public float distSq; }
+        private void AddCentre(AbilityAIContext ctx, List<Pawn> allies, Thing at, float r2, float maxSq, HediffDef hediff)
+        {
+            float d = (at.Position - ctx.pawn.Position).LengthHorizontalSquared;
+            if (d > maxSq) return;
+            int n = Count(ctx, allies, at.Position, r2, hediff);
+            if (n < ext.minTargets || (ext.avoidEnemies && EnemyWithin(ctx, at.Position, r2))) return;
+            centres.Add(new Centre { thing = at, count = n, distSq = d });
+        }
+
+        // Whoever stands there gets the effect, the enemy included
+        private static bool EnemyWithin(AbilityAIContext ctx, IntVec3 c, float r2)
+        {
+            var enemies = ctx.Enemies;
+            for (int i = 0; i < enemies.Count; i++)
+                if ((enemies[i].Position - c).LengthHorizontalSquared <= r2) return true;
+            return false;
+        }
+
+        // Would gain the effect: lacks its hediff, of the rule's kinds, and with health set, in need of it
+        private bool Gains(Pawn p, HediffDef hediff) =>
+            !AbilityAIUtility.Has(p, hediff) && AbilityAIUtility.Fits(ext, p)
+            && (ext.health == AbilityAIHealth.None || AbilityAIUtility.HealthWant(ext, p) > 0f);
+
+        private static readonly List<Thing> anchors = new List<Thing>();
+        private struct Centre { public Thing thing; public int count; public float distSq; }
         private static readonly List<Centre> centres = new List<Centre>();
         private const int MaxTries = 5;
         private static readonly System.Comparison<Centre> MostThenNearest =
             (a, b) => a.count != b.count ? b.count.CompareTo(a.count) : a.distSq.CompareTo(b.distSq);
 
-        private int Count(List<Pawn> allies, IntVec3 c, float r2, HediffDef hediff)
+        // A health rule (a heal) counts the downed too
+        private int Count(AbilityAIContext ctx, List<Pawn> allies, IntVec3 c, float r2, HediffDef hediff)
+        {
+            int n = CountIn(allies, c, r2, hediff);
+            if (ext.health != AbilityAIHealth.None) n += CountIn(ctx.DownedAllies, c, r2, hediff);
+            return n;
+        }
+
+        private int CountIn(List<Pawn> pawns, IntVec3 c, float r2, HediffDef hediff)
         {
             int n = 0;
-            for (int i = 0; i < allies.Count; i++)
-                if ((allies[i].Position - c).LengthHorizontalSquared <= r2 && !AbilityAIUtility.Has(allies[i], hediff)
-                    && AbilityAIUtility.Fits(ext, allies[i])) n++;
+            for (int i = 0; i < pawns.Count; i++)
+                if ((pawns[i].Position - c).LengthHorizontalSquared <= r2 && Gains(pawns[i], hediff)) n++;
             return n;
         }
     }
@@ -915,7 +1050,8 @@ namespace AbilityAI
     /// - a need (default rest) under needThreshold (default 30%), Second Wind's kind; the rule when health is None,
     ///   and alongside the health conditions when need is set;
     /// - health conditions: Injured (still-healing injuries, summary health under healthThreshold), Disease (an
-    ///   immunizable disease not yet immune), MissingParts (a missing part with no prosthetic).
+    ///   immunizable disease not yet immune), MissingParts (a missing part with no prosthetic), Bleeding (at least
+    ///   minBleedRate per day): AbilityAIUtility.HealthWant.
     /// A self-cast ability looks at the caster only. Any other looks at the caster (when it can target itself) and
     /// the allies in reach, downed ones too for health rules, skipping anyone with the ability's hediff (health rules,
     /// or one the extension names). Worst off first, the caster x1.5, divided by distance over reach.
@@ -973,17 +1109,7 @@ namespace AbilityAI
                 Need need = p.needs?.TryGetNeed(ext.need ?? NeedDefOf.Rest);
                 if (need != null && need.CurLevelPercentage < ext.needThreshold) want = 1f - need.CurLevelPercentage;
             }
-            if (ext.health == AbilityAIHealth.None) return want;
-            var set = p.health?.hediffSet;
-            if (set == null) return want;
-            if ((ext.health & AbilityAIHealth.Injured) != 0)
-            {
-                float h = p.health.summaryHealth.SummaryHealthPercent;
-                if (h < ext.healthThreshold && set.HasNaturallyHealingInjury()) want = Mathf.Max(want, 1f - h);
-            }
-            if ((ext.health & AbilityAIHealth.Disease) != 0 && set.HasImmunizableNotImmuneHediff()) want = Mathf.Max(want, 0.5f);
-            if ((ext.health & AbilityAIHealth.MissingParts) != 0 && set.GetMissingPartsCommonAncestors().Count > 0) want = Mathf.Max(want, 0.5f);
-            return want;
+            return Mathf.Max(want, AbilityAIUtility.HealthWant(ext, p));
         }
     }
 

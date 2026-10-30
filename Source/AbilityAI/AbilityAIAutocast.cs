@@ -71,19 +71,25 @@ namespace AbilityAI
             public Pawn pawn;
             public float heatCap = 1f;
             public float focusFloor;
+            public float hemogenFloor = DefaultHemogenFloor;
 
             public void ExposeData()
             {
                 Scribe_References.Look(ref pawn, "pawn");
                 Scribe_Values.Look(ref heatCap, "heatCap", 1f);
                 Scribe_Values.Look(ref focusFloor, "focusFloor", 0f);
+                Scribe_Values.Look(ref hemogenFloor, "hemogenFloor", DefaultHemogenFloor);
             }
         }
 
         private struct Limits
         {
-            public float heatCap, focusFloor;
+            public float heatCap, focusFloor, hemogenFloor;
         }
+
+        /// <summary>Default hemogen floor, as a fraction of the pawn's maximum: a sanguophage needs its hemogen to
+        /// live, so autocast leaves it a reserve unless the player lowers it.</summary>
+        public const float DefaultHemogenFloor = 0.3f;
 
         /// <summary>Default heat cap: no limit beyond vanilla's own (its entropy-limit toggle decides overheating).</summary>
         public const float NoHeatCap = 1f;
@@ -181,29 +187,42 @@ namespace AbilityAI
         }
 
         /// <summary>The pawn's psycast autocast limits, or false when it has none (the defaults).</summary>
-        public static bool TryGetLimits(Pawn pawn, out float heatCap, out float focusFloor)
+        public static bool TryGetLimits(Pawn pawn, out float heatCap, out float focusFloor) =>
+            TryGetLimits(pawn, out heatCap, out focusFloor, out _);
+
+        /// <summary>The pawn's autocast limits, or false when it has none (the defaults, which are still written out).</summary>
+        public static bool TryGetLimits(Pawn pawn, out float heatCap, out float focusFloor, out float hemogenFloor)
         {
             var inst = Instance;
             if (inst != null && inst.limits.TryGetValue(pawn, out var l))
             {
                 heatCap = l.heatCap;
                 focusFloor = l.focusFloor;
+                hemogenFloor = l.hemogenFloor;
                 return true;
             }
             heatCap = NoHeatCap;
             focusFloor = NoFocusFloor;
+            hemogenFloor = DefaultHemogenFloor;
             return false;
         }
 
-        /// <summary>Sets the pawn's psycast limits; the defaults remove its entry.</summary>
+        /// <summary>Sets the pawn's psycast limits, keeping its hemogen floor; the defaults remove its entry.</summary>
         public static void SetLimits(Pawn pawn, float heatCap, float focusFloor)
+        {
+            TryGetLimits(pawn, out _, out _, out float hemogenFloor);
+            SetLimits(pawn, heatCap, focusFloor, hemogenFloor);
+        }
+
+        public static void SetLimits(Pawn pawn, float heatCap, float focusFloor, float hemogenFloor)
         {
             var inst = Instance ?? Find.World?.GetComponent<AbilityAIAutocast>();
             if (inst == null || pawn == null) return;
             heatCap = Mathf.Clamp01(heatCap);
             focusFloor = Mathf.Clamp01(focusFloor);
-            if (heatCap >= NoHeatCap && focusFloor <= NoFocusFloor) inst.limits.Remove(pawn);
-            else inst.limits[pawn] = new Limits { heatCap = heatCap, focusFloor = focusFloor };
+            hemogenFloor = Mathf.Clamp01(hemogenFloor);
+            if (heatCap >= NoHeatCap && focusFloor <= NoFocusFloor && Mathf.Approximately(hemogenFloor, DefaultHemogenFloor)) inst.limits.Remove(pawn);
+            else inst.limits[pawn] = new Limits { heatCap = heatCap, focusFloor = focusFloor, hemogenFloor = hemogenFloor };
         }
 
         // World.FinalizeInit runs before the loader resolves references and before the maps load, so the saved
@@ -266,7 +285,7 @@ namespace AbilityAI
                 savedLimits = new List<LimitsEntry>();
                 foreach (var kv in limits)
                     if (kv.Key != null && !kv.Key.Discarded)
-                        savedLimits.Add(new LimitsEntry { pawn = kv.Key, heatCap = kv.Value.heatCap, focusFloor = kv.Value.focusFloor });
+                        savedLimits.Add(new LimitsEntry { pawn = kv.Key, heatCap = kv.Value.heatCap, focusFloor = kv.Value.focusFloor, hemogenFloor = kv.Value.hemogenFloor });
             }
             Scribe_Collections.Look(ref saved, "abilityAutocast", LookMode.Deep);
             Scribe_Collections.Look(ref savedOther, "otherAutocast", LookMode.Deep);
@@ -290,7 +309,7 @@ namespace AbilityAI
                 limits.Clear();
                 if (savedLimits != null)
                     foreach (var e in savedLimits)
-                        if (e?.pawn != null) SetLimits(e.pawn, e.heatCap, e.focusFloor);
+                        if (e?.pawn != null) SetLimits(e.pawn, e.heatCap, e.focusFloor, e.hemogenFloor);
             }
             if (Scribe.mode == LoadSaveMode.Saving || Scribe.mode == LoadSaveMode.PostLoadInit)
             {

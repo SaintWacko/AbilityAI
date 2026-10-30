@@ -46,6 +46,8 @@ namespace AbilityAI
     {
         private static readonly HashSet<ThingDef> things = new HashSet<ThingDef>();
         private static readonly List<Func<Thing, int>> lifetimeReaders = new List<Func<Thing, int>>();
+        private static readonly Dictionary<ThingDef, Def> firstCastDefs = new Dictionary<ThingDef, Def>();
+        private static readonly Dictionary<Def, Texture2D> castIcons = new Dictionary<Def, Texture2D>();
 
         /// <summary>Another autocast mod decides this ability def for the player (Better Autocasting, set by the VPE
         /// compat's bridge). Spots its casts made keep no marker and aren't recast while it does.</summary>
@@ -72,7 +74,9 @@ namespace AbilityAI
         {
             var rule = RuleOf(abilityDef);
             ThingDef thing = rule?.recastThing;
-            if (thing == null || things.Contains(thing)) return;
+            if (thing == null) return;
+            if (!firstCastDefs.ContainsKey(thing)) firstCastDefs[thing] = abilityDef;
+            if (things.Contains(thing)) return;
             if (thing.thingClass == null || !typeof(ThingWithComps).IsAssignableFrom(thing.thingClass))
             {
                 Log.Warning($"[Ability AI] {abilityDef.defName}'s Recast rule names {thing.defName}, whose class {thing.thingClass} can't hold a comp, so it is never recast.");
@@ -82,6 +86,24 @@ namespace AbilityAI
             thing.comps.Add(new CompProperties(typeof(CompRecastSpot)));
             things.Add(thing);
         }
+
+        /// <summary>The psycast's own icon, for the Recast gizmo and the marker placer: a glow's uiIcon is its texture,
+        /// light on a black square. Vanilla's AbilityDef.uiIcon, else another system's public Texture2D field "icon"
+        /// (VEF's), else the thing's.</summary>
+        internal static Texture2D IconOf(Def castDef, ThingDef thing)
+        {
+            if (castDef == null) return thing.uiIcon;
+            if (!castIcons.TryGetValue(castDef, out Texture2D tex))
+            {
+                tex = castDef is AbilityDef ad ? ad.uiIcon : castDef.GetType().GetField("icon")?.GetValue(castDef) as Texture2D;
+                if (tex == BaseContent.BadTex) tex = null;
+                castIcons[castDef] = tex;
+            }
+            return tex ?? thing.uiIcon;
+        }
+
+        internal static Texture2D IconOf(ThingDef thing) =>
+            IconOf(firstCastDefs.TryGetValue(thing, out Def cast) ? cast : null, thing);
 
         /// <summary>How another ability system's things run out: the tick a thing will be gone by, or -1 when the
         /// reader doesn't know it. Vanilla's CompDestroyAfterDelay is read without one.</summary>
@@ -264,6 +286,23 @@ namespace AbilityAI
         internal static RecastSpots Of(Map map) => map?.GetComponent<RecastSpots>();
 
         internal static Color GhostColor => MarkerColor;
+
+        /// <summary>How a marker for def looks, or null when def has nothing to draw. A glow (the solar pinhole) is a
+        /// light-on-black texture drawn additively, which the ghost shader turns into the outline of a dark square,
+        /// so it is drawn as a dimmer glow in the marker's colour instead.</summary>
+        internal static Graphic GhostGraphic(ThingDef def, Color color)
+        {
+            if (def?.graphic == null || def.graphicData == null || def.graphic == BaseContent.BadGraphic) return null;
+            string shader = def.graphicData.shaderType?.defName;
+            if (shader != null && shader.IndexOf("Glow", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                Color dim = new Color(color.r * GlowGhostBrightness, color.g * GlowGhostBrightness, color.b * GlowGhostBrightness);
+                return def.graphic.GetColoredVersion(ShaderDatabase.MoteGlow, dim, dim);
+            }
+            return GhostUtility.GhostGraphicFor(def.graphic, def, color);
+        }
+
+        private const float GlowGhostBrightness = 0.6f;
 
         public override void FinalizeInit()
         {
@@ -557,7 +596,7 @@ namespace AbilityAI
             {
                 defaultLabel = "AAI_RecastToggle".Translate(),
                 defaultDesc = "AAI_RecastToggle_Desc".Translate(thing.def.label),
-                icon = thing.def.uiIcon,
+                icon = AbilityAIRecast.IconOf(thing.def),
                 isActive = () => spots.For(thing) != null,
                 toggleAction = () => spots.Toggle(thing),
             };
@@ -573,14 +612,17 @@ namespace AbilityAI
 
         private readonly ThingDef thingDef;
         private readonly Def castDef;
+        private readonly Graphic placeGhost, refuseGhost;
 
         public Designator_RecastMarker(ThingDef thingDef, Def castDef)
         {
             this.thingDef = thingDef;
             this.castDef = castDef;
+            placeGhost = RecastSpots.GhostGraphic(thingDef, RecastSpots.GhostColor);
+            refuseGhost = RecastSpots.GhostGraphic(thingDef, CannotPlaceColor);
             defaultLabel = "AAI_RecastPlace".Translate(thingDef.label);
             defaultDesc = "AAI_RecastPlace_Desc".Translate(thingDef.label);
-            icon = thingDef.uiIcon;
+            icon = AbilityAIRecast.IconOf(castDef, thingDef);
             useMouseIcon = true;
             soundSucceeded = SoundDefOf.Designate_PlaceBuilding;
         }
@@ -595,9 +637,9 @@ namespace AbilityAI
         public override void SelectedUpdate()
         {
             IntVec3 cell = UI.MouseCell();
-            if (!cell.InBounds(Map) || thingDef.graphic == null || thingDef.graphic == BaseContent.BadGraphic) return;
-            Color color = CanDesignateCell(cell).Accepted ? RecastSpots.GhostColor : CannotPlaceColor;
-            GhostDrawer.DrawGhostThing(cell, Rot4.North, thingDef, null, color, AltitudeLayer.Blueprint, drawPlaceWorkers: false);
+            if (placeGhost == null || !cell.InBounds(Map)) return;
+            Graphic ghost = CanDesignateCell(cell).Accepted ? placeGhost : refuseGhost;
+            ghost.DrawFromDef(GenThing.TrueCenter(cell, Rot4.North, thingDef.Size, AltitudeLayer.Blueprint.AltitudeFor()), Rot4.North, thingDef);
         }
     }
 
@@ -614,10 +656,7 @@ namespace AbilityAI
             {
                 if (ghost == null)
                 {
-                    ThingDef def = spot?.thingDef;
-                    ghost = def?.graphic != null && def.graphicData != null
-                        ? GhostUtility.GhostGraphicFor(def.graphic, def, RecastSpots.GhostColor)
-                        : BaseContent.BadGraphic;
+                    ghost = RecastSpots.GhostGraphic(spot?.thingDef, RecastSpots.GhostColor) ?? BaseContent.BadGraphic;
                 }
                 return ghost;
             }

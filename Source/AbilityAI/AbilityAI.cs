@@ -211,6 +211,17 @@ namespace AbilityAI
         Escape,
     }
 
+    /// <summary>Bloodfeed: whom the rule feeds on (AbilityAIWorker_Bloodfeed). One rule per group, tried by priority.</summary>
+    public enum AbilityAIFeedOn : byte
+    {
+        /// <summary>Downed humanlikes hostile to the caster, and downed wild men, whenever the caster has room for a bite.</summary>
+        DownedEnemies,
+        /// <summary>The colony's prisoners vanilla would let it feed on, once the caster's hemogen is under its target.</summary>
+        Prisoners,
+        /// <summary>The caster's standing faction-mates, slaves included, once its hemogen is under its target.</summary>
+        Colony,
+    }
+
     /// <summary>What the caster must be fighting with for a rule to apply (Blade Focus: melee).</summary>
     public enum AbilityAIRequires
     {
@@ -463,6 +474,8 @@ namespace AbilityAI
         /// <summary>Cone hostile: width at the far end of the cone; Beam hostile: width all along the beam (at least 1.5).
         /// Negative = read it from the effects, else 1 (a line).</summary>
         public float coneWidth = -1f;
+        /// <summary>Bloodfeed: whom this rule feeds on.</summary>
+        public AbilityAIFeedOn feedOn;
         /// <summary>Recast: the thing the ability leaves behind that the player's colonists keep up.</summary>
         public ThingDef recastThing;
         /// <summary>Changes to this rule for every caster that isn't the player's own pawn.</summary>

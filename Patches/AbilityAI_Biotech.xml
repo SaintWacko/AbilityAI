@@ -1,0 +1,225 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ability AI rules for Biotech's gene and mechanoid abilities (Source/AbilityAI/). Only applied when Biotech is
+     active. Raiders and enemy mechs use them only with the "also use abilities no mod claims" setting on; vanilla's
+     own casting of these (its fight AI, and the think-tree branches for longjump escapes, the tunneler's smokepop and
+     the apocriton's jump after a resurrection) then stands down for them.
+     Each rule sits in its own PatchOperationConditional on its def, as in the Royalty file.
+     Hemogen costs: the player's pawns keep the hemogen floor set on the autocast limits gizmo (30% by default).
+     Left out on purpose: Resurrect mech (vanilla's AI already picks the nearest corpse, reserves it from other
+     apocritons and finds a cast spot), Implant genes, Animal warcall (a wild animal fighting for the caster, a
+     15 day cooldown), and the mech abilities no mech here uses on its own. -->
+<Patch>
+  <Operation Class="PatchOperationFindMod">
+    <mods>
+      <li>Biotech</li>
+    </mods>
+    <match Class="PatchOperationSequence">
+      <operations>
+
+        <!-- Bloodfeed, out of combat and never on someone the bite would kill: downed enemies whenever the caster has
+             room for the hemogen; prisoners (vanilla's own rules: interaction allowed, secure) and then its own
+             people (no blood loss, not bleeding, not drafted) only once its hemogen is under the target its owner set.
+             A touch ability: undrafted, the caster walks as far as the calming range setting; drafted, 8 tiles.
+             NPCs never do it: raiders don't stay out of combat, and a visitor biting the player's downed raiders
+             would be odd. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="Bloodfeed"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="Bloodfeed"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Bloodfeed</workerClass>
+                <priority>3</priority>
+                <feedOn>DownedEnemies</feedOn>
+                <maxRange>8</maxRange>
+                <npc><enabled>false</enabled></npc>
+              </li>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Bloodfeed</workerClass>
+                <priority>2</priority>
+                <feedOn>Prisoners</feedOn>
+                <maxRange>8</maxRange>
+                <npc><enabled>false</enabled></npc>
+              </li>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Bloodfeed</workerClass>
+                <priority>1</priority>
+                <feedOn>Colony</feedOn>
+                <maxRange>8</maxRange>
+                <npc><enabled>false</enabled></npc>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Coagulate tends bleeding wounds: anyone of the caster's side bleeding at least 30% a day, downed or not,
+             within 12 tiles (the caster walks up), in combat or out -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="Coagulate"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="Coagulate"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Recovery</workerClass>
+                <priority>6</priority>
+                <combat>Any</combat>
+                <health>Bleeding</health>
+                <minBleedRate>0.3</minBleedRate>
+                <maxRange>12</maxRange>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Piercing spine: the most dangerous enemy within its 3.9 tiles. 20% hemogen a shot. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="PiercingSpine"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="PiercingSpine"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
+                <priority>3</priority>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Acid spray covers the aimed cell and the cells around it: no ally there, and no building of the caster's
+             side or a friendly one -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="AcidSpray"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="AcidSpray"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
+                <priority>4</priority>
+                <avoidAllies>true</avoidAllies>
+                <avoidBuildings>true</avoidBuildings>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Fire spew: a cone that sets fires and has a 5 day cooldown, so at least two enemies in it, no ally and no
+             friendly building -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="FireSpew"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="FireSpew"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_ConeHostile</workerClass>
+                <priority>4</priority>
+                <minTargets>2</minTargets>
+                <avoidAllies>true</avoidAllies>
+                <avoidBuildings>true</avoidBuildings>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Foam spray, as Waterskip: fires on or next to the caster's side -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="FoamSpray"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="FoamSpray"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Firefighting</workerClass>
+                <priority>6</priority>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Longjump, as VPE's Power Leap: a melee pawn closes on its target, a hurt one jumps clear -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="Longjump"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="Longjump"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Movement</workerClass>
+                <priority>4</priority>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Mechs. Tunneler: smoke around itself once two shooters are on it, as the Smokepop rule. A 15 day
+             cooldown. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="SmokepopMech"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="SmokepopMech"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Cover</workerClass>
+                <priority>4</priority>
+                <minThreats>2</minThreats>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Paramedic: firefoam around itself (radius 3.5), only for a fire worth a 5 day cooldown: a burning ally
+             counts 3, a fire next to an ally 1, and it needs 3 -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="FirefoampopMech"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="FirefoampopMech"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Firefighting</workerClass>
+                <priority>6</priority>
+                <radius>3.5</radius>
+                <minTargets>3</minTargets>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Diabolus: fire all around itself (radius 5.9, a 3 s warmup) with at least two enemies inside, no ally and
+             no friendly building -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="FireBurst"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="FireBurst"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEHostileSelf</workerClass>
+                <priority>4</priority>
+                <radius>5.9</radius>
+                <minTargets>2</minTargets>
+                <avoidAllies>true</avoidAllies>
+                <avoidBuildings>true</avoidBuildings>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Apocriton, and the paramedic's jump launcher, which inherits this def's extensions (a rule on the
+             launcher too would give it two): jump clear when badly hurt or caught in melee. The launcher keeps one of
+             its two charges for vanilla's jumps to a fire or to a pawn it is rescuing; the apocriton's jump has no
+             charges, so reserveCharges doesn't touch it. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="LongjumpMech"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="LongjumpMech"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Movement</workerClass>
+                <priority>4</priority>
+                <modes>Escape</modes>
+                <reserveCharges>1</reserveCharges>
+              </li>
+            </value>
+          </match>
+        </li>
+
+      </operations>
+    </match>
+  </Operation>
+</Patch>

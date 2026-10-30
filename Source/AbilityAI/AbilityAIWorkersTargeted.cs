@@ -377,6 +377,102 @@ namespace AbilityAI
     }
 
     /// <summary>
+    /// Bloodfeed: a sanguophage's bite (vanilla's Bloodfeed), out of combat. One rule per feedOn, tried by priority:
+    /// downed enemies whenever the caster has room for the bite's hemogen, then the colony's prisoners and its own
+    /// people only once its hemogen is under the target its owner set (vanilla's ShouldConsumeHemogenNow, the same
+    /// point at which vanilla sends it to a prisoner). Never a pawn the bite would kill, one in a mental state, or
+    /// one with a standing enemy within 15 tiles. Prisoners go through vanilla's own check (the bloodfeed interaction
+    /// allowed, secure, reachable); faction-mates must not be downed, drafted, bleeding or short of blood already.
+    /// A touch ability: an undrafted pawn of the player's looks as far as CalmRange, like a calming word; others the
+    /// extension's reach. Nearest first.
+    /// Cost: nothing while the caster's hemogen is high enough; otherwise one pass over the map's humanlikes, the
+    /// colony's prisoners (vanilla's reach check for those in range) or the caster's allies, each with k distance
+    /// checks for the enemy rule.
+    /// </summary>
+    public class AbilityAIWorker_Bloodfeed : AbilityAIWorker
+    {
+        protected override AbilityAICombat DefaultCombat => AbilityAICombat.OutOfCombat;
+        private const float DangerRange = 15f;
+        private static readonly List<TargetingUtil.Cand> cands = new List<TargetingUtil.Cand>();
+
+        public override bool TryFindTarget(AbilityAIContext ctx, AIAbility ability, out LocalTargetInfo target, out LocalTargetInfo dest)
+        {
+            target = dest = LocalTargetInfo.Invalid;
+            Pawn pawn = ctx.pawn;
+            var gene = pawn.genes?.GetFirstGeneOfType<Gene_Hemogen>();
+            var bite = Bite(ability.Def as AbilityDef);
+            if (gene == null || bite == null) return false;
+            if (ext.feedOn == AbilityAIFeedOn.DownedEnemies ? gene.Value > gene.Max - bite.hemogenGain : !gene.ShouldConsumeHemogenNow())
+                return false;
+            float range = TargetingUtil.Reach(ability, ext);
+            if (AbilityAIDriver.EvaluatingPlayer && !pawn.Drafted && AbilityAIUtility.Range(ability, ext) <= 0f) range = AbilityAISettings.CalmRange;
+            float maxSq = range * range;
+            cands.Clear();
+            switch (ext.feedOn)
+            {
+                case AbilityAIFeedOn.DownedEnemies:
+                {
+                    var list = ctx.map.mapPawns.AllHumanlikeSpawned;
+                    for (int i = 0; i < list.Count; i++)
+                    {
+                        Pawn p = list[i];
+                        if (!p.Downed || p.Dead || p.IsPrisonerOfColony || !(p.HostileTo(pawn) || p.IsWildMan())) continue;
+                        Consider(ctx, p, bite, maxSq);
+                    }
+                    break;
+                }
+                case AbilityAIFeedOn.Prisoners:
+                {
+                    if (pawn.Faction == null || !pawn.Faction.IsPlayer) break;
+                    var list = ctx.map.mapPawns.PrisonersOfColonySpawned;
+                    for (int i = 0; i < list.Count; i++)
+                    {
+                        Pawn p = list[i];
+                        // Vanilla's own rule for its hungry-sanguophage job, reach check last since it paths
+                        if ((p.Position - pawn.Position).LengthHorizontalSquared > maxSq) continue;
+                        if (Consider(ctx, p, bite, maxSq) && !JobGiver_GetHemogen.CanFeedOnPrisoner(pawn, p).Accepted)
+                            cands.RemoveAt(cands.Count - 1);
+                    }
+                    break;
+                }
+                default:
+                {
+                    var list = ctx.SupportAllies;
+                    for (int i = 0; i < list.Count; i++)
+                    {
+                        Pawn p = list[i];
+                        if (p == pawn || p.Drafted || !p.RaceProps.Humanlike || p.IsBloodfeeder()) continue;
+                        var health = p.health?.hediffSet;
+                        if (health == null || health.BleedRateTotal > 0f || health.HasHediff(HediffDefOf.BloodLoss)) continue;
+                        Consider(ctx, p, bite, maxSq);
+                    }
+                    break;
+                }
+            }
+            return TargetingUtil.FirstValid(cands, ability, out target);
+        }
+
+        private bool Consider(AbilityAIContext ctx, Pawn p, CompProperties_AbilityBloodfeederBite bite, float maxSq)
+        {
+            float d = (p.Position - ctx.pawn.Position).LengthHorizontalSquared;
+            if (d > maxSq || p.InMentalState || !AbilityAIUtility.Fits(ext, p)) return false;
+            if (bite.targetBloodLoss > 0f && p.WouldDieFromAdditionalBloodLoss(bite.targetBloodLoss)) return false;
+            if (TargetingUtil.AnyWithin(ctx.Enemies, p.Position, DangerRange * DangerRange)) return false;
+            cands.Add(new TargetingUtil.Cand { pawn = p, score = -d });
+            return true;
+        }
+
+        private static CompProperties_AbilityBloodfeederBite Bite(AbilityDef def)
+        {
+            var comps = def?.comps;
+            if (comps == null) return null;
+            for (int i = 0; i < comps.Count; i++)
+                if (comps[i] is CompProperties_AbilityBloodfeederBite bite) return bite;
+            return null;
+        }
+    }
+
+    /// <summary>
     /// Interrupt: hit an enemy who is aiming something dangerous: a hostile ability or psycast, or a weapon with an
     /// explosive projectile (grenades, launchers), or with minAimSeconds any aim with that long left. Only when more
     /// of the enemy's aim is left than this ability's own warmup. A stun pauses the enemy's aim for its length (it

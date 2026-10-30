@@ -298,6 +298,8 @@ namespace AbilityAI
             if (shader != null && shader.IndexOf("Glow", StringComparison.OrdinalIgnoreCase) >= 0
                 && def.graphic.GetType().GetMethod(nameof(Graphic.GetColoredVersion), new[] { typeof(Shader), typeof(Color), typeof(Color) })?.DeclaringType != typeof(Graphic))
             {
+                // The blueprint colour is nearly white, which added as light reads as a real (dimmer) glow
+                if (color == MarkerColor) color = GlowMarkerColor;
                 Color dim = new Color(color.r * GlowGhostBrightness, color.g * GlowGhostBrightness, color.b * GlowGhostBrightness);
                 return def.graphic.GetColoredVersion(ShaderDatabase.MoteGlow, dim, dim);
             }
@@ -305,6 +307,7 @@ namespace AbilityAI
         }
 
         private const float GlowGhostBrightness = 0.6f;
+        private static readonly Color GlowMarkerColor = new Color(0.2f, 0.5f, 1f);
 
         public override void FinalizeInit()
         {

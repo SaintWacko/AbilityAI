@@ -75,8 +75,8 @@ namespace AbilityAI
         }
 
         /// <summary>A single selected player pawn with a row to show: the heat and focus rows with a psychic entropy
-        /// tracker and a real psycast set to autocast; the hemogen row with a hemogen gene and any ability with a
-        /// hemogen cost, on autocast or not, so the floor can be set before turning it on. Cost per GetGizmos call: a
+        /// psylink and a psycast that can be autocast, on autocast or not; the hemogen row with a hemogen gene and any ability with a
+        /// hemogen cost, on autocast or not. Both show before anything is turned on, so the limits can be set first. Cost per GetGizmos call: a
         /// few field reads, and the ability walk once per CacheFrames frames or mode change.</summary>
         internal static bool ShouldShow(Pawn pawn)
         {
@@ -99,7 +99,7 @@ namespace AbilityAI
         // Every system's abilities with an extension, since only those can have a mode
         private static void Refresh(Pawn pawn)
         {
-            bool psy = pawn.psychicEntropy != null && AbilityAIAutocast.HasAny(pawn);
+            bool psy = pawn.HasPsylink;
             cachedGene = pawn.genes?.GetFirstGeneOfType<Gene_Hemogen>();
             showPsycast = showHemogen = false;
             if (!psy && cachedGene == null) return;
@@ -110,8 +110,7 @@ namespace AbilityAI
                 {
                     AIAbility a = collected[i];
                     if (a.PlayerAutocastElsewhere) continue;
-                    if (psy && !showPsycast && a.IsPsycast && AbilityAIAutocast.ModeFor(pawn, a.Def) != AbilityAIAutocastMode.Off)
-                        showPsycast = true;
+                    if (psy && !showPsycast && a.IsPsycast) showPsycast = true;
                     if (cachedGene != null && !showHemogen && a.HemogenCost > 0f) showHemogen = true;
                 }
             }

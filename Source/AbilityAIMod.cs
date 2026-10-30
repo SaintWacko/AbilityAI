@@ -102,7 +102,11 @@ namespace AbilityAI
             try
             {
                 var abilityDefs = DefDatabase<AbilityDef>.AllDefsListForReading;
-                for (int i = 0; i < abilityDefs.Count; i++) AbilityAIRecast.Note(abilityDefs[i]);
+                for (int i = 0; i < abilityDefs.Count; i++)
+                {
+                    AbilityAIRecast.Note(abilityDefs[i]);
+                    AbilityAIGather.Note(abilityDefs[i]);
+                }
             }
             catch (Exception e) { Log.Error($"[Ability AI] Setting up recasting failed; nothing is recast: {e}"); }
         }

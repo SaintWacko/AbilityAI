@@ -7,7 +7,8 @@
      caster's side and the buffs and the heal of its enemies. Ehwaz, Algiz, Teiwaz, Hagalaz and Berkana put their
      effect on the map the player is looking at rather than the caster's, so they only run there. One caster per
      circle at a time. The attacks work like traps: an enemy group at a circle sets them off, whether or not the
-     caster is fighting or drafted.
+     caster is fighting or drafted. Hagalaz and Sowilo wait while more enemies are walking into the circle
+     (waitForGather), up to 5 s.
      Left out: Etch Runecircle and Etch Greater Runecircle (41 and 125 s to cast, 60 and 90% psyfocus). -->
 <Patch>
   <Operation Class="PatchOperationFindMod">
@@ -37,6 +38,7 @@
                 <harmless>true</harmless>
                 <exclusive>true</exclusive>
                 <currentMapOnly>true</currentMapOnly>
+                <waitForGather>true</waitForGather>
               </li>
             </value>
           </match>
@@ -62,6 +64,7 @@
                 <avoidAllies>true</avoidAllies>
                 <avoidBuildings>true</avoidBuildings>
                 <exclusive>true</exclusive>
+                <waitForGather>true</waitForGather>
               </li>
             </value>
           </match>

@@ -22,5 +22,5 @@ Ability AI
 - Recast markers can be placed by hand from the psycast's right-click menu ("Place ... markers"). Colonists with the psycast on autocast then cast at each marker. A marker can be removed from its own button.
 - Rules for the VPE Hemosage, Puppeteer and Runesmith paths. Runesmith's Invokes are cast at your runecircles: the attacks when enemies gather at a circle and none of your pawns stand there, the buffs and the heal when your pawns stand at one with no enemy inside.
 - Autocast keeps a hemogen reserve: an ability that costs hemogen is not autocast if it would leave the pawn under 30% of its maximum. This applies to existing saves too.
-- VEF abilities that add their own targeting checks (a charged runecircle, a corpse that isn't desiccated, an unroofed target) are no longer autocast at targets those checks refuse.
+- Ranged VEF abilities that add their own targeting checks (a charged runecircle, a corpse that isn't desiccated, an unroofed target) are no longer autocast at targets those checks refuse.
 - A dev mode log explains each cast, and why a pawn casts nothing.

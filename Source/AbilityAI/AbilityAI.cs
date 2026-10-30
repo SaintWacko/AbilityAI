@@ -450,6 +450,10 @@ namespace AbilityAI
         /// <summary>Only on the map the player is looking at: for an ability whose effect lands on that map rather than
         /// the caster's (Runesmith's Invokes read Find.CurrentMap).</summary>
         public bool currentMapOnly;
+        /// <summary>Anchored AoE hostile: hold the cast while more enemies are walking into the area than will be in it
+        /// when it lands, and while an ally is about to walk in (AbilityAIGather; settings GatherWaitPlayer and
+        /// GatherWaitNpcs). For an area fixed in place, such as a runecircle, that enemies cross on their way in.</summary>
+        public bool waitForGather;
         /// <summary>AoE hostile: never centre the area within its radius of the caster, for areas that hit the caster
         /// too (berserk pulse). Unlike a fixed minRange it follows the radius when a stat or another mod scales it.</summary>
         public bool avoidSelf;
@@ -545,6 +549,8 @@ namespace AbilityAI
                 yield return $"anchorThings and anchorCorpses are only read by AoE hostile and AoE friendly, not {workerClass.Name}";
             // Unresolved names are dropped from the list, so a list of only missing defs is empty, not full of nulls
             if (anchorThings != null && anchorThings.Count == 0) yield return "anchorThings names no def that exists, so the rule would centre on pawns instead";
+            if (waitForGather && (!anchored || workerClass == null || !typeof(AbilityAIWorker_AoEHostile).IsAssignableFrom(workerClass)))
+                yield return "waitForGather is only read by an anchored AoE hostile rule (anchorThings or anchorCorpses)";
             if (avoidEnemies && workerClass != null && !typeof(AbilityAIWorker_AoEFriendly).IsAssignableFrom(workerClass))
                 yield return $"avoidEnemies is only read by AoE friendly, not {workerClass.Name}";
             if (health != AbilityAIHealth.None && workerClass != null && !typeof(AbilityAIWorker_Recovery).IsAssignableFrom(workerClass)
@@ -593,6 +599,9 @@ namespace AbilityAI
         public Pawn pawn;
         public Map map;
         public int tick;
+        /// <summary>Set by a worker that found a target but chose to wait, for the dev log's "no target" line; the
+        /// driver clears it before each worker. Only filled while the dev log is on.</summary>
+        public string NoTargetWhy;
 
         private bool combatKnown, inCombat;
         private bool enemiesBuilt, alliesBuilt, aimsBuilt, friendliesBuilt, brokenBuilt, supportBuilt;
@@ -1698,9 +1707,10 @@ namespace AbilityAI
                     exclusiveDef = worker.Exclusive ? a.Def : null;
                     affectedCounted = worker.CountsAffectedAroundCaster;
                     ctx.CastAtPrey = false;
+                    ctx.NoTargetWhy = null;
                     if (!worker.TryFindTarget(ctx, a, out LocalTargetInfo target, out LocalTargetInfo dest))
                     {
-                        WhyNot(a, ext, "no target");
+                        WhyNot(a, ext, ctx.NoTargetWhy ?? "no target");
                         continue;
                     }
                     if (!dest.IsValid) dest = target;
@@ -2113,6 +2123,10 @@ namespace AbilityAI
         public static float RecastAt = DefaultRecastAt;
         /// <summary>Recast: a colonist's cast of an ability with a Recast rule starts a spot to keep up.</summary>
         public static bool RecastTrackNewCasts = true;
+        /// <summary>waitForGather rules hold while enemies are gathering (AbilityAIGather): the player's pawns, and
+        /// other factions'.</summary>
+        public static bool GatherWaitPlayer = true;
+        public static bool GatherWaitNpcs = true;
 
         public static bool SkipAllowed(AbilityAISkipMode mode)
         {
@@ -2153,10 +2167,10 @@ namespace AbilityAI
                     DebugLog = false;
                     break;
                 case Tab.OtherFactions:
-                    Hostiles = NonHostiles = Animals = Mechs = Approach = Unclaimed = true;
+                    Hostiles = NonHostiles = Animals = Mechs = Approach = Unclaimed = GatherWaitNpcs = true;
                     break;
                 case Tab.YourPawns:
-                    PlayerAutocast = UndraftedAutocast = ShowMarker = ChargeGapClose = RecastTrackNewCasts = true;
+                    PlayerAutocast = UndraftedAutocast = ShowMarker = ChargeGapClose = RecastTrackNewCasts = GatherWaitPlayer = true;
                     ReturnToCover = false;
                     RecastAt = DefaultRecastAt;
                     UndraftedIntervalTicks = DefaultUndraftedIntervalTicks;
@@ -2197,6 +2211,8 @@ namespace AbilityAI
             Scribe_Values.Look(ref BetterAutocastOwns, "abilityAI_betterAutocastOwns", false);
             Scribe_Values.Look(ref RecastTrackNewCasts, "abilityAI_recastTrackNewCasts", true);
             Scribe_Values.Look(ref RecastAt, "abilityAI_recastAt", DefaultRecastAt);
+            Scribe_Values.Look(ref GatherWaitPlayer, "abilityAI_gatherWaitPlayer", true);
+            Scribe_Values.Look(ref GatherWaitNpcs, "abilityAI_gatherWaitNpcs", true);
             RecastAt = Mathf.Clamp(RecastAt, 0f, 0.5f);
             Scribe_Values.Look(ref CalmBreaks, "abilityAI_calmBreaks", DefaultCalmBreaks);
             Scribe_Values.Look(ref CalmRange, "abilityAI_calmRange", DefaultCalmRange);
@@ -2304,6 +2320,9 @@ namespace AbilityAI
             list.CheckboxLabeled("AAI_Unclaimed".Translate(), ref Unclaimed, "AAI_Unclaimed_Tip".Translate());
             Hint(list, "AAI_Unclaimed_Desc");
             list.CheckboxLabeled("AAI_Approach".Translate(), ref Approach, "AAI_Approach_Tip".Translate());
+            // Only with a rule that waits, such as the Runesmith Invokes
+            if (AbilityAIGather.Any)
+                list.CheckboxLabeled("AAI_GatherWait".Translate(), ref GatherWaitNpcs, "AAI_GatherWaitNpcs_Tip".Translate());
         }
 
         private static void DoYourPawns(Listing_Standard list)
@@ -2311,6 +2330,8 @@ namespace AbilityAI
             list.CheckboxLabeled("AAI_PlayerAutocast".Translate(), ref PlayerAutocast, "AAI_PlayerAutocast_Tip".Translate());
             list.CheckboxLabeled("AAI_ShowMarker".Translate(), ref ShowMarker, "AAI_ShowMarker_Tip".Translate());
             list.CheckboxLabeled("AAI_ChargeGapClose".Translate(), ref ChargeGapClose, "AAI_ChargeGapClose_Tip".Translate());
+            if (AbilityAIGather.Any)
+                list.CheckboxLabeled("AAI_GatherWait".Translate(), ref GatherWaitPlayer, "AAI_GatherWaitPlayer_Tip".Translate());
             Section(list, "AAI_Section_Undrafted");
             list.CheckboxLabeled("AAI_UndraftedAutocast".Translate(), ref UndraftedAutocast, "AAI_UndraftedAutocast_Tip".Translate());
             if (UndraftedAutocast)

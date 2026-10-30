@@ -31,7 +31,11 @@ namespace AbilityAI.Vef
             try
             {
                 var defs = DefDatabase<VEF.Abilities.AbilityDef>.AllDefsListForReading;
-                for (int i = 0; i < defs.Count; i++) AbilityAIRecast.Note(defs[i]);
+                for (int i = 0; i < defs.Count; i++)
+                {
+                    AbilityAIRecast.Note(defs[i]);
+                    AbilityAIGather.Note(defs[i]);
+                }
                 AbilityAIRecast.RegisterLifetime(SpawnedLifetime);
             }
             catch (Exception e) { Log.Error($"[Ability AI] Setting up recasting for VEF abilities failed; they are not recast: {e}"); }

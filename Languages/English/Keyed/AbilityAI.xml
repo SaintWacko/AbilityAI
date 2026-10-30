@@ -43,6 +43,9 @@
   <AAI_BlockedJobs_GroupOn>Checked</AAI_BlockedJobs_GroupOn>
   <AAI_BlockedJobs_GroupOff>Other jobs that can be interrupted</AAI_BlockedJobs_GroupOff>
   <AAI_BlockedJobs_Reset>Reset to defaults</AAI_BlockedJobs_Reset>
+  <AAI_GatherWait>Wait for enemies to gather</AAI_GatherWait>
+  <AAI_GatherWaitPlayer_Tip>An area attack cast at a fixed spot, such as a Vanilla Psycasts Expanded Runesmith Invoke at a runecircle, holds while more enemies are walking into it. Your pawn reads where each enemy is heading over the next 3 seconds and waits, for at most 5 seconds, while more will be inside soon than when the cast would land. It never casts while one of your pawns is about to walk in.</AAI_GatherWaitPlayer_Tip>
+  <AAI_GatherWaitNpcs_Tip>Other factions' pawns hold an area attack cast at a fixed spot, such as a Vanilla Psycasts Expanded Runesmith Invoke at a runecircle, while more enemies are walking into it: for at most 5 seconds, while more will be inside within 3 seconds than when the cast would land.</AAI_GatherWaitNpcs_Tip>
   <AAI_ChargeGapClose>Leap at the target of a melee attack order</AAI_ChargeGapClose>
   <AAI_ChargeGapClose_Tip>When you order a drafted pawn to attack someone in melee, it may use a movement ability set to autocast (such as Vanilla Psycasts Expanded's Power Leap, Shadowskip and Ghostwalk) to close the distance, then carries on with the attack. Only while the target is further away than the ability's minimum, and only movement abilities: nothing else is cast during the charge, and the pawn never uses one to run away from the fight you ordered.</AAI_ChargeGapClose_Tip>
   <AAI_ShowMarker>Mark abilities that can autocast</AAI_ShowMarker>
@@ -94,6 +97,9 @@
   <AAI_Limits_Focus_Tip>Autocast won't use a psycast that would bring this pawn's psyfocus below this point. Casting by hand ignores this.</AAI_Limits_Focus_Tip>
   <AAI_Limits_NoCap>no cap</AAI_Limits_NoCap>
   <AAI_Limits_NoFloor>none</AAI_Limits_NoFloor>
+  <AAI_Limits_Title>Autocast limits</AAI_Limits_Title>
+  <AAI_Limits_Hemogen>Min hemogen</AAI_Limits_Hemogen>
+  <AAI_Limits_Hemogen_Tip>Autocast won't use an ability that would bring this pawn's hemogen below this point. This covers every ability that costs hemogen, psycast or not. Casting by hand ignores this.</AAI_Limits_Hemogen_Tip>
   <AAI_MinGap>Least time between one pawn's casts: {0} s</AAI_MinGap>
   <AAI_MinGap_Desc>Stops a pawn with several abilities from using them all in the same moment. Each ability's own cooldown and charges still apply.</AAI_MinGap_Desc>
   <AAI_Section_Skip>Skip</AAI_Section_Skip>

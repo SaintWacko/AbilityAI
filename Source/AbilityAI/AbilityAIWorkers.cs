@@ -436,6 +436,9 @@ namespace AbilityAI
     /// turrets (Haywire); allyKinds narrows who avoidAllies keeps clear of (AbilityAIUtility.AllyWithin).
     /// Anchored (anchorThings, anchorCorpses): the candidate centres are those things instead of the enemies
     /// (AbilityAIUtility.CollectAnchors), each scored by the enemies within the radius of it, the rest as above.
+    /// waitForGather (anchored only): enemies counted where their paths put them when the cast lands; a spot more
+    /// will reach within 3 s is held for up to 5 s, and one an ally is walking into is skipped (AbilityAIGather;
+    /// k × 7 path reads more, only with anchors in range).
     /// Cost: k WouldAffect checks and k² distance checks (k × anchors when anchored), then up to 10 target
     /// validations; with avoidBuildings a pass over the cells in the radius for each of the five.
     /// </summary>
@@ -447,6 +450,8 @@ namespace AbilityAI
         private static readonly List<Thing> targets = new List<Thing>();
         private static readonly List<Thing> anchors = new List<Thing>();
         private static readonly List<bool> affected = new List<bool>();
+        // waitForGather: each target's cell at every sample, target-major
+        private static readonly List<IntVec3> predicted = new List<IntVec3>();
         private const int MaxTries = 5;
 
         public override bool TryFindTarget(AbilityAIContext ctx, AIAbility ability, out LocalTargetInfo target, out LocalTargetInfo dest)
@@ -504,7 +509,7 @@ namespace AbilityAI
 
             if (AbilityAIUtility.Anchored(ext))
             {
-                ScoreAnchors(ctx, range, r2, radius, spareBroken);
+                ScoreAnchors(ctx, ability, range, r2, radius, spareBroken);
                 targets.Clear();
                 centres.Sort((a, b) => a.count != b.count ? b.count.CompareTo(a.count) : a.distSq.CompareTo(b.distSq));
                 return centres.Count > 0;
@@ -532,24 +537,68 @@ namespace AbilityAI
             return centres.Count > 0;
         }
 
-        // Fills centres from the anchors (unsorted), with targets and affected already filled in
-        private void ScoreAnchors(AbilityAIContext ctx, float range, float r2, float radius, bool spareBroken)
+        // Fills centres from the anchors (unsorted), with targets and affected already filled in. With waitForGather
+        // the enemies are counted where they will be when the cast lands, and a spot more enemies will reach within
+        // the look-ahead is held (AbilityAIGather)
+        private void ScoreAnchors(AbilityAIContext ctx, AIAbility ability, float range, float r2, float radius, bool spareBroken)
         {
             anchors.Clear();
             AbilityAIUtility.CollectAnchors(ctx, ext, range, anchors);
             IntVec3 from = ctx.pawn.Position;
+            bool gather = anchors.Count > 0 && AbilityAIGather.On(ctx, ext);
+            int samples = AbilityAIGather.SampleCount, landing = 0;
+            if (gather)
+            {
+                landing = Mathf.RoundToInt(ability.WarmupSeconds * 60f);
+                predicted.Clear();
+                for (int j = 0; j < targets.Count; j++)
+                {
+                    if (affected[j] && targets[j] is Pawn p) AbilityAIGather.Predict(p, landing, predicted);
+                    else for (int k = 0; k < samples; k++) predicted.Add(targets[j].Position);
+                }
+            }
+            Thing heldAt = null;
+            int heldNow = 0, heldLater = 0;
             for (int i = 0; i < anchors.Count; i++)
             {
                 IntVec3 c = anchors[i].Position;
                 float d = (c - from).LengthHorizontalSquared;
                 if (ext.avoidSelf && d <= r2) continue;
-                int count = 0;
-                for (int j = 0; j < targets.Count; j++)
-                    if (affected[j] && (targets[j].Position - c).LengthHorizontalSquared <= r2) count++;
+                int count = 0, later = 0;
+                if (!gather)
+                {
+                    for (int j = 0; j < targets.Count; j++)
+                        if (affected[j] && (targets[j].Position - c).LengthHorizontalSquared <= r2) count++;
+                }
+                else
+                {
+                    for (int k = 0; k < samples; k++)
+                    {
+                        int n = 0;
+                        for (int j = 0; j < targets.Count; j++)
+                            if (affected[j] && (predicted[j * samples + k] - c).LengthHorizontalSquared <= r2) n++;
+                        if (k == 0) count = n;
+                        else if (n > later) later = n;
+                    }
+                }
                 if (count < ext.minTargets) continue;
-                if (ext.avoidAllies && radius > 0f && AbilityAIUtility.AllyWithin(ctx, ext, c, r2, spareBroken, false)) continue;
+                if (ext.avoidAllies && radius > 0f)
+                {
+                    if (AbilityAIUtility.AllyWithin(ctx, ext, c, r2, spareBroken, false)) continue;
+                    // Never a hold: a cast that would land on an ally isn't made at all
+                    if (gather && (AbilityAIGather.AnyArriving(ctx.Friendlies, c, r2, landing, ext.allyKinds, null)
+                        || (spareBroken && AbilityAIGather.AnyArriving(ctx.BrokenAllies, c, r2, landing, ext.allyKinds, null)))) continue;
+                }
+                if (gather && later > count && AbilityAIGather.MayHold(anchors[i], ability.Def, ctx.tick))
+                {
+                    if (heldAt == null || later > heldLater) { heldAt = anchors[i]; heldNow = count; heldLater = later; }
+                    continue;
+                }
                 centres.Add(new Centre { thing = anchors[i], count = count, distSq = d });
             }
+            if (gather) predicted.Clear();
+            if (heldAt != null && centres.Count == 0 && AbilityAISettings.DebugLog)
+                ctx.NoTargetWhy = $"waiting for enemies to gather at {heldAt.LabelShort} ({heldNow} when it would land, {heldLater} soon)";
             anchors.Clear();
         }
     }

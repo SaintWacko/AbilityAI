@@ -334,8 +334,8 @@ namespace AbilityAI
 
         /// <summary>How badly the pawn needs the rule's health conditions treated, 0 = not at all (or the rule names
         /// none). Injured: 1 - summary health, under healthThreshold with an injury still healing; Bleeding: the bleed
-        /// rate per day, capped at 1, from minBleedRate; Disease, MissingParts: 0.5. Cost: field reads, plus a cached
-        /// hediff read each for Disease and MissingParts and a pass over the hediffs for Bleeding.</summary>
+        /// rate per day, capped at 1, from minBleedRate; Disease, MissingParts: 0.5. Cost: field reads, plus a pass over
+        /// the hediffs for Disease and Bleeding and a cached read for MissingParts.</summary>
         public static float HealthWant(AbilityAIExtension ext, Pawn p)
         {
             var health = ext.health;
@@ -357,6 +357,11 @@ namespace AbilityAI
             if ((health & AbilityAIHealth.MissingParts) != 0 && set.GetMissingPartsCommonAncestors().Count > 0) want = Mathf.Max(want, 0.5f);
             return want;
         }
+
+        /// <summary>Centres an anchored rule validates before giving up: more than a pawn-centred rule's five, since
+        /// only the ability can tell a usable anchor from a spent one (a recharging runecircle) and those cluster
+        /// where the fights are.</summary>
+        public const int MaxAnchorTries = 20;
 
         public static bool Anchored(AbilityAIExtension ext) =>
             (ext.anchorThings != null && ext.anchorThings.Count > 0) || ext.anchorCorpses != AbilityAITargetKinds.None;
@@ -449,7 +454,8 @@ namespace AbilityAI
             target = dest = LocalTargetInfo.Invalid;
             if (!Score(ctx, ability, AbilityAIUtility.Range(ability, ext))) return false;
             float radius = AbilityAIUtility.Radius(ability, ext);
-            for (int i = 0; i < centres.Count && i < MaxTries; i++)
+            int tries = AbilityAIUtility.Anchored(ext) ? AbilityAIUtility.MaxAnchorTries : MaxTries;
+            for (int i = 0; i < centres.Count && i < tries; i++)
             {
                 Thing centre = centres[i].thing;
                 if (ext.avoidBuildings && AbilityAIUtility.FriendlyBuildingWithin(ctx, centre.Position, radius, centre)) continue;
@@ -598,6 +604,13 @@ namespace AbilityAI
                 if (a == pawn || !Gains(a, hediff)) continue;
                 if ((a.Position - from).LengthHorizontalSquared <= lookSq) near.Add(a);
             }
+            // As Count: a heal is for the downed too
+            if (ext.health != AbilityAIHealth.None)
+            {
+                var downed = ctx.DownedAllies;
+                for (int i = 0; i < downed.Count; i++)
+                    if (Gains(downed[i], hediff) && (downed[i].Position - from).LengthHorizontalSquared <= lookSq) near.Add(downed[i]);
+            }
             int here = CountNear(from, r2) + (selfCounts ? 1 : 0);
             int floor = Mathf.Max(ext.minTargets, here + 1);
             if (near.Count + (selfCounts ? 1 : 0) < floor) { near.Clear(); return false; }
@@ -685,7 +698,8 @@ namespace AbilityAI
             else
                 for (int i = 0; i < allies.Count; i++) AddCentre(ctx, allies, allies[i], r2, maxSq, hediff);
             centres.Sort(MostThenNearest);
-            for (int i = 0; i < centres.Count && i < MaxTries; i++)
+            int tries = AbilityAIUtility.Anchored(ext) ? AbilityAIUtility.MaxAnchorTries : MaxTries;
+            for (int i = 0; i < centres.Count && i < tries; i++)
             {
                 target = AbilityAIUtility.PawnOrCell(ability, centres[i].thing);
                 if (target.IsValid) break;

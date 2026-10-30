@@ -543,7 +543,8 @@ namespace AbilityAI
             if (anchored && workerClass != null && !typeof(AbilityAIWorker_AoEHostile).IsAssignableFrom(workerClass)
                 && !typeof(AbilityAIWorker_AoEFriendly).IsAssignableFrom(workerClass))
                 yield return $"anchorThings and anchorCorpses are only read by AoE hostile and AoE friendly, not {workerClass.Name}";
-            if (anchorThings != null && anchorThings.Contains(null)) yield return "anchorThings names a def that doesn't exist";
+            // Unresolved names are dropped from the list, so a list of only missing defs is empty, not full of nulls
+            if (anchorThings != null && anchorThings.Count == 0) yield return "anchorThings names no def that exists, so the rule would centre on pawns instead";
             if (avoidEnemies && workerClass != null && !typeof(AbilityAIWorker_AoEFriendly).IsAssignableFrom(workerClass))
                 yield return $"avoidEnemies is only read by AoE friendly, not {workerClass.Name}";
             if (health != AbilityAIHealth.None && workerClass != null && !typeof(AbilityAIWorker_Recovery).IsAssignableFrom(workerClass)
@@ -1122,8 +1123,9 @@ namespace AbilityAI
 
 
         /// <summary>The player's per-pawn psycast limits (the gizmo beside vanilla's psyfocus one): the cast must not
-        /// push neural heat over the cap or psyfocus under the floor. Real Psycasts only; a pawn with no limits set
-        /// stops at one dictionary lookup. Without a target the cheapest cost the psycast can have is used (asked
+        /// push neural heat over the cap or psyfocus under the floor (real psycasts only), nor hemogen under the hemogen
+        /// floor (any ability with a hemogen cost). A pawn with no limits set stops at one dictionary lookup and the
+        /// default hemogen floor. Without a target the cheapest cost the psycast can have is used (asked
         /// while choosing candidates); with one, the cost for that target (Word of Serenity costs more for a worse
         /// break).</summary>
         internal static bool PsycastWithinLimits(AIAbility a, LocalTargetInfo target)
@@ -1523,7 +1525,7 @@ namespace AbilityAI
                 if (AbilityAIAutocast.ModeFor(pawn, a.Def) == AbilityAIAutocastMode.Off) return "autocast is off";
                 if (a.PlayerAutocastElsewhere) return "Better Autocasting decides it";
                 if (!AbilityAIHooks.NotVetoed(pawn, a)) return "a hook vetoed it";
-                return "over this pawn's psycast limits";
+                return "over this pawn's autocast limits";
             }
             if (!AbilityAIHooks.NotVetoed(pawn, a)) return "a hook vetoed it";
             return "no mod claims it and \"Also use abilities no mod claims\" is off";
@@ -1709,7 +1711,7 @@ namespace AbilityAI
                     }
                     if (player && !PsycastWithinLimits(a, target))
                     {
-                        if (whyNot != null) WhyNot(a, ext, $"over this pawn's psycast limits for {target}");
+                        if (whyNot != null) WhyNot(a, ext, $"over this pawn's autocast limits for {target}");
                         continue;
                     }
                     // Made before anything is recorded: another system's ability may still refuse at this point

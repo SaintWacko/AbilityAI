@@ -68,7 +68,8 @@
         </li>
 
         <!-- Invoke Isa: a frost obelisk of the caster's faction beside the circle, for 40 to 80 s (range 23 to 39 by
-             the caster's sensitivity). Two enemies within 20 tiles of the circle. -->
+             the caster's sensitivity). Two enemies within 20 tiles of the circle. With no free tile beside the
+             circle the Invoke destroys it instead, a risk the AI doesn't check. -->
         <li Class="PatchOperationConditional">
           <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPER_Invoke_Turret"]</xpath>
           <match Class="PatchOperationAddModExtension">

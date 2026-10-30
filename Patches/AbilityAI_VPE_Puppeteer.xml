@@ -11,7 +11,7 @@
       <operations>
 
         <!-- Brain cut: a cut to the brain that ignores armour, and a 2 s stun. Range 21, 2 s to cast. Never at a pawn
-             of the caster's faction (its own check). -->
+             of the caster's faction (its own check), nor at a mech. -->
         <li Class="PatchOperationConditional">
           <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPEP_BrainCut"]</xpath>
           <match Class="PatchOperationAddModExtension">
@@ -21,6 +21,7 @@
                 <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
                 <priority>3</priority>
                 <approachDistance>6</approachDistance>
+                <targetKinds>Humanlike, Animal</targetKinds>
               </li>
             </value>
           </match>

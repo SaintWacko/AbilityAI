@@ -71,7 +71,8 @@
         </li>
 
         <!-- Hemodrain: 55% blood loss on a humanlike that isn't hemogenic (its own check), refilling the caster's
-             hemogen. Range 6.9. One caster per target: two would kill rather than down. -->
+             hemogen. Range 6.9. Never at a pawn already losing blood, by one caster or from wounds, and one caster
+             per target: a second drain kills rather than downs. -->
         <li Class="PatchOperationConditional">
           <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPEH_Hemodrain"]</xpath>
           <match Class="PatchOperationAddModExtension">
@@ -81,6 +82,7 @@
                 <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
                 <priority>3</priority>
                 <targetKinds>Humanlike</targetKinds>
+                <hediff>BloodLoss</hediff>
                 <exclusive>true</exclusive>
               </li>
             </value>
@@ -132,7 +134,7 @@
           </match>
         </li>
 
-        <!-- Blood rite: a mote that raises the caster's psychic sensitivity with its hemogen, for about 3 hours. In a
+        <!-- Blood rite: a mote that raises the caster's psychic sensitivity with its hemogen, for about 4 hours. In a
              fight, while the caster doesn't have it. 20% psyfocus and 10% hemogen. -->
         <li Class="PatchOperationConditional">
           <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPEH_BloodRite"]</xpath>

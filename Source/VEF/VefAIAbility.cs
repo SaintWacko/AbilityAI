@@ -428,7 +428,9 @@ namespace AbilityAI.Vef
         {
             var info = Info;
             if (info.self) return true;
-            if (info.touch) return ability.pawn.CanReach(target, PathEndMode.Touch, Danger.Deadly) && OwnTargetCheck(target);
+            // Not the type's own check here: most end in the base ValidateTarget, whose CanHitTarget wants a sight
+            // line from where the caster stands now, which a walk-up cast doesn't need
+            if (info.touch) return ability.pawn.CanReach(target, PathEndMode.Touch, Danger.Deadly);
             return ability.CanHitTarget(target) && OwnTargetCheck(target);
         }
 

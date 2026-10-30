@@ -433,7 +433,10 @@ namespace AbilityAI
                 // A comp that turns the caster down is such a per-pawn judge and is left out, its AICanTargetNow too;
                 // the worker has counted who would be affected. Other comps' AI rules still apply.
                 if (!ability.CanApplyOn(target)) return false;
-                if (comps != null)
+                // With ai_SearchAOEForTargets vanilla asks every comp's AICanTargetNow about the things around the
+                // caster (Ability.AIGetAOETarget), never the caster: the diabolus's FireBurst wants a pawn aiming at
+                // the caster, so asked about the caster it refused every burst (run 14)
+                if (comps != null && !ability.def.ai_SearchAOEForTargets)
                 {
                     bool player = AbilityAIDriver.EvaluatingPlayer;
                     for (int i = 0; i < comps.Count; i++)

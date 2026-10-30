@@ -19,8 +19,9 @@ namespace AbilityAI
         private const int SampleStep = 30;
         private const int Samples = LookAheadTicks / SampleStep + 1;
         // A hold not renewed for this long is over. Only casters checked every 30 ticks hold (a slow-checked one is
-        // never held: AbilityAIContext.SlowCheck), so a renewal comes well inside
-        private const int LapseTicks = 120;
+        // never held: AbilityAIContext.SlowCheck), but a caster that casts at another circle meanwhile isn't checked
+        // again for the cast gap (MinGapSeconds), which mustn't restart the cap
+        private static int LapseTicks => Mathf.Max(120, Mathf.RoundToInt(AbilityAISettings.MinGapSeconds * 60f) + 60);
 
         private struct Hold { public int first, last; }
         // Keyed by spot and ability def, so two casters watching one circle share its hold and its cap

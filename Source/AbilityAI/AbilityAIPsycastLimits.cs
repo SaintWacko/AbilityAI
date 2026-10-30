@@ -75,7 +75,7 @@ namespace AbilityAI
         }
 
         /// <summary>A single selected player pawn with a row to show: the heat and focus rows with a psylink and a
-        /// psycast the autocast menu offers; the hemogen row with a hemogen gene and any ability with a hemogen cost.
+        /// psycast the autocast menu offers; the hemogen row with a hemogen gene and an ability with a hemogen cost the menu offers.
         /// Both on autocast or not, so the limits can be set before turning anything on. Cost per GetGizmos call: a
         /// few field reads, and the ability walk once per CacheFrames frames or mode change.</summary>
         internal static bool ShouldShow(Pawn pawn)
@@ -111,7 +111,7 @@ namespace AbilityAI
                     AIAbility a = collected[i];
                     if (a.PlayerAutocastElsewhere) continue;
                     if (psy && !showPsycast && a.IsPsycast && AbilityAIAutocast.Offers(a)) showPsycast = true;
-                    if (cachedGene != null && !showHemogen && a.HemogenCost > 0f) showHemogen = true;
+                    if (cachedGene != null && !showHemogen && a.HemogenCost > 0f && AbilityAIAutocast.Offers(a)) showHemogen = true;
                 }
             }
             finally { collected.Clear(); }

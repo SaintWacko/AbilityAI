@@ -395,8 +395,10 @@ namespace AbilityAI
     {
         protected override AbilityAICombat DefaultCombat => AbilityAICombat.OutOfCombat;
         private const float DangerRange = 15f;
-        // BleedRateTotal is blood lost per day
-        private const float BleedDays = 0.25f;
+        // BleedRateTotal is blood lost per day. Two hours of it: a quarter day refused nearly every untended
+        // downed raider (141%/d plus the 0.45 bite is past the 0.6 life-threatening stage), while this still
+        // refuses the 200%/d bleeders a bite would push into dying before anyone tends them.
+        private const float BleedDays = 2f / 24f;
         private const int MaxPacksChecked = 5;
         private static readonly List<TargetingUtil.Cand> cands = new List<TargetingUtil.Cand>();
 

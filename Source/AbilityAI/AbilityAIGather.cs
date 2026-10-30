@@ -18,10 +18,9 @@ namespace AbilityAI
         public const int MaxHoldTicks = 300;
         private const int SampleStep = 30;
         private const int Samples = LookAheadTicks / SampleStep + 1;
-        // A hold not renewed for this long is over. Longer than the slowest check of a caster (an undrafted colonist
-        // out of combat waits UndraftedIntervalTicks), or that caster would start a fresh hold every check and the cap
-        // would never be reached
-        private static int LapseTicks => System.Math.Max(AbilityAIDriver.EvalIntervalTicks, AbilityAISettings.UndraftedIntervalTicks) + 60;
+        // A hold not renewed for this long is over. Only casters checked every 30 ticks hold (a slow-checked one is
+        // never held: AbilityAIContext.SlowCheck), so a renewal comes well inside
+        private const int LapseTicks = 120;
 
         private struct Hold { public int first, last; }
         // Keyed by spot and ability def, so two casters watching one circle share its hold and its cap
@@ -59,7 +58,7 @@ namespace AbilityAI
         {
             var pather = p.pather;
             PawnPath path = pather?.curPath;
-            if (pather == null || !pather.Moving || path == null || !path.Found)
+            if (pather == null || !pather.Moving || path == null || !path.Found || path.NodesLeftCount <= 0)
             {
                 for (int k = 0; k < Samples; k++) into.Add(p.Position);
                 return;
@@ -81,7 +80,7 @@ namespace AbilityAI
         {
             var pather = p.pather;
             PawnPath path = pather?.curPath;
-            if (pather == null || !pather.Moving || path == null || !path.Found) return p.Position;
+            if (pather == null || !pather.Moving || path == null || !path.Found || path.NodesLeftCount <= 0) return p.Position;
             float t = landing - pather.nextCellCostLeft;
             if (t < 0f) return p.Position;
             return path.Peek(Mathf.Min((int)(t / Mathf.Max(1f, p.TicksPerMoveCardinal)), path.NodesLeftCount - 1));

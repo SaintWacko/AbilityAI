@@ -602,6 +602,9 @@ namespace AbilityAI
         /// <summary>Set by a worker that found a target but chose to wait, for the dev log's "no target" line; the
         /// driver clears it before each worker. Only filled while the dev log is on.</summary>
         public string NoTargetWhy;
+        /// <summary>The caster is checked at the slow undrafted interval (UndraftedIntervalTicks) rather than every
+        /// 30 ticks, so a worker waiting a few seconds for a better moment would miss it.</summary>
+        public bool SlowCheck { get; internal set; }
 
         private bool combatKnown, inCombat;
         private bool enemiesBuilt, alliesBuilt, aimsBuilt, friendliesBuilt, brokenBuilt, supportBuilt;
@@ -1605,6 +1608,7 @@ namespace AbilityAI
 
             evaluating = true;
             ctx.Begin(pawn, tick, state.approachJobId >= 0 ? state.approachAbility : null, state.approachExpected, player && drafted);
+            ctx.SlowCheck = state.slowEval;
             try
             {
                 // Only now, past the interval checks: a pawn that isn't due pays no wrapper lookups

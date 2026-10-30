@@ -592,7 +592,7 @@ namespace AbilityAI
                 }
                 // Only this spot waits: another circle with enough enemies now is still cast at, since each circle
                 // is its own charge and the Invoke's cooldown is half a second
-                if (gather && later > count && AbilityAIGather.MayHold(anchors[i], ability.Def, ctx.tick))
+                if (gather && later > count && !ctx.SlowCheck && AbilityAIGather.MayHold(anchors[i], ability.Def, ctx.tick))
                 {
                     if (heldAt == null || later > heldLater) { heldAt = anchors[i]; heldNow = count; heldLater = later; }
                     continue;

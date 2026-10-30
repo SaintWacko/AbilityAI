@@ -18,8 +18,10 @@ namespace AbilityAI
         public const int MaxHoldTicks = 300;
         private const int SampleStep = 30;
         private const int Samples = LookAheadTicks / SampleStep + 1;
-        // A hold not renewed for this long is over (a caster is checked every 30 ticks, so a renewal comes well inside)
-        private const int LapseTicks = 120;
+        // A hold not renewed for this long is over. Longer than the slowest check of a caster (an undrafted colonist
+        // out of combat waits UndraftedIntervalTicks), or that caster would start a fresh hold every check and the cap
+        // would never be reached
+        private static int LapseTicks => System.Math.Max(AbilityAIDriver.EvalIntervalTicks, AbilityAISettings.UndraftedIntervalTicks) + 60;
 
         private struct Hold { public int first, last; }
         // Keyed by spot and ability def, so two casters watching one circle share its hold and its cap
@@ -63,15 +65,14 @@ namespace AbilityAI
                 return;
             }
             float perCell = Mathf.Max(1f, p.TicksPerMoveCardinal);
-            // Peek(0) is the node after nextCell (the follower has already consumed nextCell)
-            int nodesLeft = path.NodesLeftCount;
+            // ConsumeNextNode decrements past the node it returns, so Peek(0) is nextCell itself and Peek(n) the cell n
+            // steps after it; Peek(NodesLeftCount - 1) is the destination
+            int last = path.NodesLeftCount - 1;
             for (int k = 0; k < Samples; k++)
             {
                 float t = SampleTicks(landing, k) - pather.nextCellCostLeft;
-                if (t < 0f) { into.Add(p.Position); continue; }
-                int steps = (int)(t / perCell);
-                if (steps == 0 || nodesLeft <= 0) into.Add(pather.nextCell);
-                else into.Add(path.Peek(Mathf.Min(steps - 1, nodesLeft - 1)));
+                if (t < 0f) into.Add(p.Position);
+                else into.Add(path.Peek(Mathf.Min((int)(t / perCell), last)));
             }
         }
 
@@ -83,10 +84,7 @@ namespace AbilityAI
             if (pather == null || !pather.Moving || path == null || !path.Found) return p.Position;
             float t = landing - pather.nextCellCostLeft;
             if (t < 0f) return p.Position;
-            int steps = (int)(t / Mathf.Max(1f, p.TicksPerMoveCardinal));
-            int nodesLeft = path.NodesLeftCount;
-            if (steps == 0 || nodesLeft <= 0) return pather.nextCell;
-            return path.Peek(Mathf.Min(steps - 1, nodesLeft - 1));
+            return path.Peek(Mathf.Min((int)(t / Mathf.Max(1f, p.TicksPerMoveCardinal)), path.NodesLeftCount - 1));
         }
 
         /// <summary>One of the pawns, walking, will be within r2 of c at the landing. Pawns standing still are left to

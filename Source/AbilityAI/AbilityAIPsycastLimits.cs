@@ -118,7 +118,8 @@ namespace AbilityAI
             finally { collected.Clear(); }
         }
 
-        // Label and bar plus the 6 px margin each side (no reset button: dragging both handles to the ends is the reset)
+        // Label and bar plus the 6 px margin each side (no reset button: dragging the heat and focus handles to the
+        // ends is their reset; the hemogen floor's default is 30%, shown on its tooltip)
         public override float GetWidth(float maxWidth) => LabelWidth + BarWidth + 12f;
 
         public override GizmoResult GizmoOnGUI(Vector2 topLeft, float maxWidth, GizmoRenderParms parms)

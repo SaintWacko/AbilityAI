@@ -585,10 +585,13 @@ namespace AbilityAI
                 if (ext.avoidAllies && radius > 0f)
                 {
                     if (AbilityAIUtility.AllyWithin(ctx, ext, c, r2, spareBroken, false)) continue;
-                    // Never a hold: a cast that would land on an ally isn't made at all
-                    if (gather && (AbilityAIGather.AnyArriving(ctx.Friendlies, c, r2, landing, ext.allyKinds, null)
-                        || (spareBroken && AbilityAIGather.AnyArriving(ctx.BrokenAllies, c, r2, landing, ext.allyKinds, null)))) continue;
+                    // Never a hold: a cast that would land on an ally isn't made at all. Not the caster, which stops
+                    // walking to cast
+                    if (gather && (AbilityAIGather.AnyArriving(ctx.Friendlies, c, r2, landing, ext.allyKinds, ctx.pawn)
+                        || (spareBroken && AbilityAIGather.AnyArriving(ctx.BrokenAllies, c, r2, landing, ext.allyKinds, ctx.pawn)))) continue;
                 }
+                // Only this spot waits: another circle with enough enemies now is still cast at, since each circle
+                // is its own charge and the Invoke's cooldown is half a second
                 if (gather && later > count && AbilityAIGather.MayHold(anchors[i], ability.Def, ctx.tick))
                 {
                     if (heldAt == null || later > heldLater) { heldAt = anchors[i]; heldNow = count; heldLater = later; }

@@ -18,7 +18,9 @@
 
         <!-- Bloodfeed, out of combat and never on someone the bite would kill: downed enemies whenever the caster has
              room for the hemogen; prisoners (vanilla's own rules: interaction allowed, secure) and then its own
-             people (no blood loss, not bleeding, not drafted) only once its hemogen is under the target its owner set.
+             people (no blood loss, not bleeding, not drafted) only once its hemogen is under the target its owner set,
+             and its own people only while no hemogen pack it may take is within reach. A target's bleeding over the
+             next quarter day counts toward the bite killing it.
              A touch ability: undrafted, the caster walks as far as the calming range setting; drafted, 8 tiles.
              NPCs never do it: raiders don't stay out of combat, and a visitor biting the player's downed raiders
              would be odd. -->

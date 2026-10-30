@@ -145,16 +145,36 @@ namespace AbilityAI
     /// Vanilla also casts abilities from think-tree branches that never ask AICanTargetNow: a raider's Longjump
     /// escape, an enemy Tunneler's smokepop, an Apocriton's jump away after a resurrection. Each branch sits under a
     /// ThinkNode_ConditionalHasAbility for its ability, so for a pawn not of the player's faction whose ability this
-    /// mod handles (Handles), the node answers no and the branch is skipped. The player's pawns keep vanilla's
-    /// branches: those (a paramedic's jump to a fire or to a pawn it is rescuing) do work this mod has no rule for.
-    /// Cost: one faction read on each such node vanilla answered yes, then the extension lookup.
+    /// mod handles (Handles), the node answers no and the branch is skipped. Only the abilities whose vanilla
+    /// branches this mod's rules replace: other mods key their own branches on abilities too (Better Traders Guild's
+    /// NPC paramedic jumps to a pawn it is rescuing with LongjumpMechLauncher, which this mod has no rescue rule for).
+    /// The player's pawns keep vanilla's branches for the same reason.
+    /// Cost: one reference compare on each such node vanilla answered yes, then the extension lookup.
     /// </summary>
     [HarmonyPatch(typeof(ThinkNode_ConditionalHasAbility), "Satisfied")]
     internal static class Patch_ConditionalHasAbility_StandDown
     {
+        private static readonly string[] ReplacedNames = { "Longjump", "LongjumpMech", "SmokepopMech" };
+        private static AbilityDef[] replaced;
+
+        private static bool Replaced(AbilityDef def)
+        {
+            if (replaced == null)
+            {
+                var found = new List<AbilityDef>();
+                foreach (string name in ReplacedNames)
+                    if (DefDatabase<AbilityDef>.GetNamedSilentFail(name) is AbilityDef d) found.Add(d);
+                replaced = found.ToArray();
+            }
+            for (int i = 0; i < replaced.Length; i++)
+                if (replaced[i] == def) return true;
+            return false;
+        }
+
         static void Postfix(ThinkNode_ConditionalHasAbility __instance, Pawn pawn, ref bool __result)
         {
-            if (!__result || !AbilityAISettings.VanillaStandDown || (pawn.Faction != null && pawn.Faction.IsPlayer)) return;
+            if (!__result || !AbilityAISettings.VanillaStandDown || !Replaced(__instance.ability)
+                || (pawn.Faction != null && pawn.Faction.IsPlayer)) return;
             Ability ability = pawn.abilities?.GetAbility(__instance.ability);
             if (ability != null && AbilityAIDriver.Handles(pawn, ability)) __result = false;
         }

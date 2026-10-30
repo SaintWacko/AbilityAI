@@ -380,9 +380,11 @@ namespace AbilityAI
     /// Bloodfeed: a sanguophage's bite (vanilla's Bloodfeed), out of combat. One rule per feedOn, tried by priority:
     /// downed enemies whenever the caster has room for the bite's hemogen, then the colony's prisoners and its own
     /// people only once its hemogen is under the target its owner set (vanilla's ShouldConsumeHemogenNow, the same
-    /// point at which vanilla sends it to a prisoner). Never a pawn the bite would kill, one in a mental state, or
-    /// one with a standing enemy within 15 tiles. Prisoners go through vanilla's own check (the bloodfeed interaction
-    /// allowed, secure, reachable); faction-mates must not be downed, drafted, bleeding or short of blood already.
+    /// point at which vanilla sends it to a prisoner). Never a pawn the bite would kill, counting a quarter day of its
+    /// bleeding on top (a downed raider bleeds until someone tends it), one in a mental state, or one with a standing
+    /// enemy within 15 tiles. Prisoners go through vanilla's own check (the bloodfeed interaction allowed, secure,
+    /// reachable); faction-mates must not be downed, drafted, bleeding or short of blood already, and are left alone
+    /// while the caster may take hemogen packs and one is within reach, which vanilla's own job goes for instead.
     /// A touch ability: an undrafted pawn of the player's looks as far as CalmRange, like a calming word; others the
     /// extension's reach. Nearest first.
     /// Cost: nothing while the caster's hemogen is high enough; otherwise one pass over the map's humanlikes, the
@@ -393,7 +395,31 @@ namespace AbilityAI
     {
         protected override AbilityAICombat DefaultCombat => AbilityAICombat.OutOfCombat;
         private const float DangerRange = 15f;
+        // BleedRateTotal is blood lost per day
+        private const float BleedDays = 0.25f;
+        private const int MaxPacksChecked = 5;
         private static readonly List<TargetingUtil.Cand> cands = new List<TargetingUtil.Cand>();
+
+        // As vanilla's JobGiver_GetHemogen looks for one: carried, in the inventory, or on the map unforbidden. The
+        // reach check paths, so only the first few.
+        private static bool PackReachable(Pawn pawn)
+        {
+            ThingDef pack = ThingDefOf.HemogenPack;
+            if (pawn.carryTracker?.CarriedThing?.def == pack) return true;
+            var inv = pawn.inventory?.innerContainer;
+            if (inv != null)
+                for (int i = 0; i < inv.Count; i++)
+                    if (inv[i].def == pack) return true;
+            var packs = pawn.Map.listerThings.ThingsOfDef(pack);
+            int checkedCount = 0;
+            for (int i = 0; i < packs.Count && checkedCount < MaxPacksChecked; i++)
+            {
+                if (packs[i].IsForbidden(pawn)) continue;
+                checkedCount++;
+                if (pawn.CanReach(packs[i], PathEndMode.OnCell, Danger.Some)) return true;
+            }
+            return false;
+        }
 
         public override bool TryFindTarget(AbilityAIContext ctx, AIAbility ability, out LocalTargetInfo target, out LocalTargetInfo dest)
         {
@@ -437,6 +463,7 @@ namespace AbilityAI
                 }
                 default:
                 {
+                    if (gene.hemogenPacksAllowed && PackReachable(pawn)) break;
                     var list = ctx.SupportAllies;
                     for (int i = 0; i < list.Count; i++)
                     {
@@ -456,7 +483,11 @@ namespace AbilityAI
         {
             float d = (p.Position - ctx.pawn.Position).LengthHorizontalSquared;
             if (d > maxSq || p.InMentalState || !AbilityAIUtility.Fits(ext, p)) return false;
-            if (bite.targetBloodLoss > 0f && p.WouldDieFromAdditionalBloodLoss(bite.targetBloodLoss)) return false;
+            if (bite.targetBloodLoss > 0f)
+            {
+                float bleeding = (p.health?.hediffSet?.BleedRateTotal ?? 0f) * BleedDays;
+                if (p.WouldDieFromAdditionalBloodLoss(bite.targetBloodLoss + bleeding)) return false;
+            }
             if (TargetingUtil.AnyWithin(ctx.Enemies, p.Position, DangerRange * DangerRange)) return false;
             cands.Add(new TargetingUtil.Cand { pawn = p, score = -d });
             return true;

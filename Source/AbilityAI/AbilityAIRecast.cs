@@ -294,7 +294,9 @@ namespace AbilityAI
         {
             if (def?.graphic == null || def.graphicData == null || def.graphic == BaseContent.BadGraphic) return null;
             string shader = def.graphicData.shaderType?.defName;
-            if (shader != null && shader.IndexOf("Glow", StringComparison.OrdinalIgnoreCase) >= 0)
+            // Graphic's own GetColoredVersion logs an error and returns BadGraphic (Graphic_Flicker doesn't override it)
+            if (shader != null && shader.IndexOf("Glow", StringComparison.OrdinalIgnoreCase) >= 0
+                && def.graphic.GetType().GetMethod(nameof(Graphic.GetColoredVersion), new[] { typeof(Shader), typeof(Color), typeof(Color) })?.DeclaringType != typeof(Graphic))
             {
                 Color dim = new Color(color.r * GlowGhostBrightness, color.g * GlowGhostBrightness, color.b * GlowGhostBrightness);
                 return def.graphic.GetColoredVersion(ShaderDatabase.MoteGlow, dim, dim);

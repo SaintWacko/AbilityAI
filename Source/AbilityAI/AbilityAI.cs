@@ -440,6 +440,10 @@ namespace AbilityAI
         /// default only a ranged pawn escapes melee (a brawler is where it wants to be); for a pawn that can't fight
         /// back at all (a paramedic) or shouldn't stand in a brawl (the apocriton).</summary>
         public bool escapeInMelee;
+        /// <summary>Cover, self-cast with a radius: the ability raises a ring that shuts everyone inside it in and the rest
+        /// out (VPE's Ice Wall), so it is cast only when walling in helps the side inside. Without it a self-cast
+        /// ability (a smokepop) takes the plain under-fire rule.</summary>
+        public bool wallsIn;
         /// <summary>Movement, Target hostile: also act while the caster hunts for food (PredatorHunt), with its prey
         /// as the target: a leap or sprint at a fleeing deer, a quill at it. Hunting then counts as being in combat for
         /// this rule. The prey is never one of the caster's enemies for any other rule.</summary>
@@ -588,6 +592,8 @@ namespace AbilityAI
             if (escapeInMelee && workerClass != null && !typeof(AbilityAIWorker_Movement).IsAssignableFrom(workerClass)
                 && !typeof(AbilityAIWorker_Skip).IsAssignableFrom(workerClass))
                 yield return $"escapeInMelee is only read by Movement and Skip, not {workerClass.Name}";
+            if (wallsIn && workerClass != null && !typeof(AbilityAIWorker_Cover).IsAssignableFrom(workerClass))
+                yield return $"wallsIn is only read by Cover, not {workerClass.Name}";
             if (whileHunting && workerClass != null && !typeof(AbilityAIWorker_Movement).IsAssignableFrom(workerClass)
                 && !typeof(AbilityAIWorker_TargetHostile).IsAssignableFrom(workerClass))
                 yield return $"whileHunting is only read by Movement and Target hostile, not {workerClass.Name}";

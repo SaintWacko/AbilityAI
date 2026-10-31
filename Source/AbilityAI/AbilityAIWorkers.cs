@@ -995,8 +995,7 @@ namespace AbilityAI
     /// nearest threat. Not cast when it would add nothing: smoke while the caster stands in smoke, a spawned thing
     /// (the skipshield) while one already stands within the ability's radius of the caster, anything else (a wall)
     /// while the caster already has half cover from the nearest threat. A wall is never raised onto a pawn.
-    /// A self-cast ring (Ice Wall) walls in everyone near the caster, so it has its own rule: see TryRing. Self-cast
-    /// smoke is not a ring.
+    /// A self-cast ring that walls in everyone near the caster (Ice Wall, wallsIn) has its own rule: see TryRing.
     /// Cost: k checks of each enemy's target, then up to 3 validations.
     /// </summary>
     public class AbilityAIWorker_Cover : AbilityAIWorker
@@ -1014,9 +1013,9 @@ namespace AbilityAI
             if (AbilityAIUtility.IsSelfCast(ability))
             {
                 float ring = AbilityAIUtility.Radius(ability, ext);
-                // Smoke around the caster (the tunneler's smokepop) traps nobody, so it takes the plain rule below; the
-                // ring rule refused it whenever the tunneler was in melee or a colonist stood within 3.5 (run 16)
-                if (ring > 0f && !smoke)
+                // Opt-in: when every self-cast with a radius took the ring rule, the tunneler's smokepop was refused
+                // whenever it was in melee or a colonist stood within 3.5 (run 16)
+                if (ext.wallsIn && ring > 0f)
                 {
                     if (!TryRing(ctx, ring)) return false;
                     target = pawn;

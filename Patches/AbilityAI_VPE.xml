@@ -659,6 +659,7 @@
                 <workerClass>AbilityAI.AbilityAIWorker_Cover</workerClass>
                 <priority>5</priority>
                 <radius>5.9</radius>
+                <wallsIn>true</wallsIn>
                 <minThreats>2</minThreats>
                 <friendlyNpc>
                   <enabled>false</enabled>

@@ -100,7 +100,12 @@ namespace AbilityAI.Vpe
             var centre = UI.MouseCell();
             var pinhole = DefDatabase<ThingDef>.GetNamedSilentFail("SolarPinhole");
             var crystal = DefDatabase<ThingDef>.GetNamedSilentFail("VPE_IceCrystal");
-            if (pinhole == null || crystal == null || !centre.InBounds(map)) return;
+            if (pinhole == null || crystal == null)
+            {
+                Messages.Message("Preview scene needs Royalty's solar pinhole and VPE's ice crystal", MessageTypeDefOf.RejectInput, false);
+                return;
+            }
+            if (!centre.InBounds(map)) return;
 
             // Line height 5 dots, a 2 dot gap, then the second line
             int top = centre.z + (5 + 2 + 5) * Pitch / 2;
@@ -132,7 +137,9 @@ namespace AbilityAI.Vpe
                     for (int dz = 0; dz < size; dz++)
                     {
                         var cell = dot + new IntVec3(dx, 0, -dz);
-                        if (!cell.InBounds(map) || cell.Impassable(map)) continue;
+                        // The crystal is an edifice, so spawning it would vanish whatever building is already there
+                        if (!cell.InBounds(map) || cell.Impassable(map)
+                            || (def.category == ThingCategory.Building && cell.GetEdifice(map) != null)) continue;
                         var thing = ThingMaker.MakeThing(def);
                         if (def.category == ThingCategory.Building) thing.SetFactionDirect(Faction.OfPlayer);
                         GenSpawn.Spawn(thing, cell, map, WipeMode.Vanish);

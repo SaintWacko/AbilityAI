@@ -490,7 +490,8 @@ namespace AbilityAI
         public bool waitForGather;
         /// <summary>AoE hostile: not where at least coveredFraction of the cells in the radius already hold one of these
         /// defs, for abilities that fill an area with a thing that lasts (VPE's Bramble Maze). A wall counts as
-        /// covered, and so does ground with no fertility when a listed def is a plant, since nothing new appears there.</summary>
+        /// covered, and so, when a listed def is a plant, does a cell with no fertility, a tree or an edifice, since
+        /// nothing new grows there.</summary>
         public List<ThingDef> coveredBy;
         public float coveredFraction = 0.5f;
         /// <summary>AoE hostile: never centre the area within its radius of the caster, for areas that hit the caster

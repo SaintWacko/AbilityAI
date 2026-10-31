@@ -401,7 +401,7 @@ namespace AbilityAI
             FriendlyBuildingIn(ctx, new AIDisc(centre, radius * radius), except);
 
         /// <summary>coveredBy: at least coveredFraction of the cells within radius of centre (on the map) already hold
-        /// one of those defs, are walls, or, when a listed def is a plant, have no fertility. Stops as soon as the
+        /// one of those defs, are walls, or, when a listed def is a plant, have no fertility, a tree or an edifice. Stops as soon as the
         /// answer is known either way. Cost: up to one thing-list read per cell (113 for radius 6), only for rules
         /// that set coveredBy, and only for the few centres the worker tries.</summary>
         public static bool Covered(AbilityAIContext ctx, AbilityAIExtension ext, IntVec3 centre, float radius)
@@ -432,10 +432,14 @@ namespace AbilityAI
         private static bool CellCovered(Map map, IntVec3 c, List<ThingDef> defs, bool plant)
         {
             if (c.Filled(map)) return true;
-            if (plant && c.GetTerrain(map).fertility <= 0f) return true;
+            // VPE's PlantSpawner.CheckSpawnLoc refuses these cells, so a plant psycast adds nothing there
+            if (plant && (c.GetTerrain(map).fertility <= 0f || c.GetEdifice(map) != null)) return true;
             List<Thing> things = c.GetThingList(map);
             for (int i = 0; i < things.Count; i++)
-                if (defs.Contains(things[i].def)) return true;
+            {
+                ThingDef def = things[i].def;
+                if (defs.Contains(def) || (plant && def.plant != null && def.plant.IsTree)) return true;
+            }
             return false;
         }
 
@@ -599,7 +603,7 @@ namespace AbilityAI
                     continue;
                 }
                 target = AbilityAIUtility.PawnOrCell(ability, centre);
-                if (target.IsValid) break;
+                if (target.IsValid) { ctx.NoTargetWhy = null; break; }
             }
             centres.Clear();
             return target.IsValid;

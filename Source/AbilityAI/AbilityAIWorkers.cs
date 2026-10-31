@@ -583,7 +583,8 @@ namespace AbilityAI
             // waitForGather counts enemies where their paths take them in the next few seconds, so one outside the
             // reach now may walk into it
             if (ext.waitForGather) AbilityAIUtility.CollectHostiles(ctx, ext, targets);
-            else AbilityAIUtility.CollectHostiles(ctx, ext, targets, range + radius + 1f);
+            // Abs: a touch verb's range is -1, which the centre check below squares into 1
+            else AbilityAIUtility.CollectHostiles(ctx, ext, targets, Mathf.Abs(range) + radius + 1f);
             if (targets.Count < ext.minTargets) { targets.Clear(); return false; }
             float r2 = radius * radius;
             float maxSq = range * range, minSq = ext.minRange * ext.minRange;

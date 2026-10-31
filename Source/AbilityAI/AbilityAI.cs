@@ -2495,7 +2495,12 @@ namespace AbilityAI
                 Section(list, "AAI_Section_Dev");
                 bool wasLogging = DebugLog;
                 list.CheckboxLabeled("AAI_DebugLog".Translate(), ref DebugLog, "AAI_DebugLog_Tip".Translate());
-                if (DebugLog && !wasLogging) DebugLogSwitchedOn?.Invoke();
+                // Inside the scroll view: a throwing handler would leave it unclosed and break the window's layout
+                if (DebugLog && !wasLogging)
+                {
+                    try { DebugLogSwitchedOn?.Invoke(); }
+                    catch (Exception e) { Log.Error($"[Ability AI] Switching on the dev log's extras failed: {e}"); }
+                }
             }
         }
 

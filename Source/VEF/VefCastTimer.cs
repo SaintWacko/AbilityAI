@@ -27,6 +27,8 @@ namespace AbilityAI.Vef
         private static readonly double msPerTimestamp = 1000.0 / Stopwatch.Frequency;
         private static bool installed;
 
+        // The cast driver whose timed call is running, so a nested call that ends its job knows it is enclosed
+        private static JobDriver activeDriver;
         // Set by the nested call that ended a cast job, read by the enclosing call on the same driver
         private static JobDriver endedDriver;
         private static double endedMs;
@@ -37,6 +39,8 @@ namespace AbilityAI.Vef
             public long start;
             public int toil;
             public bool lastToil;
+            public bool enclosed;
+            public JobDriver outerActive;
             public VefAbility ability;
             public int targets;
             public string firstTarget;
@@ -67,6 +71,13 @@ namespace AbilityAI.Vef
             __state.ability = ability;
             __state.toil = driver.CurToilIndex;
             __state.lastToil = driver.OnLastToil;
+            if (__state.lastToil) __state.enclosed = activeDriver == __instance;
+            else
+            {
+                // A cast can start another pawn's cast job inside this call, so the previous one is put back after
+                __state.outerActive = activeDriver;
+                activeDriver = __instance;
+            }
             __state.targets = targets?.Length ?? 0;
             if (__state.targets > 0)
                 __state.firstTarget = targets[0].HasThing ? targets[0].Thing.LabelShort : targets[0].Cell.ToString();
@@ -79,34 +90,47 @@ namespace AbilityAI.Vef
             double ms = (Stopwatch.GetTimestamp() - __state.start) * msPerTimestamp;
             if (__state.lastToil)
             {
-                endedDriver = __instance;
-                endedMs = ms;
-                endedNextJob = __instance.pawn?.CurJobDef?.defName ?? "none";
+                // A busy stance turns the call away before the job ends; DriverTick ends it later, in a call nothing encloses
+                if (!__instance.ended) return;
+                string next = __instance.pawn?.CurJobDef?.defName ?? "none";
+                if (__state.enclosed)
+                {
+                    endedDriver = __instance;
+                    endedMs = ms;
+                    endedNextJob = next;
+                }
+                else if (ms >= SlowMs)
+                    Log.Message($"{Head(__instance, __state)}ending the job and choosing the next {ms:F1} ms (next job {next})");
                 return;
             }
+            activeDriver = __state.outerActive;
             double endPart = 0;
             string nextJob = null;
             if (endedDriver == __instance)
             {
                 endPart = endedMs;
                 nextJob = endedNextJob;
-                endedDriver = null;
             }
+            endedDriver = null;
             if (ms < SlowMs) return;
 
-            Pawn pawn = __instance.pawn;
-            string who = pawn.Faction == Faction.OfPlayer ? "player"
-                : pawn.HostileTo(Faction.OfPlayer) ? "hostile NPC" : "friendly NPC";
             string phase = __instance.GetType() == typeof(JobDriver_CastAbilityOnce)
                 ? (__state.toil < 0 ? "warmup start" : "cast")
-                : $"toil {__state.toil + 1} of {__instance.GetType().Name}";
-            string targets = __state.targets == 1 ? $"at {__state.firstTarget}"
-                : $"{__state.targets} targets (first {__state.firstTarget ?? "none"})";
-            string text = $"[Ability AI] slow cast: {__state.ability.def.label} by {pawn.LabelShort} ({who}), {targets}: "
-                + $"{phase} {ms - endPart:F1} ms";
+                : $"toil {__state.toil + 2} of {__instance.GetType().Name}";
+            string text = $"{Head(__instance, __state)}{phase} {ms - endPart:F1} ms";
             if (nextJob != null)
                 text += $", then ending the job and choosing the next {endPart:F1} ms (next job {nextJob})";
             Log.Message(text);
+        }
+
+        private static string Head(JobDriver driver, Timing state)
+        {
+            Pawn pawn = driver.pawn;
+            string who = pawn.Faction == Faction.OfPlayer ? "player"
+                : pawn.HostileTo(Faction.OfPlayer) ? "hostile NPC" : "friendly NPC";
+            string targets = state.targets == 1 ? $"at {state.firstTarget}"
+                : $"{state.targets} targets (first {state.firstTarget ?? "none"})";
+            return $"[Ability AI] slow cast: {state.ability.def.label} by {pawn.LabelShort} ({who}), {targets}: ";
         }
     }
 }

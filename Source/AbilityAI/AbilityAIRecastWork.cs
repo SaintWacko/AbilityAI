@@ -119,7 +119,10 @@ namespace AbilityAI
                         if (ready[j].thing != s.thingDef) continue;
                         AIAbility a = ready[j].ability;
                         if (!TryFindCastCell(a, s, spots, out IntVec3 cell) || !AbilityAIDriver.PsycastWithinLimits(a, cell)) continue;
-                        if (a.ValidInRange(cell))
+                        // Standing on the cell would spawn a building under the caster: the stand-cell search
+                        // below moves it off first
+                        bool onCell = cell == pawn.Position && s.thingDef.category == ThingCategory.Building;
+                        if (!onCell && a.ValidInRange(cell))
                         {
                             Job cast = a.MakeCastJob(cell, cell);
                             if (cast == null) continue;

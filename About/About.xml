@@ -3,7 +3,7 @@
   <name>Ability AI</name>
   <packageId>saintwacko.AbilityAI</packageId>
   <author>saintwacko</author>
-  <description>Lets raiders, visitors, animals and mechanoids decide when and where to use their abilities, and lets you set your own pawns' abilities to autocast from a right-click on the ability button. Abilities opt in through a mod extension; Royalty's combat psycasts are set up when Royalty is active.</description>
+  <description>Lets raiders, visitors, animals and mechanoids decide when and where to use their abilities, and lets you set your own pawns' abilities to autocast from a right-click on the ability button.</description>
   <supportedVersions>
     <li>1.6</li>
     <li>1.7</li>

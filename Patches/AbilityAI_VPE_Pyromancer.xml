@@ -23,6 +23,7 @@
             <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Pyromancer_Ignite_Ability_STNL"]</xpath>
             <value>
               <li Class="AbilityAI.AbilityAIExtension">
+                <startsFires>true</startsFires>
                 <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
                 <priority>2</priority>
                 <targetKinds>Humanlike, Animal</targetKinds>
@@ -47,6 +48,7 @@
             <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Pyromancer_BlazingOnslaught_Ability_STNL"]</xpath>
             <value>
               <li Class="AbilityAI.AbilityAIExtension">
+                <startsFires>true</startsFires>
                 <workerClass>AbilityAI.AbilityAIWorker_Movement</workerClass>
                 <priority>4</priority>
                 <modes>GapClose</modes>
@@ -67,6 +69,7 @@
             <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Pyromancer_Emberize_Ability_STNL"]</xpath>
             <value>
               <li Class="AbilityAI.AbilityAIExtension">
+                <startsFires>true</startsFires>
                 <workerClass>AbilityAI.AbilityAIWorker_SelfBuff</workerClass>
                 <priority>3</priority>
                 <hediff>VPE_Pyromancer_Emberize_STNL</hediff>
@@ -86,6 +89,7 @@
             <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Pyromancer_Wildfire_Ability_STNL"]</xpath>
             <value>
               <li Class="AbilityAI.AbilityAIExtension">
+                <startsFires>true</startsFires>
                 <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
                 <priority>5</priority>
                 <radius>14.9</radius>

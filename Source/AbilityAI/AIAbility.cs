@@ -384,13 +384,17 @@ namespace AbilityAI
 
         // Checked up front because Verb_CastPsycast.ValidateTarget posts its "not enough psyfocus" and similar
         // messages whatever showMessages says, and Psycast.CanCast only checks psyfocus for psycasts without neural
-        // heat
+        // heat. Psycasts the player shift-queued are paid first, as ValidateTarget counts them (Psycast.CanCast doesn't)
         private bool PsycastAffordable()
         {
             if (!(ability is Psycast)) return true;
-            var pe = ability.pawn.psychicEntropy;
+            Pawn pawn = ability.pawn;
+            var pe = pawn.psychicEntropy;
             if (pe == null || pe.PsychicSensitivity < float.Epsilon) return false;
-            return ability.def.PsyfocusCost <= pe.CurrentPsyfocus + Pawn_PsychicEntropyTracker.PsyfocusCostTolerance;
+            float gain = ability.def.EntropyGain;
+            if (gain > float.Epsilon && pe.WouldOverflowEntropy(gain + PsycastUtility.TotalEntropyFromQueuedPsycasts(pawn))) return false;
+            return ability.def.PsyfocusCost + PsycastUtility.TotalPsyfocusCostOfQueuedPsycasts(pawn)
+                <= pe.CurrentPsyfocus + Pawn_PsychicEntropyTracker.PsyfocusCostTolerance;
         }
 
         public override bool IsTouch => AbilityAIAutocast.IsTouch(ability.def);
@@ -532,12 +536,16 @@ namespace AbilityAI
         }
 
         // The rest of Verb_CastPsycast.ValidateTarget, which would post messages, plus immunity: a psycast on a pawn
-        // with no psychic sensitivity only shows "immune" and spends the heat
+        // with no psychic sensitivity only shows "immune" and spends the heat. Shift-queued psycasts count as
+        // ValidateTarget counts them, or it posts "not enough psyfocus" / "would exceed neural heat" for the cast.
         private static bool PsycastValidOn(Psycast ps, LocalTargetInfo target)
         {
             var pe = ps.pawn.psychicEntropy;
+            float gain = ps.def.EntropyGain;
+            if (gain > float.Epsilon && pe.WouldOverflowEntropy(gain + PsycastUtility.TotalEntropyFromQueuedPsycasts(ps.pawn))) return false;
             float cost = ps.FinalPsyfocusCost(target);
-            if (cost > float.Epsilon && cost > pe.CurrentPsyfocus + Pawn_PsychicEntropyTracker.PsyfocusCostTolerance) return false;
+            if (cost > float.Epsilon && cost + PsycastUtility.TotalPsyfocusCostOfQueuedPsycasts(ps.pawn)
+                > pe.CurrentPsyfocus + Pawn_PsychicEntropyTracker.PsyfocusCostTolerance) return false;
             Pawn p = target.Pawn;
             if (p == null) return true;
             if (p.kindDef.isBoss)

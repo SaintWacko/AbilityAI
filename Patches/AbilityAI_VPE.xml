@@ -59,6 +59,7 @@
             <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Bolt"]</xpath>
             <value>
               <li Class="AbilityAI.AbilityAIExtension">
+                <startsFires>true</startsFires>
                 <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
                 <priority>2</priority>
                 <approachDistance>8</approachDistance>
@@ -356,6 +357,7 @@
             <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Flameball"]</xpath>
             <value>
               <li Class="AbilityAI.AbilityAIExtension">
+                <startsFires>true</startsFires>
                 <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
                 <priority>2</priority>
                 <radius>5</radius>
@@ -376,6 +378,7 @@
             <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_SelfExplosion"]</xpath>
             <value>
               <li Class="AbilityAI.AbilityAIExtension">
+                <startsFires>true</startsFires>
                 <workerClass>AbilityAI.AbilityAIWorker_AoEHostileSelf</workerClass>
                 <priority>2</priority>
                 <minTargets>3</minTargets>
@@ -398,6 +401,7 @@
             <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Explosion"]</xpath>
             <value>
               <li Class="AbilityAI.AbilityAIExtension">
+                <startsFires>true</startsFires>
                 <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
                 <priority>2</priority>
                 <minTargets>2</minTargets>
@@ -433,6 +437,7 @@
             <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_BreatheFlame"]</xpath>
             <value>
               <li Class="AbilityAI.AbilityAIExtension">
+                <startsFires>true</startsFires>
                 <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
                 <priority>2</priority>
                 <avoidAllies>true</avoidAllies>
@@ -450,6 +455,7 @@
             <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_EyeBlast"]</xpath>
             <value>
               <li Class="AbilityAI.AbilityAIExtension">
+                <startsFires>true</startsFires>
                 <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
                 <priority>3</priority>
                 <avoidAllies>true</avoidAllies>
@@ -502,6 +508,7 @@
             <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_FlameTornado"]</xpath>
             <value>
               <li Class="AbilityAI.AbilityAIExtension">
+                <startsFires>true</startsFires>
                 <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
                 <priority>2</priority>
                 <radius>12</radius>
@@ -1157,6 +1164,7 @@
             <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Thunderbolt"]</xpath>
             <value>
               <li Class="AbilityAI.AbilityAIExtension">
+                <startsFires>true</startsFires>
                 <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
                 <priority>3</priority>
                 <avoidAllies>true</avoidAllies>

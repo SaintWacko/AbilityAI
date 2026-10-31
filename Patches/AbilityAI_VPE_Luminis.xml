@@ -107,6 +107,7 @@
             <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_SunBeamSTNL"]</xpath>
             <value>
               <li Class="AbilityAI.AbilityAIExtension">
+                <startsFires>true</startsFires>
                 <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
                 <priority>2</priority>
                 <radius>15</radius>

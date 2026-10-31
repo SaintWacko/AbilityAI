@@ -1232,7 +1232,9 @@ namespace AbilityAI
                 float gain = a.HeatGain;
                 if (gain > float.Epsilon)
                 {
-                    // As Pawn_PsychicEntropyTracker.TryAddEntropy scales it; both stats cached for 250 ticks
+                    // Shift-queued (vanilla) psycasts add their heat first. As Pawn_PsychicEntropyTracker.TryAddEntropy
+                    // scales it; both stats cached for 250 ticks
+                    gain += PsycastUtility.TotalEntropyFromQueuedPsycasts(pawn);
                     gain *= pawn.GetStatValue(StatDefOf.PsychicEntropyGain, true, 250);
                     float max = pawn.GetStatValue(StatDefOf.PsychicEntropyMax, true, 250);
                     if (pe.EntropyValue + gain > heatCap * max) return false;
@@ -1241,7 +1243,7 @@ namespace AbilityAI
             if (focusFloor > 0f)
             {
                 float cost = a.PsyfocusCost(target);
-                if (cost > float.Epsilon && pe.CurrentPsyfocus - cost < focusFloor - Pawn_PsychicEntropyTracker.PsyfocusCostTolerance) return false;
+                if (cost > float.Epsilon && pe.CurrentPsyfocus - cost - PsycastUtility.TotalPsyfocusCostOfQueuedPsycasts(pawn) < focusFloor - Pawn_PsychicEntropyTracker.PsyfocusCostTolerance) return false;
             }
             return true;
         }

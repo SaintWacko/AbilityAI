@@ -84,6 +84,66 @@ namespace AbilityAI
         }
     }
 
+    /// <summary>An area an effect reaches, for AbilityAIUtility.AllyIn and FriendlyBuildingIn. Implemented by structs
+    /// and taken as a generic argument, so each shape gets its own compiled loop with no allocation and no virtual
+    /// call. Bounds holds every cell Contains accepts.</summary>
+    public interface IAIArea
+    {
+        bool Contains(IntVec3 c);
+        CellRect Bounds { get; }
+    }
+
+    /// <summary>The cells within sqrt(r2) of a centre, as GenRadial counts them.</summary>
+    public readonly struct AIDisc : IAIArea
+    {
+        private readonly IntVec3 centre;
+        private readonly float r2;
+
+        public AIDisc(IntVec3 centre, float r2)
+        {
+            this.centre = centre;
+            this.r2 = r2;
+        }
+
+        public bool Contains(IntVec3 c) => (c - centre).LengthHorizontalSquared <= r2;
+        public CellRect Bounds => CellRect.CenteredOn(centre, Mathf.CeilToInt(Mathf.Sqrt(r2)));
+    }
+
+    /// <summary>The cells within a distance of the segment from a to b: a line with round ends, which covers behind
+    /// the start and around the end (a dash that burns what is near any point of its way).</summary>
+    public readonly struct AICapsule : IAIArea
+    {
+        private readonly IntVec3 a, b;
+        private readonly float dx, dz, lenSq, r, r2;
+
+        public AICapsule(IntVec3 a, IntVec3 b, float r)
+        {
+            this.a = a;
+            this.b = b;
+            dx = b.x - a.x;
+            dz = b.z - a.z;
+            lenSq = dx * dx + dz * dz;
+            this.r = r;
+            r2 = r * r;
+        }
+
+        public bool Contains(IntVec3 c)
+        {
+            float t = lenSq > 0f ? Mathf.Clamp01(((c.x - a.x) * dx + (c.z - a.z) * dz) / lenSq) : 0f;
+            float ex = a.x + t * dx - c.x, ez = a.z + t * dz - c.z;
+            return ex * ex + ez * ez <= r2;
+        }
+
+        public CellRect Bounds
+        {
+            get
+            {
+                int pad = Mathf.CeilToInt(r);
+                return CellRect.FromLimits(Mathf.Min(a.x, b.x) - pad, Mathf.Min(a.z, b.z) - pad, Mathf.Max(a.x, b.x) + pad, Mathf.Max(a.z, b.z) + pad);
+            }
+        }
+    }
+
     public static class AbilityAIUtility
     {
         /// <summary>The extension's radius, else the first effect comp that states one, else the ability's own
@@ -265,36 +325,41 @@ namespace AbilityAI
             if (WantsTurrets(ext)) into.AddRange(ctx.EnemyTurrets);
         }
 
-        /// <summary>avoidAllies: anyone of the caster's side within r2 of c, of the kinds the rule's allyKinds names:
-        /// Friendlies, the allies in a hostile break when they are spared, the caster's downed faction-mates for a rule
-        /// that isn't harmless, and with Turret friendly turrets. The caster counts unless skipCaster (an area around the caster). Cost: a distance check per pawn, one
-        /// KindOf more for a rule with allyKinds set; the turret list only for Turret.</summary>
+        /// <summary>avoidAllies within r2 of c (AllyIn on a disc). The caster counts unless skipCaster (an area around
+        /// the caster).</summary>
         public static bool AllyWithin(AbilityAIContext ctx, AbilityAIExtension ext, IntVec3 c, float r2, bool spareBroken, bool skipCaster) =>
-            AllyWithin(ctx, ext, c, r2, spareBroken, skipCaster ? ctx.pawn : null);
+            AllyIn(ctx, ext, new AIDisc(c, r2), spareBroken, skipCaster ? ctx.pawn : null);
 
-        /// <summary>AllyWithin, leaving out one pawn (an aura's bearer, which its own aura spares). A rule that isn't
-        /// harmless also keeps clear of the caster's downed faction-mates: a blast, a fire or an outright kill reaches
-        /// a pawn lying down, where a stun would change nothing.</summary>
-        public static bool AllyWithin(AbilityAIContext ctx, AbilityAIExtension ext, IntVec3 c, float r2, bool spareBroken, Pawn skip)
+        /// <summary>AllyWithin, leaving out one pawn (an aura's bearer, which its own aura spares).</summary>
+        public static bool AllyWithin(AbilityAIContext ctx, AbilityAIExtension ext, IntVec3 c, float r2, bool spareBroken, Pawn skip) =>
+            AllyIn(ctx, ext, new AIDisc(c, r2), spareBroken, skip);
+
+        /// <summary>The one list of who an attack keeps clear of: anyone of the caster's side inside the area, of the
+        /// kinds the rule's allyKinds names: Friendlies, the allies in a hostile break when they are spared, the
+        /// caster's downed faction-mates for a rule that isn't harmless (a blast, a fire or an outright kill reaches a
+        /// pawn lying down, where a stun would change nothing), and with Turret friendly turrets. skip: a pawn left out
+        /// (the caster, or an aura's bearer). Cost: a shape test per pawn, one KindOf more for a rule with allyKinds
+        /// set; the turret list only for Turret.</summary>
+        public static bool AllyIn<T>(AbilityAIContext ctx, AbilityAIExtension ext, T area, bool spareBroken, Pawn skip) where T : struct, IAIArea
         {
             var kinds = ext.allyKinds;
-            if (AnyOfKindWithin(ctx.Friendlies, kinds, c, r2, skip)) return true;
-            if (spareBroken && AnyOfKindWithin(ctx.BrokenAllies, kinds, c, r2, skip)) return true;
-            if (!ext.harmless && AnyOfKindWithin(ctx.DownedAllies, kinds, c, r2, skip)) return true;
+            if (AnyOfKindIn(ctx.Friendlies, kinds, area, skip)) return true;
+            if (spareBroken && AnyOfKindIn(ctx.BrokenAllies, kinds, area, skip)) return true;
+            if (!ext.harmless && AnyOfKindIn(ctx.DownedAllies, kinds, area, skip)) return true;
             if ((kinds & AbilityAITargetKinds.Turret) == 0) return false;
             var turrets = ctx.FriendlyTurrets;
             for (int i = 0; i < turrets.Count; i++)
-                if ((turrets[i].Position - c).LengthHorizontalSquared <= r2) return true;
+                if (area.Contains(turrets[i].Position)) return true;
             return false;
         }
 
-        private static bool AnyOfKindWithin(List<Pawn> pawns, AbilityAITargetKinds kinds, IntVec3 c, float r2, Pawn skip)
+        private static bool AnyOfKindIn<T>(List<Pawn> pawns, AbilityAITargetKinds kinds, T area, Pawn skip) where T : struct, IAIArea
         {
             bool all = (kinds & AbilityAITargetKinds.All) == AbilityAITargetKinds.All;
             for (int i = 0; i < pawns.Count; i++)
             {
                 Pawn p = pawns[i];
-                if (p == skip || (p.Position - c).LengthHorizontalSquared > r2) continue;
+                if (p == skip || !area.Contains(p.Position)) continue;
                 if (all || IsOfKind(kinds, p)) return true;
             }
             return false;
@@ -313,17 +378,18 @@ namespace AbilityAI
             return false;
         }
 
-        /// <summary>FriendlyBuildingAt on any cell within the radius. Cost: one thing-list read per cell (about 300
-        /// at radius 10).</summary>
-        /// <summary>except: a building that doesn't count (the anchor the area is centred on).</summary>
-        public static bool FriendlyBuildingWithin(AbilityAIContext ctx, IntVec3 centre, float radius, Thing except = null)
+        /// <summary>FriendlyBuildingIn on a disc. except: a building that doesn't count (the anchor the area is centred
+        /// on).</summary>
+        public static bool FriendlyBuildingWithin(AbilityAIContext ctx, IntVec3 centre, float radius, Thing except = null) =>
+            FriendlyBuildingIn(ctx, new AIDisc(centre, radius * radius), except);
+
+        /// <summary>FriendlyBuildingAt on any cell of the area. Only the cells of its bounding box are visited, so a long
+        /// thin line doesn't scan the disc of its length. Cost: a shape test per cell of the box, one thing-list read
+        /// per cell inside (about 300 for a disc of radius 10).</summary>
+        public static bool FriendlyBuildingIn<T>(AbilityAIContext ctx, T area, Thing except = null) where T : struct, IAIArea
         {
-            int n = GenRadial.NumCellsInRadius(Mathf.Min(radius, GenRadial.MaxRadialPatternRadius));
-            for (int i = 0; i < n; i++)
-            {
-                IntVec3 c = centre + GenRadial.RadialPattern[i];
-                if (c.InBounds(ctx.map) && FriendlyBuildingAt(ctx, c, except)) return true;
-            }
+            foreach (IntVec3 c in area.Bounds.ClipInsideMap(ctx.map))
+                if (area.Contains(c) && FriendlyBuildingAt(ctx, c, except)) return true;
             return false;
         }
 
@@ -915,43 +981,15 @@ namespace AbilityAI
 
         // pathClearance: Blazing dash stuns and burns every hostile pawn within 1.9 of its line and kills every building
         // there, walls included, whoever owns them; it spares the caster's side's pawns, but the fires it starts don't.
-        // Cost: a distance check per pawn of the caster's side, then one thing-list read per cell of the line's
-        // neighbourhood (about 13 per tile of the line at 2 tiles).
+        // The capsule (round ends) covers behind the start and around the landing as well as the way. allyKinds
+        // narrows the pawns; the buildings are checked whatever avoidBuildings says, since the dash breaks them all.
         private bool PathClear(AbilityAIContext ctx, IntVec3 to)
         {
             float clear = ext.pathClearance;
             if (clear <= 0f) return true;
-            IntVec3 from = ctx.pawn.Position;
-            float c2 = clear * clear;
-            if (AnyNearLine(ctx.Friendlies, ctx.pawn, from, to, c2)) return false;
-            if (!AbilityAIUtility.MayHitBrokenAllies(ext) && AnyNearLine(ctx.BrokenAllies, ctx.pawn, from, to, c2)) return false;
-            if (AnyNearLine(ctx.DownedAllies, ctx.pawn, from, to, c2)) return false;
-            int n = GenRadial.NumCellsInRadius(Mathf.Min(clear, GenRadial.MaxRadialPatternRadius));
-            // GenSight's shared buffer, read straight through: nothing in the loop asks it for another line
-            var line = GenSight.BresenhamCellsBetween(from, to);
-            for (int i = 0; i < line.Count; i++)
-                for (int j = 0; j < n; j++)
-                {
-                    IntVec3 c = line[i] + GenRadial.RadialPattern[j];
-                    if (c.InBounds(ctx.map) && AbilityAIUtility.FriendlyBuildingAt(ctx, c)) return false;
-                }
-            return true;
-        }
-
-        private static bool AnyNearLine(List<Pawn> pawns, Pawn skip, IntVec3 a, IntVec3 b, float r2)
-        {
-            float dx = b.x - a.x, dz = b.z - a.z;
-            float len = dx * dx + dz * dz;
-            for (int i = 0; i < pawns.Count; i++)
-            {
-                Pawn p = pawns[i];
-                if (p == skip) continue;
-                IntVec3 c = p.Position;
-                float t = len > 0f ? Mathf.Clamp01(((c.x - a.x) * dx + (c.z - a.z) * dz) / len) : 0f;
-                float ex = a.x + t * dx - c.x, ez = a.z + t * dz - c.z;
-                if (ex * ex + ez * ez <= r2) return true;
-            }
-            return false;
+            var path = new AICapsule(ctx.pawn.Position, to, clear);
+            if (AbilityAIUtility.AllyIn(ctx, ext, path, !AbilityAIUtility.MayHitBrokenAllies(ext), ctx.pawn)) return false;
+            return !AbilityAIUtility.FriendlyBuildingIn(ctx, path);
         }
 
         // The player's melee order, else the enemy pawn the caster fights, else its prey (whileHunting), else whatever
@@ -1408,7 +1446,7 @@ namespace AbilityAI
     /// effect's, else 1 (a line). As vanilla's fire spew, the cone reaches its full length whatever the distance to
     /// the target, and covers the straight line to its end. Each affectable enemy between minRange and the length is
     /// an aim, scored by the affectable enemies inside (WouldAffect), at least minTargets. An aim with anyone on the
-    /// caster's side inside (Friendlies, and spared allies in a hostile break) is always dropped, and with
+    /// caster's side inside (AbilityAIUtility.AllyIn: allyKinds, downed ones unless harmless) is always dropped, and with
     /// avoidBuildings one with a friendly building inside. Walls are ignored, so an ally behind one still blocks. The
     /// best five are validated. Approach: the same aims out to the length + approachDistance. With avoidAllies and a
     /// radius, an aim with anyone of the caster's side (allyKinds) within that radius of it is dropped too: someone
@@ -1441,7 +1479,7 @@ namespace AbilityAI
             if (!Score(ctx, ability, length, halfWidth, AimReach(length))) return false;
             for (int i = 0; i < aims.Count && i < MaxTries; i++)
             {
-                if (ext.avoidBuildings && FriendlyBuildingInCone(ctx, aims[i].pawn.Position, aims[i].shape)) continue;
+                if (ext.avoidBuildings && AbilityAIUtility.FriendlyBuildingIn(ctx, ConeTo(ctx.pawn.Position, aims[i].pawn.Position, aims[i].shape))) continue;
                 target = AbilityAIUtility.PawnOrCell(ability, aims[i].pawn);
                 if (target.IsValid) break;
             }
@@ -1498,6 +1536,8 @@ namespace AbilityAI
 
         private static Vector2 Dir(IntVec3 from, IntVec3 to) => new Vector2(to.x - from.x, to.z - from.z).normalized;
 
+        private static ConeArea ConeTo(IntVec3 from, IntVec3 aim, in Shape s) => new ConeArea(from, Dir(from, aim), s);
+
         // Fills aims, best first; false when there are none. reach: how far away an aim may stand.
         private bool Score(AbilityAIContext ctx, AIAbility ability, float length, float halfWidth, float reach)
         {
@@ -1535,10 +1575,7 @@ namespace AbilityAI
                 for (int j = 0; j < enemies.Count; j++)
                     if (affected[j] && InCone(from, dir, hits, enemies[j].Position)) count++;
                 if (count < ext.minTargets) continue;
-                if (AnyInCone(ctx.Friendlies, pawn, from, dir, shape)) continue;
-                if (spareBroken && AnyInCone(ctx.BrokenAllies, pawn, from, dir, shape)) continue;
-                // As AllyWithin: fire or a beam reaches a pawn lying down, a stun changes nothing for it
-                if (!ext.harmless && AnyInCone(ctx.DownedAllies, pawn, from, dir, shape)) continue;
+                if (AbilityAIUtility.AllyIn(ctx, ext, new ConeArea(from, dir, shape), spareBroken, pawn)) continue;
                 if (nearAimSq > 0f && AbilityAIUtility.AllyWithin(ctx, ext, at, nearAimSq, spareBroken, true)) continue;
                 aims.Add(new Aim { pawn = enemies[i], count = count, distSq = d, shape = shape });
             }
@@ -1546,30 +1583,37 @@ namespace AbilityAI
             return aims.Count > 0;
         }
 
-        private static bool AnyInCone(List<Pawn> pawns, Pawn caster, IntVec3 from, Vector2 dir, in Shape s)
+        // The cone or beam as an IAIArea: open behind the caster and flat at the far end, unlike a disc or a capsule
+        private readonly struct ConeArea : IAIArea
         {
-            for (int i = 0; i < pawns.Count; i++)
-                if (pawns[i] != caster && InCone(from, dir, s, pawns[i].Position)) return true;
-            return false;
-        }
+            private readonly IntVec3 from;
+            private readonly Vector2 dir;
+            private readonly Shape s;
 
-        // Only the cells of the cone's bounding box: a long thin line would otherwise scan the whole disc of its length
-        private static bool FriendlyBuildingInCone(AbilityAIContext ctx, IntVec3 aim, in Shape s)
-        {
-            IntVec3 from = ctx.pawn.Position;
-            Vector2 dir = Dir(from, aim);
-            float length = s.length;
-            float side = Mathf.Max(s.minHalf, length * s.tanHalf);
-            float ex = from.x + dir.x * length, ez = from.z + dir.y * length;
-            float px = -dir.y * side, pz = dir.x * side;
-            int minX = Mathf.FloorToInt(Mathf.Min(from.x, Mathf.Min(ex + px, ex - px))) - 1;
-            int maxX = Mathf.CeilToInt(Mathf.Max(from.x, Mathf.Max(ex + px, ex - px))) + 1;
-            int minZ = Mathf.FloorToInt(Mathf.Min(from.z, Mathf.Min(ez + pz, ez - pz))) - 1;
-            int maxZ = Mathf.CeilToInt(Mathf.Max(from.z, Mathf.Max(ez + pz, ez - pz))) + 1;
-            var rect = CellRect.FromLimits(minX, minZ, maxX, maxZ).ClipInsideMap(ctx.map);
-            foreach (IntVec3 c in rect)
-                if (InCone(from, dir, s, c) && AbilityAIUtility.FriendlyBuildingAt(ctx, c)) return true;
-            return false;
+            public ConeArea(IntVec3 from, Vector2 dir, Shape s)
+            {
+                this.from = from;
+                this.dir = dir;
+                this.s = s;
+            }
+
+            public bool Contains(IntVec3 c) => InCone(from, dir, s, c);
+
+            public CellRect Bounds
+            {
+                get
+                {
+                    float length = s.length;
+                    float side = Mathf.Max(s.minHalf, length * s.tanHalf);
+                    float ex = from.x + dir.x * length, ez = from.z + dir.y * length;
+                    float px = -dir.y * side, pz = dir.x * side;
+                    int minX = Mathf.FloorToInt(Mathf.Min(from.x, Mathf.Min(ex + px, ex - px))) - 1;
+                    int maxX = Mathf.CeilToInt(Mathf.Max(from.x, Mathf.Max(ex + px, ex - px))) + 1;
+                    int minZ = Mathf.FloorToInt(Mathf.Min(from.z, Mathf.Min(ez + pz, ez - pz))) - 1;
+                    int maxZ = Mathf.CeilToInt(Mathf.Max(from.z, Mathf.Max(ez + pz, ez - pz))) + 1;
+                    return CellRect.FromLimits(minX, minZ, maxX, maxZ);
+                }
+            }
         }
     }
 

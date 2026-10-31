@@ -984,7 +984,7 @@ namespace AbilityAI
             }
         }
 
-        /// <summary>How many ranged enemies are aiming at this pawn now: their fight target or current attack job.
+        /// <summary>How many ranged enemies are aiming at this pawn now (AbilityAIUtility.AimTarget).
         /// Built once per evaluation from Enemies (k checks), then a lookup.</summary>
         public int AimedAtCount(Pawn p)
         {

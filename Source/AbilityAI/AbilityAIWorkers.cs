@@ -150,8 +150,8 @@ namespace AbilityAI
         /// is this pawn.</summary>
         public static bool AimsAt(Pawn e, Pawn pawn) => AbilityAIContext.FightsAtRange(e) && AimTarget(e) == pawn;
 
-        /// <summary>Who a pawn is attacking: its fight target, else the target of an attack job. Other jobs
-        /// (kidnapping, stripping) don't count.</summary>
+        /// <summary>Who a pawn is attacking: its fight target, else the target of an attack job, else what its stance is
+        /// aimed at (a shot's warmup or cooldown, or an ability's). Other jobs (kidnapping, stripping) don't count.</summary>
         public static Thing AimTarget(Pawn e)
         {
             Thing t = e.mindState?.enemyTarget;

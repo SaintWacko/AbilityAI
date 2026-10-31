@@ -431,11 +431,12 @@ namespace AbilityAI
                 // caster's own hearing). Vanilla never asks them about the caster: its gizmo and
                 // JobGiver_AICastAbilityOnSelf queue the cast straight away and GetAffectedTargets asks them per pawn.
                 // A comp that turns the caster down is such a per-pawn judge and is left out, its AICanTargetNow too;
-                // the worker has counted who would be affected. Other comps' AI rules still apply.
+                // the worker has counted who would be affected. Other comps' AI rules still apply, except below.
                 if (!ability.CanApplyOn(target)) return false;
                 // With ai_SearchAOEForTargets vanilla asks every comp's AICanTargetNow about the things around the
                 // caster (Ability.AIGetAOETarget), never the caster: the diabolus's FireBurst wants a pawn aiming at
-                // the caster, so asked about the caster it refused every burst (run 14)
+                // the caster, so asked about the caster it refused every burst (run 14). Such an ability's comp AI
+                // rules all go, FireBurst's "never for the player's faction" too; the worker's own count stands in.
                 if (comps != null && !ability.def.ai_SearchAOEForTargets)
                 {
                     bool player = AbilityAIDriver.EvaluatingPlayer;

@@ -410,7 +410,7 @@ namespace AbilityAI
                 // The one aimed at this cell, else the one with a claim, else the nearest. A claim alone isn't enough:
                 // two colonists etching runecircles both hold one for the whole 41 s warmup, and the first in the
                 // list took the other's circle (its marker stayed under the circle).
-                Job job = p.CurJob;
+                Verse.AI.Job job = p.CurJob;
                 float d = job != null && job.targetA.IsValid && job.targetA.Cell == thing.Position ? -2f
                     : HasClaim(p, thing.def) ? -1f : (p.Position - thing.Position).LengthHorizontalSquared;
                 if (d < best)

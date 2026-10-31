@@ -388,7 +388,10 @@ namespace AbilityAI
         /// per cell inside (about 300 for a disc of radius 10).</summary>
         public static bool FriendlyBuildingIn<T>(AbilityAIContext ctx, T area, Thing except = null) where T : struct, IAIArea
         {
-            foreach (IntVec3 c in area.Bounds.ClipInsideMap(ctx.map))
+            CellRect box = area.Bounds.ClipInsideMap(ctx.map);
+            // CellRect's enumerator still yields cells of an empty rect (minX > maxX), off the map
+            if (box.minX > box.maxX || box.minZ > box.maxZ) return false;
+            foreach (IntVec3 c in box)
                 if (area.Contains(c) && FriendlyBuildingAt(ctx, c, except)) return true;
             return false;
         }

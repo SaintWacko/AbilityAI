@@ -1112,6 +1112,9 @@ namespace AbilityAI
             public int nextEvalTick;
             // The last interval set was the slow undrafted one: drafting, fighting back or fleeing cuts it short
             public bool slowEval;
+            // NPC only: the last check found nothing but combat rules and no fight, so the next waits
+            // NpcIdleIntervalTicks unless NpcNeedsQuickCheck cuts it short
+            public bool npcIdle;
             public int nextCastTick;
             public Dictionary<Def, int> abilityNext;
             public Dictionary<Def, int> approachNext;
@@ -1381,6 +1384,23 @@ namespace AbilityAI
             if (!FightsUndrafted(pawn)) return false;
             // A hunt: at the slow interval a leap at the prey would come after the chase is over
             return recent || (job != null && IsResumable(job)) || (mind != null && mind.enemyTarget != null);
+        }
+
+        /// <summary>Whether an NPC waiting out NpcIdleIntervalTicks has met a fight: the fields InCombat reads without
+        /// building the enemy list, plus the jobs a fight or a hunt puts it on. Runs every time vanilla asks the
+        /// constant think tree while the pawn waits, so field reads only. A fight the pawn has not noticed yet
+        /// (no target, not hit) is found at the end of the wait, at most NpcIdleIntervalTicks later.</summary>
+        private static bool NpcNeedsQuickCheck(Pawn pawn, int tick)
+        {
+            var mind = pawn.mindState;
+            if (mind == null) return true;
+            if (mind.enemyTarget != null || mind.meleeThreat != null || pawn.InMentalState) return true;
+            if (tick - mind.lastHarmTick < AbilityAIContext.RecentTicks || tick - mind.lastAttackTargetTick < AbilityAIContext.RecentTicks
+                || (mind.lastRangedHarmTick > 0 && tick - mind.lastRangedHarmTick < AbilityAIContext.RecentTicks)) return true;
+            JobDef job = pawn.CurJobDef;
+            return job != null && (job == JobDefOf.Wait_Combat || job == JobDefOf.AttackMelee || job == JobDefOf.AttackStatic
+                || job == JobDefOf.PredatorHunt || job == JobDefOf.Flee || job == JobDefOf.FleeAndCower
+                || AbilityAICombatAI.IsCoverJob(job));
         }
 
         /// <summary>Whether this player pawn fights back while undrafted: a colonist or colony subhuman with the
@@ -1669,11 +1689,17 @@ namespace AbilityAI
                 state.slowEval = false;
                 if (state.nextEvalTick > tick) state.nextEvalTick = tick;
             }
+            if (state.npcIdle && (player || NpcNeedsQuickCheck(pawn, tick)))
+            {
+                state.npcIdle = false;
+                if (state.nextEvalTick > tick) state.nextEvalTick = tick;
+            }
             if (tick < state.nextEvalTick) return null;
             if (tick < state.nextCastTick) return returnDue ? ReturnJob(pawn, state) : null;
             int interval = quick ? EvalIntervalTicks : Math.Max(EvalIntervalTicks, AbilityAISettings.UndraftedIntervalTicks);
             state.slowEval = interval > EvalIntervalTicks;
             state.nextEvalTick = tick + interval;
+            state.npcIdle = false;
             whyNot = AbilityAISettings.DebugLog && Prefs.DevMode && tick >= state.nextWhyNotTick ? whyNotBuffer.Clear() : null;
             if (player ? !CanActNowPlayer(pawn, state) : !CanActNow(pawn))
             {
@@ -1779,6 +1805,9 @@ namespace AbilityAI
                 }
                 if (candidates.Count == 0) return returnDue ? ReturnJob(pawn, state) : null;
 
+                // Every candidate refused for want of a fight and none got as far as a target search: an NPC then
+                // waits NpcIdleIntervalTicks. A rule that works outside combat keeps the 30-tick check.
+                bool waitingForFight = !player;
                 for (int i = 0; i < candidates.Count; i++)
                 {
                     AIAbility a = candidates[i].ability;
@@ -1786,9 +1815,11 @@ namespace AbilityAI
                     var worker = ext.Worker;
                     if (!CombatAllows(worker))
                     {
+                        if (worker.Combat != AbilityAICombat.InCombat) waitingForFight = false;
                         WhyNot(a, ext, worker.Combat == AbilityAICombat.InCombat ? "not in combat" : "in combat");
                         continue;
                     }
+                    waitingForFight = false;
                     exclusiveDef = worker.Exclusive ? a.Def : null;
                     affectedCounted = worker.CountsAffectedAroundCaster;
                     ctx.CastAtPrey = false;
@@ -1835,6 +1866,13 @@ namespace AbilityAI
                     return cast;
                 }
                 affectedCounted = false;
+                if (waitingForFight && AbilityAISettings.NpcIdleIntervalTicks > EvalIntervalTicks)
+                {
+                    state.npcIdle = true;
+                    state.nextEvalTick = tick + AbilityAISettings.NpcIdleIntervalTicks;
+                    // An approach walk is for a pawn in a fight, which this one isn't
+                    return null;
+                }
                 if (!player) return TryApproach(state, false);
                 if (returnDue) return ReturnJob(pawn, state);
                 // Full walks are drafted only, one at a time, and not while the last one is still on its way back
@@ -2234,6 +2272,10 @@ namespace AbilityAI
         public static AbilityAIBrokenAllies BrokenAllies = DefaultBrokenAllies;
         public const int DefaultUndraftedIntervalTicks = 250;
         public static int UndraftedIntervalTicks = DefaultUndraftedIntervalTicks;
+        /// <summary>Other factions' pawns whose only rules are for fighting, with no fight: ticks between checks.
+        /// 30 turns the wait off.</summary>
+        public const int DefaultNpcIdleIntervalTicks = 120;
+        public static int NpcIdleIntervalTicks = DefaultNpcIdleIntervalTicks;
         public const float DefaultMinGapSeconds = 2.5f;
         public static float MinGapSeconds = DefaultMinGapSeconds;
         public static bool DebugLog;
@@ -2300,6 +2342,7 @@ namespace AbilityAI
                 case Tab.OtherFactions:
                     Hostiles = NonHostiles = Animals = Mechs = Approach = Unclaimed = GatherWaitNpcs = true;
                     NpcInstantKill = NpcBaseWrecking = false;
+                    NpcIdleIntervalTicks = DefaultNpcIdleIntervalTicks;
                     break;
                 case Tab.YourPawns:
                     PlayerAutocast = UndraftedAutocast = ShowMarker = ChargeGapClose = RecastTrackNewCasts = GatherWaitPlayer = true;
@@ -2347,6 +2390,8 @@ namespace AbilityAI
             Scribe_Values.Look(ref GatherWaitNpcs, "abilityAI_gatherWaitNpcs", true);
             Scribe_Values.Look(ref NpcInstantKill, "abilityAI_npcInstantKill", false);
             Scribe_Values.Look(ref NpcBaseWrecking, "abilityAI_npcBaseWrecking", false);
+            Scribe_Values.Look(ref NpcIdleIntervalTicks, "abilityAI_npcIdleIntervalTicks", DefaultNpcIdleIntervalTicks);
+            NpcIdleIntervalTicks = Mathf.Clamp(NpcIdleIntervalTicks, 30, 600);
             RecastAt = Mathf.Clamp(RecastAt, 0f, 0.5f);
             Scribe_Values.Look(ref CalmBreaks, "abilityAI_calmBreaks", DefaultCalmBreaks);
             Scribe_Values.Look(ref CalmRange, "abilityAI_calmRange", DefaultCalmRange);
@@ -2454,6 +2499,9 @@ namespace AbilityAI
             list.CheckboxLabeled("AAI_Unclaimed".Translate(), ref Unclaimed, "AAI_Unclaimed_Tip".Translate());
             Hint(list, "AAI_Unclaimed_Desc");
             list.CheckboxLabeled("AAI_Approach".Translate(), ref Approach, "AAI_Approach_Tip".Translate());
+            list.Label("AAI_NpcIdleInterval".Translate(NpcIdleIntervalTicks, (NpcIdleIntervalTicks / 60f).ToString("0.#")),
+                -1f, "AAI_NpcIdleInterval_Tip".Translate());
+            NpcIdleIntervalTicks = Mathf.RoundToInt(list.Slider(NpcIdleIntervalTicks, 30f, 600f) / 10f) * 10;
             // Only with a rule that waits, such as the Runesmith Invokes
             if (AbilityAIGather.Any)
                 list.CheckboxLabeled("AAI_GatherWait".Translate(), ref GatherWaitNpcs, "AAI_GatherWaitNpcs_Tip".Translate());

@@ -16,7 +16,8 @@
 
         <!-- Blinding flash: a burst at the aimed cell (range 24.9) that stuns every pawn within 5.9 tiles, ally, enemy
              and the caster alike, for 2 s times psychic sensitivity. 4% psyfocus. Two enemies or more, nobody of the
-             caster's side inside. Pawns still stunned are skipped, and one caster per group. -->
+             caster's side inside, one caster per group. The stun comes from the ability's own class, so the AI can't
+             tell a stunned pawn from the rest; the cast gap (2.5 s by default) outlasts the stun at sensitivity 1. -->
         <li Class="PatchOperationConditional">
           <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_BlindingFlashSTNL"]</xpath>
           <match Class="PatchOperationAddModExtension">

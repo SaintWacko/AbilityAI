@@ -266,8 +266,8 @@ namespace AbilityAI
         }
 
         /// <summary>avoidAllies: anyone of the caster's side within r2 of c, of the kinds the rule's allyKinds names:
-        /// Friendlies, the allies in a hostile break when they are spared, and with Turret friendly turrets. The
-        /// caster counts unless skipCaster (an area around the caster). Cost: a distance check per pawn, one
+        /// Friendlies, the allies in a hostile break when they are spared, the caster's downed faction-mates for a rule
+        /// that isn't harmless, and with Turret friendly turrets. The caster counts unless skipCaster (an area around the caster). Cost: a distance check per pawn, one
         /// KindOf more for a rule with allyKinds set; the turret list only for Turret.</summary>
         public static bool AllyWithin(AbilityAIContext ctx, AbilityAIExtension ext, IntVec3 c, float r2, bool spareBroken, bool skipCaster) =>
             AllyWithin(ctx, ext, c, r2, spareBroken, skipCaster ? ctx.pawn : null);
@@ -846,9 +846,10 @@ namespace AbilityAI
     /// pawn too. gapCloseJobTarget: with no enemy pawn (or prey), the target of the caster's melee attack job, a
     /// building included, which is landed beside on a cell it can be touched from.
     /// Targeted, avoidAllies: no one of the caster's side (allyKinds) within the radius of the landing cell, for an
-    /// impact or a stun where it lands (Gravimpact, Flash skip); avoidBuildings: no friendly building there either. pathClearance: no one of its side and no friendly
-    /// building within that many tiles of the line from the caster to the landing cell (Blazing dash); gap-close checks
-    /// it on the cell it picked only.
+    /// impact or a stun where it lands (Gravimpact, Flash skip); avoidBuildings: no friendly building there either.
+    /// pathClearance: no one of its side (downed faction-mates included) and no friendly building within that many
+    /// tiles of the line from the caster to the landing cell (Blazing dash); gap-close checks it on the cell it picked
+    /// only.
     /// Cost: escape is 32 × k distance checks, then up to 6 validations;
     /// gap-close with a targeted ability up to 8 validations (one per cell around a building's edge), only while the
     /// target is within its reach.
@@ -924,6 +925,7 @@ namespace AbilityAI
             float c2 = clear * clear;
             if (AnyNearLine(ctx.Friendlies, ctx.pawn, from, to, c2)) return false;
             if (!AbilityAIUtility.MayHitBrokenAllies(ext) && AnyNearLine(ctx.BrokenAllies, ctx.pawn, from, to, c2)) return false;
+            if (AnyNearLine(ctx.DownedAllies, ctx.pawn, from, to, c2)) return false;
             int n = GenRadial.NumCellsInRadius(Mathf.Min(clear, GenRadial.MaxRadialPatternRadius));
             // GenSight's shared buffer, read straight through: nothing in the loop asks it for another line
             var line = GenSight.BresenhamCellsBetween(from, to);
@@ -1535,6 +1537,8 @@ namespace AbilityAI
                 if (count < ext.minTargets) continue;
                 if (AnyInCone(ctx.Friendlies, pawn, from, dir, shape)) continue;
                 if (spareBroken && AnyInCone(ctx.BrokenAllies, pawn, from, dir, shape)) continue;
+                // As AllyWithin: fire or a beam reaches a pawn lying down, a stun changes nothing for it
+                if (!ext.harmless && AnyInCone(ctx.DownedAllies, pawn, from, dir, shape)) continue;
                 if (nearAimSq > 0f && AbilityAIUtility.AllyWithin(ctx, ext, at, nearAimSq, spareBroken, true)) continue;
                 aims.Add(new Aim { pawn = enemies[i], count = count, distSq = d, shape = shape });
             }

@@ -102,6 +102,7 @@
                 <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
                 <priority>4</priority>
                 <anchorCorpses>Humanlike</anchorCorpses>
+                <radius>2.9</radius>
                 <minTargets>2</minTargets>
                 <targetKinds>Humanlike</targetKinds>
                 <avoidAllies>true</avoidAllies>

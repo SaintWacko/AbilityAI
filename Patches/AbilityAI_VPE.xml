@@ -657,6 +657,7 @@
               <li Class="AbilityAI.AbilityAIExtension">
                 <workerClass>AbilityAI.AbilityAIWorker_Cover</workerClass>
                 <priority>5</priority>
+                <radius>5.9</radius>
                 <wallsIn>true</wallsIn>
                 <minThreats>2</minThreats>
                 <friendlyNpc>
@@ -1179,6 +1180,7 @@
               <li Class="AbilityAI.AbilityAIExtension">
                 <workerClass>AbilityAI.AbilityAIWorker_TargetFriendly</workerClass>
                 <priority>2</priority>
+                <radius>6</radius>
                 <auraKinds>Mechanoid, Turret, Shielded</auraKinds>
                 <avoidAllies>true</avoidAllies>
                 <allyKinds>Mechanoid, Turret, Shielded</allyKinds>

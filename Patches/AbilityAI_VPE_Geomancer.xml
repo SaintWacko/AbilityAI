@@ -78,7 +78,7 @@
 
         <!-- Chunk burst: detonates one rock chunk in a 2 tile cut explosion for 10 damage times psychic sensitivity,
              and destroys the chunk. Range 20.9, 6% psyfocus, 10 heat. Centred on a chunk with an enemy within 2 tiles,
-             never with anyone of the caster's side inside. Chunks have no owner, so any on the map will do. -->
+             never with anyone of the caster's side inside (the 2 is fixed in code). Chunks have no owner, so any on the map will do. -->
         <li Class="PatchOperationConditional">
           <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_ChunkBurstSTNL"]</xpath>
           <match Class="PatchOperationAddModExtension">
@@ -87,6 +87,7 @@
               <li Class="AbilityAI.AbilityAIExtension">
                 <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
                 <priority>2</priority>
+                <radius>2</radius>
                 <anchorThings>
                   <li>ChunkGranite</li>
                   <li>ChunkLimestone</li>

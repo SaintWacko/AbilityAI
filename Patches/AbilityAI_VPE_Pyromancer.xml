@@ -77,8 +77,9 @@
 
         <!-- Wildfire: for 2500 ticks (about 42 s) every cell within 14.9 tiles of the aimed cell is tried once a second:
              half the time each thing there (pawns, buildings, items, plants, the caster's side included) catches fire
-             with a chance equal to its flammability. Range 40.9, 7% psyfocus, 100 heat. Three enemies or more, as for Sun beam, with
-             nobody of the caster's side and no building of its side or a friendly faction within 14.9 tiles. -->
+             with a chance equal to its flammability. Range 40.9, 7% psyfocus, 100 heat. Three enemies or more, as for Sun
+             beam, with nobody of the caster's side and no building of its side or a friendly faction within 14.9 tiles
+             (fixed in code, so stated). -->
         <li Class="PatchOperationConditional">
           <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Pyromancer_Wildfire_Ability_STNL"]</xpath>
           <match Class="PatchOperationAddModExtension">
@@ -87,6 +88,7 @@
               <li Class="AbilityAI.AbilityAIExtension">
                 <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
                 <priority>5</priority>
+                <radius>14.9</radius>
                 <minTargets>3</minTargets>
                 <avoidAllies>true</avoidAllies>
                 <avoidBuildings>true</avoidBuildings>

@@ -100,7 +100,7 @@
              four random cells within 15 tiles ablaze (more near the centre) and burns everything on them, pawns,
              buildings and items, for 100 flame damage times psychic sensitivity. 49% psyfocus and 70 heat, so three
              enemies or more, last among the attacks. Never with anyone of the caster's side or a building of its side
-             within 15 of the aim. -->
+             within 15 of the aim. The beam's reach is in its code, not the def's radius (14.9), so it is stated. -->
         <li Class="PatchOperationConditional">
           <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_SunBeamSTNL"]</xpath>
           <match Class="PatchOperationAddModExtension">
@@ -109,6 +109,7 @@
               <li Class="AbilityAI.AbilityAIExtension">
                 <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
                 <priority>2</priority>
+                <radius>15</radius>
                 <minTargets>3</minTargets>
                 <avoidAllies>true</avoidAllies>
                 <avoidBuildings>true</avoidBuildings>

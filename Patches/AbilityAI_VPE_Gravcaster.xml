@@ -104,7 +104,7 @@
              that cell (the blast is over by then, so the caster isn't hit). Range 30.9, 5% psyfocus and 40 heat.
              It always ends with the caster among the enemies it blasted, so only melee casters use it.
              As an attack: aimed at an enemy with another within 2.9 of it, no ally of the caster and no friendly
-             building inside 2.9.
+             building inside 2.9. The 2.9 is fixed in code, so it is stated.
              As a gap-closer: a melee caster with its target more than 6 tiles off lands beside it, and the blast at
              the landing cell catches the target; no ally and no friendly building within 2.9 of the landing cell. -->
         <li Class="PatchOperationConditional">
@@ -115,6 +115,7 @@
               <li Class="AbilityAI.AbilityAIExtension">
                 <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
                 <priority>4</priority>
+                <radius>2.9</radius>
                 <minTargets>2</minTargets>
                 <requires>Melee</requires>
                 <avoidAllies>true</avoidAllies>
@@ -125,6 +126,7 @@
                 <workerClass>AbilityAI.AbilityAIWorker_Movement</workerClass>
                 <priority>2</priority>
                 <modes>GapClose</modes>
+                <radius>2.9</radius>
                 <avoidAllies>true</avoidAllies>
                 <avoidBuildings>true</avoidBuildings>
               </li>
@@ -179,7 +181,7 @@
              cell is pulled a cell toward the centre, takes 2 blunt, is stunned for 60 ticks and marked with Exposure:
              Crush, which turns Crush into Collapse. Range 18.9, 16% psyfocus and 75 heat. It never touches the
              caster's allies, so there is no ally check; hostile NPCs never cast it (it would hit their own side). Two
-             enemies or more, skipping those already marked, one caster per group. -->
+             enemies or more, skipping those already marked, one caster per group. The 5 is fixed in code. -->
         <li Class="PatchOperationConditional">
           <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_SingularitySTNL"]</xpath>
           <match Class="PatchOperationAddModExtension">
@@ -188,6 +190,7 @@
               <li Class="AbilityAI.AbilityAIExtension">
                 <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
                 <priority>5</priority>
+                <radius>5</radius>
                 <minTargets>2</minTargets>
                 <hediff>CrushOpportunitySTNL</hediff>
                 <exclusive>true</exclusive>

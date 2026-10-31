@@ -121,6 +121,7 @@
               <li Class="AbilityAI.AbilityAIExtension">
                 <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
                 <priority>4</priority>
+                <radius>5</radius>
                 <minTargets>3</minTargets>
                 <approachDistance>6</approachDistance>
                 <npc>

@@ -2304,7 +2304,6 @@ namespace AbilityAI
     public static class AbilityAISettings
     {
         public static bool Enabled = true;
-        public static bool VanillaStandDown = true;
         public static bool Hostiles = true;
         public static bool NonHostiles = true;
         public static bool Animals = true;
@@ -2399,7 +2398,7 @@ namespace AbilityAI
             switch (tab)
             {
                 case Tab.General:
-                    Enabled = VanillaStandDown = true;
+                    Enabled = true;
                     MinGapSeconds = DefaultMinGapSeconds;
                     SkipRepel = SkipRescue = SkipEscape = true;
                     CaiHoldNpcs = CaiHoldColonists = true;
@@ -2440,7 +2439,6 @@ namespace AbilityAI
             Scribe_Values.Look(ref Animals, "abilityAI_animals", true);
             Scribe_Values.Look(ref Mechs, "abilityAI_mechs", true);
             Scribe_Values.Look(ref Unclaimed, "abilityAI_unclaimed", true);
-            Scribe_Values.Look(ref VanillaStandDown, "abilityAI_vanillaStandDown", true);
             Scribe_Values.Look(ref Approach, "abilityAI_approach", true);
             Scribe_Values.Look(ref PlayerAutocast, "abilityAI_playerAutocast", true);
             Scribe_Values.Look(ref UndraftedAutocast, "abilityAI_undraftedAutocast", true);
@@ -2524,7 +2522,6 @@ namespace AbilityAI
         {
             list.CheckboxLabeled("AAI_Enabled".Translate(), ref Enabled, "AAI_Enabled_Tip".Translate());
             Hint(list, "AAI_Enabled_Desc");
-            list.CheckboxLabeled("AAI_VanillaStandDown".Translate(), ref VanillaStandDown, "AAI_VanillaStandDown_Tip".Translate());
             list.Gap();
             list.Label("AAI_MinGap".Translate(MinGapSeconds.ToString("0.#")));
             MinGapSeconds = Mathf.Round(list.Slider(MinGapSeconds, 0f, 30f) * 2f) / 2f;

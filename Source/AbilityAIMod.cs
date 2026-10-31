@@ -142,7 +142,7 @@ namespace AbilityAI
     {
         static void Postfix(Ability __instance, ref bool __result)
         {
-            if (!__result || !AbilityAISettings.VanillaStandDown) return;
+            if (!__result) return;
             if (AbilityAIDriver.OthersStandDown(__instance.pawn, __instance)) __result = false;
         }
     }
@@ -179,7 +179,7 @@ namespace AbilityAI
 
         static void Postfix(ThinkNode_ConditionalHasAbility __instance, Pawn pawn, ref bool __result)
         {
-            if (!__result || !AbilityAISettings.VanillaStandDown || !Replaced(__instance.ability)
+            if (!__result || !Replaced(__instance.ability)
                 || (pawn.Faction != null && pawn.Faction.IsPlayer)) return;
             Ability ability = pawn.abilities?.GetAbility(__instance.ability);
             if (ability != null && AbilityAIDriver.Handles(pawn, ability)) __result = false;

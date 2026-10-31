@@ -103,7 +103,7 @@ namespace AbilityAI.Vef
                 __result = false;
                 return;
             }
-            if (AbilityAISettings.VanillaStandDown && AbilityAIDriver.Handles(__instance.pawn, VefAIAbility.Of(__instance))) __result = false;
+            if (AbilityAIDriver.Handles(__instance.pawn, VefAIAbility.Of(__instance))) __result = false;
         }
     }
 }

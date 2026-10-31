@@ -25,8 +25,6 @@
   <AAI_Unclaimed>Also use abilities no mod claims</AAI_Unclaimed>
   <AAI_Unclaimed_Desc>Such as a raider psycaster's own psycasts. Rules marked off for NPCs stay off.</AAI_Unclaimed_Desc>
   <AAI_Unclaimed_Tip>Mods built on Ability AI (such as Entad Framework and Bastle Framework) claim the abilities their own gear and traits give. With this on, a pawn also uses any other ability that is set up for this mod, such as a raider psycaster's own psycasts (most combat psycasts from Royalty and Vanilla Psycasts Expanded are). Off: only claimed abilities.</AAI_Unclaimed_Tip>
-  <AAI_VanillaStandDown>Replace vanilla's casting for abilities this mod handles</AAI_VanillaStandDown>
-  <AAI_VanillaStandDown_Tip>Some abilities also have vanilla's simple casting turned on, so they still get used when this mod is missing, and Vanilla Expanded Framework casts its abilities for NPCs at random in place of an attack. With this on, both stay out of the way of any ability Ability AI is deciding for, so two AIs never use the same ability. Off: both may cast it.</AAI_VanillaStandDown_Tip>
   <AAI_Approach>Walk into range to use an ability</AAI_Approach>
   <AAI_Approach_Tip>A ranged raider, visitor, animal or mech in a fight walks a few tiles closer when a target for one of its abilities is just out of range or out of sight, uses it, and then fights as usual. Only for abilities set up for it, such as flashbang and battle cry. Never while badly hurt, fleeing or held in melee. This setting doesn't cover your own pawns: they walk only for abilities you set to "Full Autocast", whether this is on or off.</AAI_Approach_Tip>
   <AAI_PlayerAutocast>Autocast for your pawns</AAI_PlayerAutocast>
@@ -54,7 +52,7 @@
   <AAI_NpcBaseWrecking_Tip>Abilities that destroy buildings over a wide area: meteors, molten pull, a sun beam, a tornado, wildfire, Blazing dash, and Crimson deadlife burst's necrosis cloud over a base. Off: hostile pawns never use them. Visitors and allies never use them either way, since the buildings nearby would be yours.</AAI_NpcBaseWrecking_Tip>
   <AAI_Dangerous_Desc>Both are off by default. Each one shows only when an installed mod has such an ability.</AAI_Dangerous_Desc>
   <AAI_GatherWaitNpcs_Tip>Other factions' pawns hold an area attack cast at a fixed spot, such as a Vanilla Psycasts Expanded Runesmith Invoke at a runecircle, while more enemies are walking into it: for at most 5 seconds, while more will be inside within 3 seconds than when the cast would land.</AAI_GatherWaitNpcs_Tip>
-  <AAI_ChargeGapClose>Leap at the target of a melee attack order</AAI_ChargeGapClose>
+  <AAI_ChargeGapClose>Use abilities to close with the target of a melee attack order</AAI_ChargeGapClose>
   <AAI_ChargeGapClose_Tip>When you order a drafted pawn to attack someone in melee, it may use a movement ability set to autocast (such as Vanilla Psycasts Expanded's Power Leap, Shadowskip and Ghostwalk) to close the distance, then carries on with the attack. Only while the target is further away than the ability's minimum, and only movement abilities: nothing else is cast during the charge, and the pawn never uses one to run away from the fight you ordered.</AAI_ChargeGapClose_Tip>
   <AAI_ShowMarker>Mark abilities that can autocast</AAI_ShowMarker>
   <AAI_ShowMarker_Tip>Draws a small grey ring on the button of every ability your pawn could autocast but isn't set to.</AAI_ShowMarker_Tip>

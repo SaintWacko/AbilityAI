@@ -325,6 +325,23 @@ namespace AbilityAI
             if (WantsTurrets(ext)) into.AddRange(ctx.EnemyTurrets);
         }
 
+        /// <summary>CollectHostiles, only those within reach of the caster. An area scorer whose centres lie within
+        /// range and whose hits lie within radius of a centre passes range + radius: anyone further can never count, and
+        /// leaving them out spares their WouldAffect and their row of the k² pass (in a 250-pawn fight spread over the
+        /// map, most of the enemy list).</summary>
+        public static void CollectHostiles(AbilityAIContext ctx, AbilityAIExtension ext, List<Thing> into, float reach)
+        {
+            IntVec3 from = ctx.pawn.Position;
+            float reachSq = reach * reach;
+            var enemies = ctx.Enemies;
+            for (int i = 0; i < enemies.Count; i++)
+                if ((enemies[i].Position - from).LengthHorizontalSquared <= reachSq) into.Add(enemies[i]);
+            if (!WantsTurrets(ext)) return;
+            var turrets = ctx.EnemyTurrets;
+            for (int i = 0; i < turrets.Count; i++)
+                if ((turrets[i].Position - from).LengthHorizontalSquared <= reachSq) into.Add(turrets[i]);
+        }
+
         /// <summary>avoidAllies within r2 of c (AllyIn on a disc). The caster counts unless skipCaster (an area around
         /// the caster).</summary>
         public static bool AllyWithin(AbilityAIContext ctx, AbilityAIExtension ext, IntVec3 c, float r2, bool spareBroken, bool skipCaster) =>
@@ -562,9 +579,12 @@ namespace AbilityAI
         {
             centres.Clear();
             targets.Clear();
-            AbilityAIUtility.CollectHostiles(ctx, ext, targets);
-            if (targets.Count < ext.minTargets) { targets.Clear(); return false; }
             float radius = AbilityAIUtility.Radius(ability, ext);
+            // waitForGather counts enemies where their paths take them in the next few seconds, so one outside the
+            // reach now may walk into it
+            if (ext.waitForGather) AbilityAIUtility.CollectHostiles(ctx, ext, targets);
+            else AbilityAIUtility.CollectHostiles(ctx, ext, targets, range + radius + 1f);
+            if (targets.Count < ext.minTargets) { targets.Clear(); return false; }
             float r2 = radius * radius;
             float maxSq = range * range, minSq = ext.minRange * ext.minRange;
             IntVec3 from = ctx.pawn.Position;
@@ -1549,11 +1569,16 @@ namespace AbilityAI
             var enemies = ctx.Enemies;
             if (enemies.Count < ext.minTargets) return false;
             bool spareBroken = !AbilityAIUtility.MayHitBrokenAllies(ext);
+            IntVec3 origin = ctx.pawn.Position;
+            // Aims stand within reach and hits within length of the caster: nobody further can count, so they are
+            // marked unaffected without their WouldAffect
+            float outer = Mathf.Max(length, reach) + 1f, outerSq = outer * outer;
             affected.Clear();
             int affectable = 0;
             for (int i = 0; i < enemies.Count; i++)
             {
-                bool a = (!spareBroken || !ctx.IsBrokenAlly(enemies[i])) && AbilityAIUtility.WouldAffect(ability, ext, enemies[i]);
+                bool a = (enemies[i].Position - origin).LengthHorizontalSquared <= outerSq
+                    && (!spareBroken || !ctx.IsBrokenAlly(enemies[i])) && AbilityAIUtility.WouldAffect(ability, ext, enemies[i]);
                 affected.Add(a);
                 if (a) affectable++;
             }

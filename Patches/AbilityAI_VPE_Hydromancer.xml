@@ -3,7 +3,8 @@
      assembly and priced by the VPE one. Most of them are custom ability classes, so the radius and hediff are stated
      here wherever the real effect comes from that C# rather than from a standard VEF extension.
      Left out: Salt Wounds, Hydrend (destroys gear), Torrential Rain (a day long game condition), Neural Siphon (a heat
-     sink that costs the caster) and Wellspring (a psyfocus utility). -->
+     sink that costs the caster), Wellspring (a psyfocus utility) and, on 1.7, Sunken Prowl (a passive, given when
+     unlocked and never cast). -->
 <Patch>
   <Operation Class="PatchOperationFindMod">
     <mods>
@@ -111,8 +112,9 @@
         <!-- Whirlpool: at a cell (range 20.9) it pulls every pawn hostile to the PLAYER within 5 tiles a cell toward the
              centre every 45 ticks for 1200 ticks, each pull a blunt hit (the mod setting's damage) and a one second
              stun. Who it hits is decided by hostility to the player's faction, not to the caster, so a raider casting
-             it would drag its own side: hostile NPCs never, friendly NPCs yes. The 5 is fixed in code. 40% psyfocus,
-             35 heat, so three enemies or more. -->
+             it would drag its own side: hostile NPCs never, friendly NPCs yes. The 5 is fixed in code. 40% psyfocus
+             and 35 heat on 1.6 (7% and 7 on 1.7); three enemies or more on both, since 20 s of pulls is worth
+             saving for a group. -->
         <li Class="PatchOperationConditional">
           <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_HydromancerVortexSTNL"]</xpath>
           <match Class="PatchOperationAddModExtension">

@@ -400,6 +400,45 @@ namespace AbilityAI
         public static bool FriendlyBuildingWithin(AbilityAIContext ctx, IntVec3 centre, float radius, Thing except = null) =>
             FriendlyBuildingIn(ctx, new AIDisc(centre, radius * radius), except);
 
+        /// <summary>coveredBy: at least coveredFraction of the cells within radius of centre (on the map) already hold
+        /// one of those defs, are walls, or, when a listed def is a plant, have no fertility. Stops as soon as the
+        /// answer is known either way. Cost: up to one thing-list read per cell (113 for radius 6), only for rules
+        /// that set coveredBy, and only for the few centres the worker tries.</summary>
+        public static bool Covered(AbilityAIContext ctx, AbilityAIExtension ext, IntVec3 centre, float radius)
+        {
+            var defs = ext.coveredBy;
+            if (defs == null || defs.Count == 0) return false;
+            bool plant = false;
+            for (int i = 0; i < defs.Count; i++)
+                if (defs[i].plant != null) { plant = true; break; }
+            Map map = ctx.map;
+            int cells = GenRadial.NumCellsInRadius(Mathf.Min(radius, GenRadial.MaxRadialPatternRadius - 1f));
+            int inMap = 0;
+            for (int i = 0; i < cells; i++)
+                if ((centre + GenRadial.RadialPattern[i]).InBounds(map)) inMap++;
+            if (inMap == 0) return false;
+            int need = Mathf.CeilToInt(inMap * ext.coveredFraction), covered = 0, left = inMap;
+            for (int i = 0; i < cells; i++)
+            {
+                IntVec3 c = centre + GenRadial.RadialPattern[i];
+                if (!c.InBounds(map)) continue;
+                left--;
+                if (CellCovered(map, c, defs, plant) && ++covered >= need) return true;
+                if (covered + left < need) return false;
+            }
+            return false;
+        }
+
+        private static bool CellCovered(Map map, IntVec3 c, List<ThingDef> defs, bool plant)
+        {
+            if (c.Filled(map)) return true;
+            if (plant && c.GetTerrain(map).fertility <= 0f) return true;
+            List<Thing> things = c.GetThingList(map);
+            for (int i = 0; i < things.Count; i++)
+                if (defs.Contains(things[i].def)) return true;
+            return false;
+        }
+
         /// <summary>FriendlyBuildingAt on any cell of the area. Only the cells of its bounding box are visited, so a long
         /// thin line doesn't scan the disc of its length. Cost: a shape test per cell of the box, one thing-list read
         /// per cell inside (about 300 for a disc of radius 10).</summary>
@@ -554,6 +593,11 @@ namespace AbilityAI
             {
                 Thing centre = centres[i].thing;
                 if (ext.avoidBuildings && AbilityAIUtility.FriendlyBuildingWithin(ctx, centre.Position, radius, centre)) continue;
+                if (AbilityAIUtility.Covered(ctx, ext, centre.Position, radius))
+                {
+                    if (AbilityAISettings.DebugLog) ctx.NoTargetWhy = $"the area around {centre.LabelShort} is already covered";
+                    continue;
+                }
                 target = AbilityAIUtility.PawnOrCell(ability, centre);
                 if (target.IsValid) break;
             }
@@ -568,6 +612,8 @@ namespace AbilityAI
             for (int i = 0; i < centres.Count && i < MaxTries; i++)
             {
                 Thing p = centres[i].thing;
+                // A spot that would be refused on arrival isn't walked to
+                if (AbilityAIUtility.Covered(ctx, ext, p.Position, AbilityAIUtility.Radius(ability, ext))) continue;
                 if (AbilityAIDriver.ValidIgnoringRange(ability, p) || AbilityAIDriver.ValidIgnoringRange(ability, p.Position)) { goal = p; break; }
             }
             centres.Clear();

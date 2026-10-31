@@ -124,6 +124,9 @@
   <AAI_CaiHoldColonists>Your auto-controlled pawns' casts can't be cut off by CAI</AAI_CaiHoldColonists>
   <AAI_CaiHoldColonists_Tip>The same for your drafted colonists and mechs that you have handed to CAI's auto-control. CAI never moves your pawns that aren't on auto-control, so this doesn't affect them.</AAI_CaiHoldColonists_Tip>
   <AAI_Cai_Desc>Switch off to compare how pawns fight when CAI may interrupt their casts.</AAI_Cai_Desc>
+  <AAI_Section_Vpe>Vanilla Psycasts Expanded</AAI_Section_Vpe>
+  <AAI_VpeQuietSpawners>Silence emerging plants</AAI_VpeQuietSpawners>
+  <AAI_VpeQuietSpawners_Tip>Bramble maze and the other Wildspeaker plant psycasts make one emerging spot per cell, each with its own tunnel rumble: about 112 for a bramble maze. Starting that many sounds at once causes a stutter on every cast, and a long freeze when several casters use it in one fight. Only one rumble can be heard at a time, so with this on the casts are silent apart from the cast sound. Applies to plants that start emerging after the change.</AAI_VpeQuietSpawners_Tip>
   <AAI_DebugLog>Log ability AI decisions</AAI_DebugLog>
   <AAI_DebugLog_Tip>Writes a line to the log each time a pawn decides to cast something, naming the rule it used. When a pawn with abilities set up for this mod checks and casts nothing, it also writes why, at most once every 10 seconds per pawn.</AAI_DebugLog_Tip>
   <AAI_Reset>Reset all</AAI_Reset>

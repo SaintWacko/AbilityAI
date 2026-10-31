@@ -1459,7 +1459,9 @@
         <!-- Wildspeaker -->
 
         <!-- Bramble maze: a thicket within 6 tiles of the spot (it withers in 12 hours) that blocks everyone, so
-             three or more enemies and no pawn or building of ours inside -->
+             three or more enemies and no pawn or building of ours inside. Not where half the area already holds
+             brambles or their spawners: a recast there only replaces them, and each cast spawns about 112 things
+             (run 2 of build 0177: 15 of 51 NPC casts landed on one spot, costing up to 750 ms each) -->
         <li Class="PatchOperationConditional">
           <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_BrambleMaze"]</xpath>
           <match Class="PatchOperationAddModExtension">
@@ -1472,6 +1474,10 @@
                 <avoidAllies>true</avoidAllies>
                 <avoidBuildings>true</avoidBuildings>
                 <approachDistance>6</approachDistance>
+                <coveredBy>
+                  <li>Plant_Brambles</li>
+                  <li>VPE_BrambleSpawner</li>
+                </coveredBy>
               </li>
             </value>
           </match>

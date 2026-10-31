@@ -22,6 +22,7 @@ namespace AbilityAI.Vpe
             Vef.VefAIAbility.RegisterCosts(new VpeCosts());
             Vef.VefAIAbility.RegisterEffectsReader(ReadEffects);
             BetterAutocastBridge.Init();
+            VpeQuietSpawners.Install();
         }
 
         private static void ReadEffects(VefAbilityDef def, AIAbilityEffects e)

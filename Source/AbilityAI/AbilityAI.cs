@@ -488,6 +488,11 @@ namespace AbilityAI
         /// when it lands, and while an ally is about to walk in (AbilityAIGather; settings GatherWaitPlayer and
         /// GatherWaitNpcs). For an area fixed in place, such as a runecircle, that enemies cross on their way in.</summary>
         public bool waitForGather;
+        /// <summary>AoE hostile: not where at least coveredFraction of the cells in the radius already hold one of these
+        /// defs, for abilities that fill an area with a thing that lasts (VPE's Bramble Maze). A wall counts as
+        /// covered, and so does ground with no fertility when a listed def is a plant, since nothing new appears there.</summary>
+        public List<ThingDef> coveredBy;
+        public float coveredFraction = 0.5f;
         /// <summary>AoE hostile: never centre the area within its radius of the caster, for areas that hit the caster
         /// too (berserk pulse). Unlike a fixed minRange it follows the radius when a stat or another mod scales it.</summary>
         public bool avoidSelf;
@@ -607,6 +612,10 @@ namespace AbilityAI
             if (anchorThings != null && anchorThings.Count == 0) yield return "anchorThings names no def that exists, so the rule would centre on pawns instead";
             if (waitForGather && (!anchored || workerClass == null || !typeof(AbilityAIWorker_AoEHostile).IsAssignableFrom(workerClass)))
                 yield return "waitForGather is only read by an anchored AoE hostile rule (anchorThings or anchorCorpses)";
+            if (coveredBy != null && workerClass != null && !typeof(AbilityAIWorker_AoEHostile).IsAssignableFrom(workerClass))
+                yield return $"coveredBy is only read by AoE hostile, not {workerClass.Name}";
+            if (coveredBy != null && coveredBy.Count == 0) yield return "coveredBy names no def that exists, so it checks nothing";
+            if (coveredFraction <= 0f || coveredFraction > 1f) yield return "coveredFraction must be above 0 and at most 1";
             if (avoidEnemies && workerClass != null && !typeof(AbilityAIWorker_AoEFriendly).IsAssignableFrom(workerClass))
                 yield return $"avoidEnemies is only read by AoE friendly, not {workerClass.Name}";
             if (health != AbilityAIHealth.None && workerClass != null && !typeof(AbilityAIWorker_Recovery).IsAssignableFrom(workerClass)
@@ -2299,6 +2308,10 @@ namespace AbilityAI
         /// drafted colonists CAI auto-controls.</summary>
         public static bool CaiHoldNpcs = true;
         public static bool CaiHoldColonists = true;
+        /// <summary>VPE's plant spawners start no Tunnel sound (AbilityAI.Vpe.VpeQuietSpawners). The setting is shown
+        /// only once that patch is in.</summary>
+        public static bool VpeQuietSpawners = true;
+        internal static bool VpeSpawnerPatchApplied;
         /// <summary>Recast: a kept-up thing is due with this fraction of its lifetime left (0 = once it is gone).</summary>
         public const float DefaultRecastAt = 0.05f;
         public static float RecastAt = DefaultRecastAt;
@@ -2349,6 +2362,7 @@ namespace AbilityAI
                     MinGapSeconds = DefaultMinGapSeconds;
                     SkipRepel = SkipRescue = SkipEscape = true;
                     CaiHoldNpcs = CaiHoldColonists = true;
+                    VpeQuietSpawners = true;
                     DebugLog = false;
                     break;
                 case Tab.OtherFactions:
@@ -2417,6 +2431,7 @@ namespace AbilityAI
             Scribe_Values.Look(ref SkipEscape, "abilityAI_skipEscape", true);
             Scribe_Values.Look(ref CaiHoldNpcs, "abilityAI_caiHoldNpcs", true);
             Scribe_Values.Look(ref CaiHoldColonists, "abilityAI_caiHoldColonists", true);
+            Scribe_Values.Look(ref VpeQuietSpawners, "abilityAI_vpeQuietSpawners", true);
             Scribe_Values.Look(ref DebugLog, "abilityAI_debugLog", false);
         }
 
@@ -2489,6 +2504,11 @@ namespace AbilityAI
                 if (AbilityAICombatAI.SeesAutoControl)
                     list.CheckboxLabeled("AAI_CaiHoldColonists".Translate(), ref CaiHoldColonists, "AAI_CaiHoldColonists_Tip".Translate());
                 Hint(list, "AAI_Cai_Desc");
+            }
+            if (VpeSpawnerPatchApplied)
+            {
+                Section(list, "AAI_Section_Vpe");
+                list.CheckboxLabeled("AAI_VpeQuietSpawners".Translate(), ref VpeQuietSpawners, "AAI_VpeQuietSpawners_Tip".Translate());
             }
             if (Prefs.DevMode)
             {

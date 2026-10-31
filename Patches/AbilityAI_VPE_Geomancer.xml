@@ -132,7 +132,9 @@
 
         <!-- Deep skip: kills every pawn within 1.5 tiles of the aimed cell outright, downed ones too, whatever their
              health. Buildings and items are untouched. Range 14.9, 3 seconds to cast, 80% psyfocus and 200 neural
-             heat. Never with anyone of the caster's side, the caster included, within 1.5 of the aim. -->
+             heat. Never with anyone of the caster's side, the caster included, within 1.5 of the aim. At least 2
+             enemies inside: one is not worth 80% psyfocus and 200 heat, and 3 in a 3 by 3 block almost never happens
+             without an ally in it. -->
         <li Class="PatchOperationConditional">
           <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_DeepSkipSTNL"]</xpath>
           <match Class="PatchOperationAddModExtension">
@@ -141,6 +143,7 @@
               <li Class="AbilityAI.AbilityAIExtension">
                 <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
                 <priority>7</priority>
+                <minTargets>2</minTargets>
                 <avoidAllies>true</avoidAllies>
                 <npcGate>InstantKill</npcGate>
               </li>

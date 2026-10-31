@@ -407,9 +407,12 @@ namespace AbilityAI
                 Pawn p = pawns[i];
                 if (!AIAbilitySources.TryGetRunningCast(p, out AIAbility a, out _)) continue;
                 if (AbilityAIRecast.RuleOf(a.Def)?.recastThing != thing.def) continue;
-                // The one whose claim this is, else the nearest: two colonists casting the same psycast in the same
-                // tick is the only way this guesses
-                float d = HasClaim(p, thing.def) ? -1f : (p.Position - thing.Position).LengthHorizontalSquared;
+                // The one aimed at this cell, else the one with a claim, else the nearest. A claim alone isn't enough:
+                // two colonists etching runecircles both hold one for the whole 41 s warmup, and the first in the
+                // list took the other's circle (its marker stayed under the circle).
+                Job job = p.CurJob;
+                float d = job != null && job.targetA.IsValid && job.targetA.Cell == thing.Position ? -2f
+                    : HasClaim(p, thing.def) ? -1f : (p.Position - thing.Position).LengthHorizontalSquared;
                 if (d < best)
                 {
                     best = d;
@@ -418,13 +421,14 @@ namespace AbilityAI
                 }
             }
             int tick = Find.TickManager.TicksGame;
+            // The spot on this very cell first: whoever cast it, that marker is the one this thing answers. Then the
+            // caster's claim, for an ice crystal recast beside the old one (no other spot's anchor is ever used).
             RecastSpot spot = null;
-            if (caster != null)
+            for (int i = 0; i < spots.Count && spot == null; i++)
+                if (spots[i].anchor == thing.Position && spots[i].thingDef == thing.def) spot = spots[i];
+            if (spot == null && caster != null)
                 for (int i = 0; i < spots.Count && spot == null; i++)
                     if (spots[i].claimant == caster && spots[i].thingDef == thing.def && spots[i].ClaimHolds()) spot = spots[i];
-            if (spot == null)
-                for (int i = 0; i < spots.Count && spot == null; i++)
-                    if (spots[i].anchor == thing.Position && spots[i].thingDef == thing.def) spot = spots[i];
             if (spot != null)
             {
                 if (spot.thing != null && spot.thing != thing) CompRecastSpot.Mark(spot.thing, false);

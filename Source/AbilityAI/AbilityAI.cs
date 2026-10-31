@@ -436,6 +436,10 @@ namespace AbilityAI
         /// <summary>Movement: close the gap only while the caster can't see its target. For an ability that only helps
         /// with something in the way (VPE's Ghostwalk, which walks through walls); escape is unaffected.</summary>
         public bool gapCloseOutOfSight;
+        /// <summary>Movement and Skip escape: also get away when caught in melee, whatever the caster's weapon. By
+        /// default only a ranged pawn escapes melee (a brawler is where it wants to be); for a pawn that can't fight
+        /// back at all (a paramedic) or shouldn't stand in a brawl (the apocriton).</summary>
+        public bool escapeInMelee;
         /// <summary>Movement, Target hostile: also act while the caster hunts for food (PredatorHunt), with its prey
         /// as the target: a leap or sprint at a fleeing deer, a quill at it. Hunting then counts as being in combat for
         /// this rule. The prey is never one of the caster's enemies for any other rule.</summary>
@@ -581,6 +585,9 @@ namespace AbilityAI
                 yield return $"cellMaxLight is only read by Movement, not {workerClass.Name}";
             if (gapCloseOutOfSight && workerClass != null && !typeof(AbilityAIWorker_Movement).IsAssignableFrom(workerClass))
                 yield return $"gapCloseOutOfSight is only read by Movement, not {workerClass.Name}";
+            if (escapeInMelee && workerClass != null && !typeof(AbilityAIWorker_Movement).IsAssignableFrom(workerClass)
+                && !typeof(AbilityAIWorker_Skip).IsAssignableFrom(workerClass))
+                yield return $"escapeInMelee is only read by Movement and Skip, not {workerClass.Name}";
             if (whileHunting && workerClass != null && !typeof(AbilityAIWorker_Movement).IsAssignableFrom(workerClass)
                 && !typeof(AbilityAIWorker_TargetHostile).IsAssignableFrom(workerClass))
                 yield return $"whileHunting is only read by Movement and Target hostile, not {workerClass.Name}";

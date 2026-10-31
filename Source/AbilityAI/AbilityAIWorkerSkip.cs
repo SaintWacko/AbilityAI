@@ -298,7 +298,7 @@ namespace AbilityAI
             Pawn pawn = ctx.pawn;
             if (PlayerOrdered(pawn)) return false;
             bool reason = ctx.HealthFraction < ext.healthThreshold || AbilityAIUtility.IsFleeing(ctx)
-                || (ctx.UsesRanged && AbilityAIUtility.InMelee(ctx));
+                || ((ctx.UsesRanged || ext.escapeInMelee) && AbilityAIUtility.InMelee(ctx));
             if (!reason || ctx.NearestEnemy(out float d) == null || d > EscapeDangerRange * EscapeDangerRange) return false;
             if (!AbilityAIDriver.Valid(ability, pawn)) return false;
 

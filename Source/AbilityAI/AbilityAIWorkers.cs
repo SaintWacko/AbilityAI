@@ -833,7 +833,8 @@ namespace AbilityAI
     /// targeted ones (Shadowskip) pick a cell.
     /// Gap-close (melee pawns only): the current enemy target is further than minGapDistance (default 6) and within
     /// maxRange (default 40; a targeted ability also needs it in reach); a targeted ability lands next to it.
-    /// Escape: health under healthThreshold, fleeing, or a ranged pawn caught in melee, with an enemy within 12 tiles;
+    /// Escape: health under healthThreshold, fleeing, or a ranged pawn (any pawn with escapeInMelee) caught in melee,
+    /// with an enemy within 12 tiles;
     /// a targeted ability tries 16 directions at full and 60% range for the cell furthest from every enemy, and only
     /// goes if that gains at least 4 tiles. A targeted ability's cells can be limited to dark ones (cellMaxLight).
     /// Any rule's gap-close can be limited to a target the caster can't see (gapCloseOutOfSight: one sight line,
@@ -903,7 +904,7 @@ namespace AbilityAI
         private bool WantsEscape(AbilityAIContext ctx)
         {
             bool reason = ctx.HealthFraction < ext.healthThreshold || AbilityAIUtility.IsFleeing(ctx)
-                || (ctx.UsesRanged && AbilityAIUtility.InMelee(ctx));
+                || ((ctx.UsesRanged || ext.escapeInMelee) && AbilityAIUtility.InMelee(ctx));
             if (!reason) return false;
             return ctx.NearestEnemy(out float d) != null && d <= EscapeDangerRange * EscapeDangerRange;
         }

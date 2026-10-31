@@ -202,10 +202,8 @@
           </match>
         </li>
 
-        <!-- Apocriton, and the paramedic's jump launcher, which inherits this def's extensions (a rule on the
-             launcher too would give it two): jump clear when badly hurt or caught in melee. The launcher keeps one of
-             its two charges for vanilla's jumps to a fire or to a pawn it is rescuing; the apocriton's jump has no
-             charges, so reserveCharges doesn't touch it. -->
+        <!-- Apocriton: jump clear when under half health or caught in melee (escapeInMelee: it fights at range, but
+             its gun doesn't always count as one). Its jump has no charges. -->
         <li Class="PatchOperationConditional">
           <xpath>Defs/AbilityDef[defName="LongjumpMech"]</xpath>
           <match Class="PatchOperationAddModExtension">
@@ -215,9 +213,48 @@
                 <workerClass>AbilityAI.AbilityAIWorker_Movement</workerClass>
                 <priority>4</priority>
                 <modes>Escape</modes>
-                <reserveCharges>1</reserveCharges>
+                <escapeInMelee>true</escapeInMelee>
               </li>
             </value>
+          </match>
+        </li>
+
+        <!-- Paramedic's jump launcher: it has no weapon, so it jumps out of melee, and already at 70% health. It
+             keeps one of its two charges (8 h cooldown) for vanilla's jumps to a fire or to a pawn it rescues. The
+             launcher's ParentName is LongjumpMech, whose extensions it would inherit on top of this one, so its
+             modExtensions is marked Inherit="False" (which also drops any other mod's extension meant for both). -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="LongjumpMechLauncher"]</xpath>
+          <match Class="PatchOperationSequence">
+            <operations>
+              <li Class="PatchOperationConditional">
+                <xpath>Defs/AbilityDef[defName="LongjumpMechLauncher"]/modExtensions</xpath>
+                <nomatch Class="PatchOperationAdd">
+                  <xpath>Defs/AbilityDef[defName="LongjumpMechLauncher"]</xpath>
+                  <value>
+                    <modExtensions />
+                  </value>
+                </nomatch>
+              </li>
+              <li Class="PatchOperationAttributeSet">
+                <xpath>Defs/AbilityDef[defName="LongjumpMechLauncher"]/modExtensions</xpath>
+                <attribute>Inherit</attribute>
+                <value>False</value>
+              </li>
+              <li Class="PatchOperationAdd">
+                <xpath>Defs/AbilityDef[defName="LongjumpMechLauncher"]/modExtensions</xpath>
+                <value>
+                  <li Class="AbilityAI.AbilityAIExtension">
+                    <workerClass>AbilityAI.AbilityAIWorker_Movement</workerClass>
+                    <priority>4</priority>
+                    <modes>Escape</modes>
+                    <escapeInMelee>true</escapeInMelee>
+                    <healthThreshold>0.7</healthThreshold>
+                    <reserveCharges>1</reserveCharges>
+                  </li>
+                </value>
+              </li>
+            </operations>
           </match>
         </li>
 

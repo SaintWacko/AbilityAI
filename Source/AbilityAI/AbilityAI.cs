@@ -251,6 +251,20 @@ namespace AbilityAI
         Shielded = 32,
     }
 
+    /// <summary>A kind of ability other factions use only while a setting allows it (AbilityAINpcGates). The
+    /// player's pawns are never held back by it.</summary>
+    [Flags]
+    public enum AbilityAINpcGate
+    {
+        None = 0,
+        /// <summary>Kills or takes a pawn for good in one cast (shamblerification, Reap, Mind Break): setting
+        /// NpcInstantKill, every NPC caster.</summary>
+        InstantKill = 1,
+        /// <summary>Wrecks buildings over a wide area (meteors, a sun beam, a tornado, wildfire): setting
+        /// NpcBaseWrecking, hostile casters only. Friendly NPCs never use it, since it would be the player's base.</summary>
+        BaseWrecking = 2,
+    }
+
     /// <summary>Recovery: the health conditions a rule treats.</summary>
     [Flags]
     public enum AbilityAIHealth
@@ -370,7 +384,8 @@ namespace AbilityAI
         public float offsetTowardThreat;
         /// <summary>Cover: ranged enemies aiming at the caster before it takes cover (being shot recently also counts).</summary>
         public int minThreats = 1;
-        /// <summary>Hostile area workers: don't pick a centre with an ally of the caster inside the radius.</summary>
+        /// <summary>Hostile area workers: don't pick a centre with an ally of the caster inside the radius. Movement,
+        /// targeted: don't land with an ally inside the radius.</summary>
         public bool avoidAllies;
         /// <summary>Hostile workers: leave out pawns the ability would be wasted on: already stunned (a stunning
         /// ability), already have its hediff, already in a mental state (one that gives one). A psycast also skips
@@ -477,7 +492,8 @@ namespace AbilityAI
         /// too (berserk pulse). Unlike a fixed minRange it follows the radius when a stat or another mod scales it.</summary>
         public bool avoidSelf;
         /// <summary>Hostile area and cone workers: not when a building of the caster's side, or of a faction not
-        /// hostile to it, is inside (incendiaries cast by visitors near the player's base).</summary>
+        /// hostile to it, is inside (incendiaries cast by visitors near the player's base). Target hostile: within the
+        /// radius (default 5) of the target.</summary>
         public bool avoidBuildings;
         /// <summary>Cone hostile: width at the far end of the cone; Beam hostile: width all along the beam (at least 1.5).
         /// Negative = read it from the effects, else 1 (a line).</summary>
@@ -486,6 +502,18 @@ namespace AbilityAI
         public AbilityAIFeedOn feedOn;
         /// <summary>Recast: the thing the ability leaves behind that the player's colonists keep up.</summary>
         public ThingDef recastThing;
+        /// <summary>Other factions use the rule only while the matching setting allows it (AbilityAINpcGate). While
+        /// it doesn't, the ability is still this mod's to decide, so VEF's and vanilla's own AI stay off it too.</summary>
+        public AbilityAINpcGate npcGate;
+        /// <summary>Target hostile: only enemies holding a weapon (Disarming Gale).</summary>
+        public bool armedOnly;
+        /// <summary>Movement, targeted: nobody of the caster's side, and no building of its side or a friendly faction's,
+        /// within this many tiles of the straight line from the caster to where it lands, for a dash that burns and
+        /// smashes what it passes (Pyromancer's Blazing dash). 0 = no check.</summary>
+        public float pathClearance;
+        /// <summary>Not while the caster has this hediff: an aura or channel the ability gives the caster alone, which a
+        /// second cast would only restart (Luminis' Radiant beacon).</summary>
+        public HediffDef unlessCasterHas;
         /// <summary>Changes to this rule for every caster that isn't the player's own pawn.</summary>
         public AbilityAIOverride npc;
         /// <summary>Further changes, over npc, for casters not hostile to the player (visitors, traders, allied
@@ -603,6 +631,11 @@ namespace AbilityAI
             if (gapCloseJobTarget && workerClass != null && (!typeof(AbilityAIWorker_Movement).IsAssignableFrom(workerClass)
                 || (modes & AbilityAIMoveModes.GapClose) == 0))
                 yield return "gapCloseJobTarget is only read by a Movement rule with the GapClose mode";
+            if (armedOnly && workerClass != null && !typeof(AbilityAIWorker_TargetHostile).IsAssignableFrom(workerClass))
+                yield return $"armedOnly is only read by Target hostile, not {workerClass.Name}";
+            if (pathClearance < 0f) yield return "pathClearance can't be negative";
+            else if (pathClearance > 0f && workerClass != null && !typeof(AbilityAIWorker_Movement).IsAssignableFrom(workerClass))
+                yield return $"pathClearance is only read by Movement, not {workerClass.Name}";
             if (workerClass != null && typeof(AbilityAIWorker_Recast).IsAssignableFrom(workerClass) && recastThing == null)
                 yield return "a Recast rule needs a recastThing";
             else if (recastThing != null && workerClass != null && !typeof(AbilityAIWorker_Recast).IsAssignableFrom(workerClass))
@@ -1684,6 +1717,11 @@ namespace AbilityAI
                         }
                         // Recast is Basic work (AbilityAIRecastWork), not a cast from the constant tree
                         if (!ext.Worker.DriverCasts) continue;
+                        if (ext.npcGate != AbilityAINpcGate.None && !AbilityAINpcGates.Allows(ext.npcGate, role))
+                        {
+                            if (whyNot != null) WhyNot(a, ext, AbilityAINpcGates.Why(ext.npcGate, role));
+                            continue;
+                        }
                         if (huntOnly && !ext.whileHunting)
                         {
                             WhyNot(a, ext, "not used while hunting");
@@ -1949,11 +1987,12 @@ namespace AbilityAI
             state.returnTries = 0;
         }
 
-        // requires (the caster's weapon), maxLight (the light where it stands) and currentMapOnly
+        // requires (the caster's weapon), maxLight (the light where it stands), currentMapOnly and unlessCasterHas
         private static bool CasterSuits(AbilityAIExtension ext)
         {
             if (ext.currentMapOnly && ctx.map != Find.CurrentMap) return false;
             if (ext.maxLight < 1f && ctx.map.glowGrid.GroundGlowAt(ctx.pawn.Position) > ext.maxLight) return false;
+            if (ext.unlessCasterHas != null && AbilityAIUtility.Has(ctx.pawn, ext.unlessCasterHas)) return false;
             switch (ext.requires)
             {
                 case AbilityAIRequires.Melee: return !ctx.UsesRanged;
@@ -1966,6 +2005,7 @@ namespace AbilityAI
         {
             if (ext.currentMapOnly && ctx.map != Find.CurrentMap) return "its effect lands on the map in view, and this isn't it";
             if (ext.maxLight < 1f && ctx.map.glowGrid.GroundGlowAt(ctx.pawn.Position) > ext.maxLight) return "too bright where it stands";
+            if (ext.unlessCasterHas != null && AbilityAIUtility.Has(ctx.pawn, ext.unlessCasterHas)) return $"it already has {ext.unlessCasterHas.label}";
             return ext.requires == AbilityAIRequires.Melee ? "needs a melee weapon" : "needs a ranged weapon";
         }
 
@@ -2109,6 +2149,39 @@ namespace AbilityAI
         Any,
     }
 
+    /// <summary>npcGate: which gated rules other factions may use now, and which gates any rule uses (the settings for
+    /// the others aren't shown).</summary>
+    public static class AbilityAINpcGates
+    {
+        public static AbilityAINpcGate Used { get; private set; }
+
+        /// <summary>Called at startup for every ability def of every system, beside AbilityAIGather.Note.</summary>
+        public static void Note(Def abilityDef)
+        {
+            var exts = abilityDef?.modExtensions;
+            if (exts == null) return;
+            for (int i = 0; i < exts.Count; i++)
+                if (exts[i] is AbilityAIExtension ext && ext.enabled) Used |= ext.npcGate;
+        }
+
+        internal static bool Allows(AbilityAINpcGate gate, AbilityAIRole role)
+        {
+            if (role == AbilityAIRole.Player) return true;
+            if ((gate & AbilityAINpcGate.InstantKill) != 0 && !AbilityAISettings.NpcInstantKill) return false;
+            if ((gate & AbilityAINpcGate.BaseWrecking) != 0 && (role != AbilityAIRole.Npc || !AbilityAISettings.NpcBaseWrecking)) return false;
+            return true;
+        }
+
+        // For the dev log
+        internal static string Why(AbilityAINpcGate gate, AbilityAIRole role)
+        {
+            if ((gate & AbilityAINpcGate.BaseWrecking) != 0 && role != AbilityAIRole.Npc) return "it wrecks buildings, which only hostile pawns may do";
+            return (gate & AbilityAINpcGate.InstantKill) != 0 && !AbilityAISettings.NpcInstantKill
+                ? "it kills outright, and \"Other factions may use abilities that kill outright\" is off"
+                : "it wrecks buildings, and \"Raiders may use abilities that wreck buildings\" is off";
+        }
+    }
+
     /// <summary>The AI's settings. Static so the hot paths read a field, not an instance; saved through
     /// AbilityAIModSettings and drawn by AbilityAIMod (AbilityAIMod.cs).</summary>
     public static class AbilityAISettings
@@ -2161,6 +2234,10 @@ namespace AbilityAI
         /// other factions'.</summary>
         public static bool GatherWaitPlayer = true;
         public static bool GatherWaitNpcs = true;
+        /// <summary>npcGate: other factions may use abilities that kill or take a pawn for good in one cast, and hostile
+        /// ones abilities that wreck buildings over a wide area.</summary>
+        public static bool NpcInstantKill;
+        public static bool NpcBaseWrecking;
 
         public static bool SkipAllowed(AbilityAISkipMode mode)
         {
@@ -2202,6 +2279,7 @@ namespace AbilityAI
                     break;
                 case Tab.OtherFactions:
                     Hostiles = NonHostiles = Animals = Mechs = Approach = Unclaimed = GatherWaitNpcs = true;
+                    NpcInstantKill = NpcBaseWrecking = false;
                     break;
                 case Tab.YourPawns:
                     PlayerAutocast = UndraftedAutocast = ShowMarker = ChargeGapClose = RecastTrackNewCasts = GatherWaitPlayer = true;
@@ -2247,6 +2325,8 @@ namespace AbilityAI
             Scribe_Values.Look(ref RecastAt, "abilityAI_recastAt", DefaultRecastAt);
             Scribe_Values.Look(ref GatherWaitPlayer, "abilityAI_gatherWaitPlayer", true);
             Scribe_Values.Look(ref GatherWaitNpcs, "abilityAI_gatherWaitNpcs", true);
+            Scribe_Values.Look(ref NpcInstantKill, "abilityAI_npcInstantKill", false);
+            Scribe_Values.Look(ref NpcBaseWrecking, "abilityAI_npcBaseWrecking", false);
             RecastAt = Mathf.Clamp(RecastAt, 0f, 0.5f);
             Scribe_Values.Look(ref CalmBreaks, "abilityAI_calmBreaks", DefaultCalmBreaks);
             Scribe_Values.Look(ref CalmRange, "abilityAI_calmRange", DefaultCalmRange);
@@ -2357,6 +2437,17 @@ namespace AbilityAI
             // Only with a rule that waits, such as the Runesmith Invokes
             if (AbilityAIGather.Any)
                 list.CheckboxLabeled("AAI_GatherWait".Translate(), ref GatherWaitNpcs, "AAI_GatherWaitNpcs_Tip".Translate());
+            // Only with a rule that has the gate, such as the VPE addon paths'
+            var gates = AbilityAINpcGates.Used;
+            if (gates != AbilityAINpcGate.None)
+            {
+                Section(list, "AAI_Section_Dangerous");
+                if ((gates & AbilityAINpcGate.InstantKill) != 0)
+                    list.CheckboxLabeled("AAI_NpcInstantKill".Translate(), ref NpcInstantKill, "AAI_NpcInstantKill_Tip".Translate());
+                if ((gates & AbilityAINpcGate.BaseWrecking) != 0)
+                    list.CheckboxLabeled("AAI_NpcBaseWrecking".Translate(), ref NpcBaseWrecking, "AAI_NpcBaseWrecking_Tip".Translate());
+                Hint(list, "AAI_Dangerous_Desc");
+            }
         }
 
         private static void DoYourPawns(Listing_Standard list)

@@ -30,7 +30,8 @@
         <!-- Degrade: a projectile that makes a humanlike drop its weapon, run wild (it leaves its faction for good)
              and strip. The projectile can hit whoever is in the way, and on a colonist it costs the colony that
              colonist, so it is aimed as a beam: no ally of the caster within 0.75 of the line. One caster per target,
-             4 s to cast. Not for NPCs, who would turn colonists wild. -->
+             4 s to cast. NPCs only with "Other factions may use abilities that kill outright" on, since they would turn
+             colonists wild. -->
         <li Class="PatchOperationConditional">
           <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPEP_Degrade"]</xpath>
           <match Class="PatchOperationAddModExtension">
@@ -42,9 +43,7 @@
                 <targetKinds>Humanlike</targetKinds>
                 <coneWidth>1.5</coneWidth>
                 <exclusive>true</exclusive>
-                <npc>
-                  <enabled>false</enabled>
-                </npc>
+                <npcGate>InstantKill</npcGate>
               </li>
             </value>
           </match>

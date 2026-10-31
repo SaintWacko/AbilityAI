@@ -176,7 +176,8 @@
         </li>
 
         <!-- Mind break: turns one humanlike enemy within 2.9 tiles into a thrall of the caster's faction, for good.
-             60% psyfocus, so last in line and not again for a minute. Not for NPCs, who would thrall colonists. -->
+             60% psyfocus, so last in line and not again for a minute. NPCs only with "Other factions may use abilities
+             that kill outright" on, since they would thrall colonists. -->
         <li Class="PatchOperationConditional">
           <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_MindBreak"]</xpath>
           <match Class="PatchOperationAddModExtension">
@@ -189,9 +190,7 @@
                 <minGapSeconds>60</minGapSeconds>
                 <targetKinds>Humanlike</targetKinds>
                 <exclusive>true</exclusive>
-                <npc>
-                  <enabled>false</enabled>
-                </npc>
+                <npcGate>InstantKill</npcGate>
               </li>
             </value>
           </match>

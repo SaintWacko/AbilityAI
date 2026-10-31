@@ -842,6 +842,10 @@ namespace AbilityAI
     /// During a drafted pawn's melee order (ctx.Charging) only gap-close runs, at the ordered target, for a ranged
     /// pawn too. gapCloseJobTarget: with no enemy pawn (or prey), the target of the caster's melee attack job, a
     /// building included, which is landed beside on a cell it can be touched from.
+    /// Targeted, avoidAllies: no one of the caster's side (allyKinds) within the radius of the landing cell, for an
+    /// impact or a stun where it lands (Gravimpact, Flash skip). pathClearance: no one of its side and no friendly
+    /// building within that many tiles of the line from the caster to the landing cell (Blazing dash); gap-close checks
+    /// it on the cell it picked only.
     /// Cost: escape is 32 × k distance checks, then up to 6 validations;
     /// gap-close with a targeted ability up to 8 validations (one per cell around a building's edge), only while the
     /// target is within its reach.
@@ -884,7 +888,60 @@ namespace AbilityAI
                 if (self) { target = ctx.pawn; ctx.CastAtPrey = prey; return true; }
                 // Even the cell beside the target nearest the caster is out of reach: skip the validations
                 if (d > AbilityAIUtility.Range(ability, ext) + 1.5f + half) return false;
-                if (TryCellNear(ctx, ability, goal, ext.cellMaxLight, out IntVec3 cell)) { target = cell; ctx.CastAtPrey = prey; return true; }
+                if (TryCellNear(ctx, ability, goal, out IntVec3 cell) && PathClear(ctx, cell))
+                {
+                    target = cell;
+                    ctx.CastAtPrey = prey;
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        // avoidAllies: an impact or stun where the caster lands catches whoever stands there; the caster itself has left
+        private bool LandingClear(AbilityAIContext ctx, AIAbility ability, IntVec3 c)
+        {
+            if (!ext.avoidAllies) return true;
+            float r = AbilityAIUtility.Radius(ability, ext);
+            return r <= 0f || !AbilityAIUtility.AllyWithin(ctx, ext, c, r * r, !AbilityAIUtility.MayHitBrokenAllies(ext), true);
+        }
+
+        // pathClearance: Blazing dash stuns and burns every hostile pawn within 1.9 of its line and kills every building
+        // there, walls included, whoever owns them; it spares the caster's side's pawns, but the fires it starts don't.
+        // Cost: a distance check per pawn of the caster's side, then one thing-list read per cell of the line's
+        // neighbourhood (about 13 per tile of the line at 2 tiles).
+        private bool PathClear(AbilityAIContext ctx, IntVec3 to)
+        {
+            float clear = ext.pathClearance;
+            if (clear <= 0f) return true;
+            IntVec3 from = ctx.pawn.Position;
+            float c2 = clear * clear;
+            if (AnyNearLine(ctx.Friendlies, ctx.pawn, from, to, c2)) return false;
+            if (!AbilityAIUtility.MayHitBrokenAllies(ext) && AnyNearLine(ctx.BrokenAllies, ctx.pawn, from, to, c2)) return false;
+            int n = GenRadial.NumCellsInRadius(Mathf.Min(clear, GenRadial.MaxRadialPatternRadius));
+            // GenSight's shared buffer, read straight through: nothing in the loop asks it for another line
+            var line = GenSight.BresenhamCellsBetween(from, to);
+            for (int i = 0; i < line.Count; i++)
+                for (int j = 0; j < n; j++)
+                {
+                    IntVec3 c = line[i] + GenRadial.RadialPattern[j];
+                    if (c.InBounds(ctx.map) && AbilityAIUtility.FriendlyBuildingAt(ctx, c)) return false;
+                }
+            return true;
+        }
+
+        private static bool AnyNearLine(List<Pawn> pawns, Pawn skip, IntVec3 a, IntVec3 b, float r2)
+        {
+            float dx = b.x - a.x, dz = b.z - a.z;
+            float len = dx * dx + dz * dz;
+            for (int i = 0; i < pawns.Count; i++)
+            {
+                Pawn p = pawns[i];
+                if (p == skip) continue;
+                IntVec3 c = p.Position;
+                float t = len > 0f ? Mathf.Clamp01(((c.x - a.x) * dx + (c.z - a.z) * dz) / len) : 0f;
+                float ex = a.x + t * dx - c.x, ez = a.z + t * dz - c.z;
+                if (ex * ex + ez * ez <= r2) return true;
             }
             return false;
         }
@@ -910,9 +967,10 @@ namespace AbilityAI
 
         // The standable cell next to the target nearest the caster that the ability accepts; beside a building, only
         // a cell it can be touched from (no corner cut past a wall)
-        private static bool TryCellNear(AbilityAIContext ctx, AIAbility ability, Thing goal, float maxLight, out IntVec3 best)
+        private bool TryCellNear(AbilityAIContext ctx, AIAbility ability, Thing goal, out IntVec3 best)
         {
             best = IntVec3.Invalid;
+            float maxLight = ext.cellMaxLight;
             float bestD = float.MaxValue;
             if (!(goal is Pawn))
             {
@@ -923,7 +981,7 @@ namespace AbilityAI
                     if (maxLight < 1f && ctx.map.glowGrid.GroundGlowAt(c) > maxLight) continue;
                     float d = (c - ctx.pawn.Position).LengthHorizontalSquared;
                     if (d >= bestD || !ReachabilityImmediate.CanReachImmediate(c, goal, ctx.map, PathEndMode.Touch, ctx.pawn)
-                        || !AbilityAIDriver.Valid(ability, c)) continue;
+                        || !LandingClear(ctx, ability, c) || !AbilityAIDriver.Valid(ability, c)) continue;
                     bestD = d;
                     best = c;
                 }
@@ -937,7 +995,7 @@ namespace AbilityAI
                 if (!c.InBounds(ctx.map) || !c.Standable(ctx.map)) continue;
                 if (maxLight < 1f && ctx.map.glowGrid.GroundGlowAt(c) > maxLight) continue;
                 float d = (c - ctx.pawn.Position).LengthHorizontalSquared;
-                if (d >= bestD || !AbilityAIDriver.Valid(ability, c)) continue;
+                if (d >= bestD || !LandingClear(ctx, ability, c) || !AbilityAIDriver.Valid(ability, c)) continue;
                 bestD = d;
                 best = c;
             }
@@ -971,7 +1029,10 @@ namespace AbilityAI
             }
             spots.Sort((a, b) => b.score.CompareTo(a.score));
             for (int i = 0; i < spots.Count && i < MaxTries; i++)
-                if (AbilityAIDriver.Valid(ability, spots[i].cell)) { result = spots[i].cell; break; }
+            {
+                IntVec3 c = spots[i].cell;
+                if (LandingClear(ctx, ability, c) && AbilityAIDriver.Valid(ability, c) && PathClear(ctx, c)) { result = c; break; }
+            }
             spots.Clear();
             return result.IsValid;
         }

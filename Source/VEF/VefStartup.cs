@@ -35,6 +35,7 @@ namespace AbilityAI.Vef
                 {
                     AbilityAIRecast.Note(defs[i]);
                     AbilityAIGather.Note(defs[i]);
+                    AbilityAINpcGates.Note(defs[i]);
                 }
                 AbilityAIRecast.RegisterLifetime(SpawnedLifetime);
             }

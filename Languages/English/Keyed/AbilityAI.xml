@@ -45,6 +45,12 @@
   <AAI_BlockedJobs_Reset>Reset to defaults</AAI_BlockedJobs_Reset>
   <AAI_GatherWait>Wait for enemies to gather</AAI_GatherWait>
   <AAI_GatherWaitPlayer_Tip>An area attack cast at a fixed spot, such as a Vanilla Psycasts Expanded Runesmith Invoke at a runecircle, holds while more enemies are walking into it. Your pawn reads where each enemy is heading over the next 3 seconds and waits, for at most 5 seconds, while more will be inside soon than when the cast would land. It never casts while one of your pawns is about to walk in.</AAI_GatherWaitPlayer_Tip>
+  <AAI_Section_Dangerous>Abilities that kill outright or wreck bases</AAI_Section_Dangerous>
+  <AAI_NpcInstantKill>Other factions may use abilities that kill outright</AAI_NpcInstantKill>
+  <AAI_NpcInstantKill_Tip>Abilities that kill a pawn, or take it from its faction for good, in one cast: shamblerification, Reap, Deep Skip, Kidney Stone, Mind Break, Degrade and the like. Off: raiders, visitors and allies never use them, so a raid can't turn your colonists into shamblers or thralls. Your own pawns use them whenever you set them to autocast.</AAI_NpcInstantKill_Tip>
+  <AAI_NpcBaseWrecking>Raiders may use abilities that wreck buildings</AAI_NpcBaseWrecking>
+  <AAI_NpcBaseWrecking_Tip>Abilities that destroy buildings over a wide area: meteors, molten pull, a sun beam, a tornado, wildfire, Blazing dash and the like. Off: hostile pawns never use them. Visitors and allies never use them either way, since the buildings nearby would be yours.</AAI_NpcBaseWrecking_Tip>
+  <AAI_Dangerous_Desc>Both are off by default. Each one shows only when an installed mod has such an ability.</AAI_Dangerous_Desc>
   <AAI_GatherWaitNpcs_Tip>Other factions' pawns hold an area attack cast at a fixed spot, such as a Vanilla Psycasts Expanded Runesmith Invoke at a runecircle, while more enemies are walking into it: for at most 5 seconds, while more will be inside within 3 seconds than when the cast would land.</AAI_GatherWaitNpcs_Tip>
   <AAI_ChargeGapClose>Leap at the target of a melee attack order</AAI_ChargeGapClose>
   <AAI_ChargeGapClose_Tip>When you order a drafted pawn to attack someone in melee, it may use a movement ability set to autocast (such as Vanilla Psycasts Expanded's Power Leap, Shadowskip and Ghostwalk) to close the distance, then carries on with the attack. Only while the target is further away than the ability's minimum, and only movement abilities: nothing else is cast during the charge, and the pawn never uses one to run away from the fight you ordered.</AAI_ChargeGapClose_Tip>

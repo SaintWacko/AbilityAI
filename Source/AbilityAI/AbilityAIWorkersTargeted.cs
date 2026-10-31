@@ -67,8 +67,10 @@ namespace AbilityAI
     /// the caster's side (Friendlies, of allyKinds) within that radius (a berserk enemy attacks whoever is nearest). An ally in a
     /// hostile break is skipped, and avoided like a friendly, unless MayHitBrokenAllies. The best five are validated.
     /// Approach: the same out to range + approachDistance. whileHunting: the prey of the caster's hunt is a candidate
-    /// too, scored as its current target.
-    /// Cost: k WouldAffect checks, k² distance checks only with grouping, k×a with meleeOnly or avoidAllies.
+    /// too, scored as its current target. armedOnly: only enemies holding a weapon. avoidBuildings: not at an enemy with a
+    /// friendly building within the radius (default 5), for a fire or blast that spreads past the target (Ignite).
+    /// Cost: k WouldAffect checks, k² distance checks only with grouping, k×a with meleeOnly or avoidAllies; with
+    /// avoidBuildings a pass over the cells in the radius for each of the best five.
     /// </summary>
     public class AbilityAIWorker_TargetHostile : AbilityAIWorker
     {
@@ -83,6 +85,7 @@ namespace AbilityAI
             // An ability that only takes a location (VPE's Frost Ray) is aimed at the enemy's cell
             for (int i = 0; i < cands.Count && i < TargetingUtil.MaxTries; i++)
             {
+                if (ext.avoidBuildings && AbilityAIUtility.FriendlyBuildingWithin(ctx, cands[i].pawn.Position, Near)) continue;
                 target = AbilityAIUtility.PawnOrCell(ability, cands[i].pawn);
                 if (!target.IsValid) continue;
                 ctx.CastAtPrey = ext.whileHunting && cands[i].pawn == ctx.Prey;
@@ -100,18 +103,22 @@ namespace AbilityAI
             for (int i = 0; i < cands.Count && i < TargetingUtil.MaxTries; i++)
             {
                 Pawn p = cands[i].pawn;
+                if (ext.avoidBuildings && AbilityAIUtility.FriendlyBuildingWithin(ctx, p.Position, Near)) continue;
                 if (AbilityAIDriver.ValidIgnoringRange(ability, p) || AbilityAIDriver.ValidIgnoringRange(ability, p.Position)) { goal = p; break; }
             }
             cands.Clear();
             return goal != null;
         }
 
+        // Grouping, avoidAllies and avoidBuildings: how far around the target they look
+        private float Near => ext.radius >= 0f ? ext.radius : 5f;
+
         private void Score(AbilityAIContext ctx, AIAbility ability, float range)
         {
             cands.Clear();
             var enemies = ctx.Enemies;
             float maxSq = range * range, minSq = ext.minRange * ext.minRange;
-            float near = ext.radius >= 0f ? ext.radius : 5f;
+            float near = Near;
             float near2 = near * near;
             bool grouping = ext.preferGrouped || ext.minTargets > 1;
             bool spareBroken = !AbilityAIUtility.MayHitBrokenAllies(ext);
@@ -136,6 +143,7 @@ namespace AbilityAI
             float d = (e.Position - ctx.pawn.Position).LengthHorizontalSquared;
             if (d > maxSq || d < minSq) return;
             if (!AbilityAIUtility.WouldAffect(ability, ext, e)) return;
+            if (ext.armedOnly && e.equipment?.Primary == null) return;
             if (ext.meleeOnly && !AbilityAIUtility.InMeleeWithSide(ctx, e)) return;
             float score = 1f;
             if (isCurrent) score += 1f;

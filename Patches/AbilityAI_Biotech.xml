@@ -258,7 +258,7 @@
           </match>
         </li>
 
-        <!-- Apex Mechanoids' pulse mech: its jump (ParentName LongjumpMech) is for jumping at its next target, so the
+        <!-- Apex Mechanoids' pulse mech: its jump (ParentName LongJumpMech) is for jumping at its next target, so the
              apocriton's escape rule it would inherit is cut off. It gets no rule of its own. -->
         <li Class="PatchOperationConditional">
           <xpath>Defs/AbilityDef[defName="APM_PulseLongjump"]</xpath>

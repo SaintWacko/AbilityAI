@@ -146,8 +146,7 @@ namespace AbilityAI
             return !ext.skipAffected || affected == null || !affected(t);
         }
 
-        /// <summary>A ranged enemy (mechs and animals by their own verbs) whose fight target or current attack job
-        /// is this pawn.</summary>
+        /// <summary>A ranged enemy (mechs and animals by their own verbs) aiming at this pawn (AimTarget).</summary>
         public static bool AimsAt(Pawn e, Pawn pawn) => AbilityAIContext.FightsAtRange(e) && AimTarget(e) == pawn;
 
         /// <summary>Who a pawn is attacking: its fight target, else the target of an attack job, else what its stance is

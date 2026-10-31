@@ -173,6 +173,8 @@ namespace AbilityAI
                     AIAbility a = ready[j].ability;
                     if (!TryFindCastCell(a, spot, spots, out IntVec3 cell) || !a.ValidInRange(cell)
                         || !AbilityAIDriver.PsycastWithinLimits(a, cell)) continue;
+                    // A runecircle is standable, so the walk may end on the cell it would be etched on
+                    if (cell == pawn.Position && spot.thingDef.category == ThingCategory.Building) continue;
                     Job cast = a.MakeCastJob(cell, cell);
                     if (cast == null) continue;
                     if (AbilityAISettings.DebugLog && Prefs.DevMode)

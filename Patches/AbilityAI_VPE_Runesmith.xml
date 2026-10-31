@@ -221,7 +221,8 @@
 
         <!-- Etch Runecircle / Etch Greater Runecircle: each keeps up its own circle; the two don't stand in for
              each other, since a greater circle holds three times the charge. Range 1.7, so the caster walks next
-             to the spot first. -->
+             to the spot first. Better Autocasting for VPE raises the range to 999999 and gives the etch its own
+             walk-then-cast job; the recast then casts from anywhere and that job does the walking. -->
         <li Class="PatchOperationConditional">
           <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPER_Etch_Runecircle"]</xpath>
           <match Class="PatchOperationAddModExtension">

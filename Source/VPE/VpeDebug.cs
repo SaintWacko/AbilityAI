@@ -76,6 +76,73 @@ namespace AbilityAI.Vpe
             ShowStatus(pawn);
         }
 
+        // 3x5 glyphs for the Workshop preview, top row first
+        private static readonly Dictionary<char, string[]> Glyphs = new Dictionary<char, string[]>
+        {
+            ['A'] = new[] { ".#.", "#.#", "###", "#.#", "#.#" },
+            ['B'] = new[] { "##.", "#.#", "##.", "#.#", "##." },
+            ['I'] = new[] { "###", ".#.", ".#.", ".#.", "###" },
+            ['L'] = new[] { "#..", "#..", "#..", "#..", "###" },
+            ['T'] = new[] { "###", ".#.", ".#.", ".#.", ".#." },
+            ['Y'] = new[] { "#.#", "#.#", ".#.", ".#.", ".#." },
+        };
+
+        // A pinhole is drawn 2 tiles wide, so dots closer than 2 run together into a blob
+        private const int Pitch = 2;
+
+        // Stamps "ABILITY" in solar pinholes with "AI" in ice crystals under it, centred on the clicked cell, and
+        // moves the clock to 22:00 so the glow shows
+        [DebugAction("Ability AI", "Stage preview scene", actionType = DebugActionType.ToolMap,
+            allowedGameStates = AllowedGameStates.PlayingOnMap, requiresRoyalty = true)]
+        private static void StagePreviewScene()
+        {
+            var map = Find.CurrentMap;
+            var centre = UI.MouseCell();
+            var pinhole = DefDatabase<ThingDef>.GetNamedSilentFail("SolarPinhole");
+            var crystal = DefDatabase<ThingDef>.GetNamedSilentFail("VPE_IceCrystal");
+            if (pinhole == null || crystal == null || !centre.InBounds(map)) return;
+
+            // Line height 5 dots, a 2 dot gap, then the second line
+            int top = centre.z + (5 + 2 + 5) * Pitch / 2;
+            int placed = Stamp(map, "ABILITY", pinhole, centre.x, top, fillDot: false)
+                + Stamp(map, "AI", crystal, centre.x, top - 7 * Pitch, fillDot: true);
+
+            float hour = GenLocalDate.HourFloat(map);
+            int toNight = (int)((22f - hour + 24f) % 24f * GenDate.TicksPerHour);
+            Find.TickManager.DebugSetTicksGame(Find.TickManager.TicksGame + toNight);
+            Messages.Message($"Preview scene: {placed} things placed", MessageTypeDefOf.TaskCompletion, false);
+        }
+
+        private static int Stamp(Map map, string word, ThingDef def, int centreX, int top, bool fillDot)
+        {
+            int cols = word.Length * 4 - 1;
+            int left = centreX - cols * Pitch / 2;
+            int placed = 0;
+            for (int i = 0; i < word.Length; i++)
+            {
+                var glyph = Glyphs[word[i]];
+                for (int row = 0; row < glyph.Length; row++)
+                for (int col = 0; col < 3; col++)
+                {
+                    if (glyph[row][col] != '#') continue;
+                    var dot = new IntVec3(left + (i * 4 + col) * Pitch, 0, top - row * Pitch);
+                    // A 1x1 crystal on a 2 tile pitch reads as dotted, so crystals fill the whole dot
+                    int size = fillDot ? Pitch : 1;
+                    for (int dx = 0; dx < size; dx++)
+                    for (int dz = 0; dz < size; dz++)
+                    {
+                        var cell = dot + new IntVec3(dx, 0, -dz);
+                        if (!cell.InBounds(map) || cell.Impassable(map)) continue;
+                        var thing = ThingMaker.MakeThing(def);
+                        if (def.category == ThingCategory.Building) thing.SetFactionDirect(Faction.OfPlayer);
+                        GenSpawn.Spawn(thing, cell, map, WipeMode.Vanish);
+                        placed++;
+                    }
+                }
+            }
+            return placed;
+        }
+
         [DebugAction("Ability AI", "Show VPE psycast status", actionType = DebugActionType.ToolMapForPawns,
             allowedGameStates = AllowedGameStates.PlayingOnMap, requiresRoyalty = true)]
         private static void ShowStatus(Pawn pawn)

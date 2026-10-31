@@ -2288,6 +2288,9 @@ namespace AbilityAI
         public const float DefaultMinGapSeconds = 2.5f;
         public static float MinGapSeconds = DefaultMinGapSeconds;
         public static bool DebugLog;
+        /// <summary>Raised when the dev log is switched on in the settings. Dev-only patches that would cost every game
+        /// something are applied from here (and at startup when the saved setting is already on), never otherwise.</summary>
+        internal static event Action DebugLogSwitchedOn;
         /// <summary>Which uses of Skip any caster may make (AbilityAIWorker_Skip).</summary>
         public static bool SkipRepel = true;
         public static bool SkipRescue = true;
@@ -2490,7 +2493,9 @@ namespace AbilityAI
             if (Prefs.DevMode)
             {
                 Section(list, "AAI_Section_Dev");
+                bool wasLogging = DebugLog;
                 list.CheckboxLabeled("AAI_DebugLog".Translate(), ref DebugLog, "AAI_DebugLog_Tip".Translate());
+                if (DebugLog && !wasLogging) DebugLogSwitchedOn?.Invoke();
             }
         }
 

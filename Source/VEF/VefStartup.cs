@@ -20,6 +20,8 @@ namespace AbilityAI.Vef
             VefAIAbility.Init();
             AIAbilitySources.Register(VefAIAbility.Source);
             AbilityAIAutocast.WorldReady += VefAutocast.ConvertAll;
+            if (AbilityAISettings.DebugLog) VefCastTimer.Install();
+            AbilityAISettings.DebugLogSwitchedOn += VefCastTimer.Install;
             var harmony = new Harmony("saintwacko.abilityai.vef");
             foreach (var type in AccessTools.GetTypesFromAssembly(typeof(VefStartup).Assembly))
             {

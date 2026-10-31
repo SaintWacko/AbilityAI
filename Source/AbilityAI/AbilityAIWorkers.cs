@@ -272,12 +272,15 @@ namespace AbilityAI
         public static bool AllyWithin(AbilityAIContext ctx, AbilityAIExtension ext, IntVec3 c, float r2, bool spareBroken, bool skipCaster) =>
             AllyWithin(ctx, ext, c, r2, spareBroken, skipCaster ? ctx.pawn : null);
 
-        /// <summary>AllyWithin, leaving out one pawn (an aura's bearer, which its own aura spares).</summary>
+        /// <summary>AllyWithin, leaving out one pawn (an aura's bearer, which its own aura spares). A rule that isn't
+        /// harmless also keeps clear of the caster's downed faction-mates: a blast, a fire or an outright kill reaches
+        /// a pawn lying down, where a stun would change nothing.</summary>
         public static bool AllyWithin(AbilityAIContext ctx, AbilityAIExtension ext, IntVec3 c, float r2, bool spareBroken, Pawn skip)
         {
             var kinds = ext.allyKinds;
             if (AnyOfKindWithin(ctx.Friendlies, kinds, c, r2, skip)) return true;
             if (spareBroken && AnyOfKindWithin(ctx.BrokenAllies, kinds, c, r2, skip)) return true;
+            if (!ext.harmless && AnyOfKindWithin(ctx.DownedAllies, kinds, c, r2, skip)) return true;
             if ((kinds & AbilityAITargetKinds.Turret) == 0) return false;
             var turrets = ctx.FriendlyTurrets;
             for (int i = 0; i < turrets.Count; i++)

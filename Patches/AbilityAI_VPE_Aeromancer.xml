@@ -34,7 +34,7 @@
 
         <!-- Hypoxia: 49% hypoxia on a living target (not a mech), range 14.9, 5% psyfocus: less consciousness, more pain,
              gone by itself in about 100 s. A third stacked cast would kill, so never at a pawn that has it at any
-             severity. -->
+             severity, and one caster per target. -->
         <li Class="PatchOperationConditional">
           <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_HypoxiaSTNL"]</xpath>
           <match Class="PatchOperationAddModExtension">
@@ -44,6 +44,7 @@
                 <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
                 <priority>2</priority>
                 <hediff>VPE_Cyclone_HypoxiaSTNL</hediff>
+                <exclusive>true</exclusive>
               </li>
             </value>
           </match>

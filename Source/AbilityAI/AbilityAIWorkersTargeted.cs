@@ -70,7 +70,7 @@ namespace AbilityAI
     /// too, scored as its current target. armedOnly: only enemies holding a weapon. avoidBuildings: not at an enemy with a
     /// friendly building within the radius (default 5), for a fire or blast that spreads past the target (Ignite).
     /// Cost: k WouldAffect checks, k² distance checks only with grouping, k×a with meleeOnly or avoidAllies; with
-    /// avoidBuildings a pass over the cells in the radius for each of the best five.
+    /// avoidBuildings a pass over the cells in the radius for each enemy that passes the rest (about 30 at radius 3).
     /// </summary>
     public class AbilityAIWorker_TargetHostile : AbilityAIWorker
     {
@@ -85,7 +85,6 @@ namespace AbilityAI
             // An ability that only takes a location (VPE's Frost Ray) is aimed at the enemy's cell
             for (int i = 0; i < cands.Count && i < TargetingUtil.MaxTries; i++)
             {
-                if (ext.avoidBuildings && AbilityAIUtility.FriendlyBuildingWithin(ctx, cands[i].pawn.Position, Near)) continue;
                 target = AbilityAIUtility.PawnOrCell(ability, cands[i].pawn);
                 if (!target.IsValid) continue;
                 ctx.CastAtPrey = ext.whileHunting && cands[i].pawn == ctx.Prey;
@@ -103,7 +102,6 @@ namespace AbilityAI
             for (int i = 0; i < cands.Count && i < TargetingUtil.MaxTries; i++)
             {
                 Pawn p = cands[i].pawn;
-                if (ext.avoidBuildings && AbilityAIUtility.FriendlyBuildingWithin(ctx, p.Position, Near)) continue;
                 if (AbilityAIDriver.ValidIgnoringRange(ability, p) || AbilityAIDriver.ValidIgnoringRange(ability, p.Position)) { goal = p; break; }
             }
             cands.Clear();
@@ -160,6 +158,8 @@ namespace AbilityAI
                 if (ext.preferGrouped) score *= group;
             }
             if (ext.avoidAllies && AbilityAIUtility.AllyWithin(ctx, ext, e.Position, near2, spareBroken, false)) return;
+            // Here rather than on the best few: when those all stand by a wall, a clear enemy further down still counts
+            if (ext.avoidBuildings && AbilityAIUtility.FriendlyBuildingWithin(ctx, e.Position, Near)) return;
             score /= 1f + Mathf.Sqrt(d) / Mathf.Max(range, 1f);
             cands.Add(new TargetingUtil.Cand { pawn = e, score = score });
         }

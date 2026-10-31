@@ -12,8 +12,9 @@
     <match Class="PatchOperationSequence">
       <operations>
 
-        <!-- Clean: a splash over a 5.5 tile circle (range 15.5) that wipes filth and puts out every fire in it. 3%
-             psyfocus, 5 heat. Used as a fire extinguisher: the worker looks for burning allies and fires near allies
+        <!-- Clean: a splash over a circle (5.5 tiles on 1.6; 3.9 times psychic sensitivity on 1.7, read from the
+             ability) that wipes filth and puts out every fire in it. Cheap. Needs a burning ally (3) or three fires
+             near allies. Used as a fire extinguisher: the worker looks for burning allies and fires near allies
              and picks the spot covering the most, in a fight or not. Visitors and other friendly NPCs leave it alone,
              since it would be the player's fires and filth. -->
         <li Class="PatchOperationConditional">
@@ -25,7 +26,6 @@
                 <workerClass>AbilityAI.AbilityAIWorker_Firefighting</workerClass>
                 <priority>5</priority>
                 <minTargets>3</minTargets>
-                <radius>5.5</radius>
                 <friendlyNpc>
                   <enabled>false</enabled>
                 </friendlyNpc>

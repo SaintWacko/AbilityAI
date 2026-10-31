@@ -631,6 +631,8 @@ namespace AbilityAI
             if (gapCloseJobTarget && workerClass != null && (!typeof(AbilityAIWorker_Movement).IsAssignableFrom(workerClass)
                 || (modes & AbilityAIMoveModes.GapClose) == 0))
                 yield return "gapCloseJobTarget is only read by a Movement rule with the GapClose mode";
+            if (npcGate != AbilityAINpcGate.None && Worker != null && !Worker.DriverCasts)
+                yield return $"npcGate does nothing on {workerClass.Name}: NPCs never cast from it";
             if (armedOnly && workerClass != null && !typeof(AbilityAIWorker_TargetHostile).IsAssignableFrom(workerClass))
                 yield return $"armedOnly is only read by Target hostile, not {workerClass.Name}";
             if (pathClearance < 0f) yield return "pathClearance can't be negative";
@@ -2160,8 +2162,15 @@ namespace AbilityAI
         {
             var exts = abilityDef?.modExtensions;
             if (exts == null) return;
+            // The versions as they will run: an npc or friendlyNpc block can set the gate, or turn on a rule that has one
             for (int i = 0; i < exts.Count; i++)
-                if (exts[i] is AbilityAIExtension ext && ext.enabled) Used |= ext.npcGate;
+                if (exts[i] is AbilityAIExtension rule)
+                {
+                    var npc = rule.For(AbilityAIRole.Npc);
+                    var friendly = rule.For(AbilityAIRole.FriendlyNpc);
+                    if (npc.enabled) Used |= npc.npcGate;
+                    if (friendly.enabled) Used |= friendly.npcGate;
+                }
         }
 
         internal static bool Allows(AbilityAINpcGate gate, AbilityAIRole role)

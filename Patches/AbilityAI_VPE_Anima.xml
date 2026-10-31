@@ -17,7 +17,7 @@
         <!-- Anima vertigo: after a 1 s warmup, everyone within 5.5 tiles of the aimed cell (range 20) gets psychic
              vertigo for 20 s: they vomit and stumble about. It can't reach mechs, but it does reach the caster and its
              allies, so two enemies or more and none of ours within 5.5 tiles of the aim. 6% psyfocus and 65 heat. A
-             pawn that already has the vertigo is skipped; it disables without harm. -->
+             pawn that already has the vertigo is skipped, one caster per group; it disables without harm. -->
         <li Class="PatchOperationConditional">
           <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_AnimaVertigoSTNL"]</xpath>
           <match Class="PatchOperationAddModExtension">
@@ -31,8 +31,10 @@
                 <avoidAllies>true</avoidAllies>
                 <avoidSelf>true</avoidSelf>
                 <approachDistance>8</approachDistance>
+                <targetKinds>Humanlike, Animal, Other</targetKinds>
                 <hediff>PsychicVertigo</hediff>
                 <harmless>true</harmless>
+                <exclusive>true</exclusive>
               </li>
             </value>
           </match>

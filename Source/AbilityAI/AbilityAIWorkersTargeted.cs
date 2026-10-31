@@ -585,8 +585,8 @@ namespace AbilityAI
     /// within 2.5 tiles of an ally (weight 1, at most 60 fires looked at, fires on other pawns left out), within reach
     /// of the caster; the spot whose effect radius covers the most weight wins, best five validated. Water breaks
     /// invisibility, so a spot that would reach an invisible ally is skipped unless someone there is burning. A
-    /// self-cast ability (an area around the caster) only looks within its radius, and casts when what it covers
-    /// weighs at least minTargets. Any time.
+    /// self-cast ability (an area around the caster) only looks within its radius. Either kind casts only when what it
+    /// covers weighs at least minTargets. Any time.
     /// Cost: nothing while the map has no fire; otherwise at most 60 × a distance checks, then a few validations.
     /// </summary>
     public class AbilityAIWorker_Firefighting : AbilityAIWorker
@@ -655,6 +655,7 @@ namespace AbilityAI
             spots.Sort((a, b) => b.score.CompareTo(a.score));
             for (int i = 0; i < spots.Count && i < TargetingUtil.MaxTries; i++)
             {
+                if (spots[i].score < ext.minTargets) break;
                 if (InvisibleAllyNear(allies, spots[i].cell, r2) && !BurningAllyNear(allies, ctx.pawn, spots[i].cell, r2)
                     && !BurningAllyNear(downed, ctx.pawn, spots[i].cell, r2)) continue;
                 if (AbilityAIDriver.Valid(ability, spots[i].cell)) { target = spots[i].cell; break; }

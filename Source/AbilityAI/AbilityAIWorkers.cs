@@ -843,7 +843,7 @@ namespace AbilityAI
     /// pawn too. gapCloseJobTarget: with no enemy pawn (or prey), the target of the caster's melee attack job, a
     /// building included, which is landed beside on a cell it can be touched from.
     /// Targeted, avoidAllies: no one of the caster's side (allyKinds) within the radius of the landing cell, for an
-    /// impact or a stun where it lands (Gravimpact, Flash skip). pathClearance: no one of its side and no friendly
+    /// impact or a stun where it lands (Gravimpact, Flash skip); avoidBuildings: no friendly building there either. pathClearance: no one of its side and no friendly
     /// building within that many tiles of the line from the caster to the landing cell (Blazing dash); gap-close checks
     /// it on the cell it picked only.
     /// Cost: escape is 32 × k distance checks, then up to 6 validations;
@@ -898,12 +898,15 @@ namespace AbilityAI
             return false;
         }
 
-        // avoidAllies: an impact or stun where the caster lands catches whoever stands there; the caster itself has left
+        // avoidAllies, avoidBuildings: an impact or stun where the caster lands catches whatever stands there; the
+        // caster itself has left
         private bool LandingClear(AbilityAIContext ctx, AIAbility ability, IntVec3 c)
         {
-            if (!ext.avoidAllies) return true;
+            if (!ext.avoidAllies && !ext.avoidBuildings) return true;
             float r = AbilityAIUtility.Radius(ability, ext);
-            return r <= 0f || !AbilityAIUtility.AllyWithin(ctx, ext, c, r * r, !AbilityAIUtility.MayHitBrokenAllies(ext), true);
+            if (r <= 0f) return true;
+            if (ext.avoidAllies && AbilityAIUtility.AllyWithin(ctx, ext, c, r * r, !AbilityAIUtility.MayHitBrokenAllies(ext), true)) return false;
+            return !ext.avoidBuildings || !AbilityAIUtility.FriendlyBuildingWithin(ctx, c, r);
         }
 
         // pathClearance: Blazing dash stuns and burns every hostile pawn within 1.9 of its line and kills every building

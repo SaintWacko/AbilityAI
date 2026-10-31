@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ability AI rules for VPE - Anima. Its psycasts are VPE psycasts (VEF abilities), read by the VEF compat assembly
+     and priced by the VPE one. Anima vertigo and Anima banshee are area pulses (VPE's Ability_BerserkPulse) that
+     reach every pawn within 5.5 tiles of the aimed cell, the caster and its side included, so both keep clear of the
+     caster and of allies. Anima reap kills outright and is held back for other factions by the setting for
+     abilities that kill outright.
+     Left out: Anima attunement and Anima mind (self buffs that never end), Animeditation (a meditation that restores
+     psyfocus, a utility), Anima mote, Anima wisp and Anima-link (items made for later use). -->
+<Patch>
+  <Operation Class="PatchOperationFindMod">
+    <mods>
+      <li>VPE - Anima</li>
+    </mods>
+    <match Class="PatchOperationSequence">
+      <operations>
+
+        <!-- Anima vertigo: after a 1 s warmup, everyone within 5.5 tiles of the aimed cell (range 20) gets psychic
+             vertigo for 20 s: they vomit and stumble about. It can't reach mechs, but it does reach the caster and its
+             allies, so two enemies or more and none of ours within 5.5 tiles of the aim. 6% psyfocus and 65 heat. A
+             pawn that already has the vertigo is skipped; it disables without harm. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_AnimaVertigoSTNL"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_AnimaVertigoSTNL"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
+                <priority>3</priority>
+                <minTargets>2</minTargets>
+                <radius>5.5</radius>
+                <avoidAllies>true</avoidAllies>
+                <avoidSelf>true</avoidSelf>
+                <approachDistance>8</approachDistance>
+                <hediff>PsychicVertigo</hediff>
+                <harmless>true</harmless>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Anima banshee: after a 1 s warmup, everyone standing within 5.5 tiles of the aimed cell (range 20), mechs
+             included, panics and runs for 25 s times the caster's psychic sensitivity. It reaches the caster and its
+             allies just the same, so none of ours within 5.5 tiles of the aim. 49% psyfocus and 65 heat, so three
+             enemies or more, tried after vertigo. The flight does no harm, and a second caster on the same group adds
+             nothing. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_AnimaBansheeSTNL"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_AnimaBansheeSTNL"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
+                <priority>2</priority>
+                <minTargets>3</minTargets>
+                <radius>5.5</radius>
+                <avoidAllies>true</avoidAllies>
+                <avoidSelf>true</avoidSelf>
+                <approachDistance>8</approachDistance>
+                <harmless>true</harmless>
+                <exclusive>true</exclusive>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Anima reap: after a 2 s warmup, rips the life out of one creature within 14 tiles: it gets the reaped
+             hediff, lethal at once, and the caster gains +25% psychic sensitivity. 75% psyfocus and 75 heat, so a
+             finisher, tried first, one caster per target. Humanlikes, mechs and other creatures: not animals, so a
+             squirrel never costs 75% psyfocus. Other factions use it only with the setting for abilities that kill
+             outright. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_AnimaReapSTNL"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_AnimaReapSTNL"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
+                <priority>5</priority>
+                <approachDistance>6</approachDistance>
+                <targetKinds>Humanlike, Mechanoid, Other</targetKinds>
+                <hediff>AnimareapedSTNL</hediff>
+                <exclusive>true</exclusive>
+                <npcGate>InstantKill</npcGate>
+              </li>
+            </value>
+          </match>
+        </li>
+
+      </operations>
+    </match>
+  </Operation>
+</Patch>

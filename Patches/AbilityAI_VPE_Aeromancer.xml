@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ability AI rules for VPE - Aeromancer. Its psycasts are VPE psycasts (VEF abilities), read by the VEF compat
+     assembly and priced by the VPE one. The push and pull casts move pawns by setting their position (no damage),
+     then stun them for 1 s; how far is the addon's own setting (5 tiles by default), not the def's.
+     Left out: Pull (one target pulled in, little use), Updraft and Aero Shield (buffs with no clear moment to cast),
+     Delta Stream (weather for the whole map) and Cyclone (razes everything within 20.9 tiles for a day and burns out
+     the caster's psylink). -->
+<Patch>
+  <Operation Class="PatchOperationFindMod">
+    <mods>
+      <li>VPE - Aeromancer</li>
+    </mods>
+    <match Class="PatchOperationSequence">
+      <operations>
+
+        <!-- Push: a gust throws one pawn up to 5 tiles straight away from the caster and stuns it for 1 s. Range 15.5,
+             1% psyfocus. Only at an enemy fighting the caster or an ally in melee, to break the fight off. One caster
+             per target. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_AirPushSTNL"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_AirPushSTNL"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
+                <priority>1</priority>
+                <meleeOnly>true</meleeOnly>
+                <harmless>true</harmless>
+                <exclusive>true</exclusive>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Hypoxia: 49% hypoxia on a living target (not a mech), range 14.9, 5% psyfocus: less consciousness, more pain,
+             gone by itself in about 100 s. A third stacked cast would kill, so never at a pawn that has it at any
+             severity. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_HypoxiaSTNL"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_HypoxiaSTNL"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
+                <priority>2</priority>
+                <hediff>VPE_Cyclone_HypoxiaSTNL</hediff>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Disarming gale: the target's weapon drops on the caster's own cell; the cast does nothing to a pawn with no
+             weapon. Range 14.9, 7% psyfocus. Only at an enemy holding a weapon, one caster per target. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_DisarmingGaleSTNL"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_DisarmingGaleSTNL"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
+                <priority>4</priority>
+                <armedOnly>true</armedOnly>
+                <harmless>true</harmless>
+                <exclusive>true</exclusive>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Mass push: every living pawn within 5 tiles of the spot, friend or foe, is thrown up to 5 tiles away from
+             the caster and stunned for 1 s (the caster is never moved). Three enemies or more, none of ours inside,
+             and the spot within 6 tiles of the caster, so it breaks off a fight rather than throwing far enemies
+             farther. 7% psyfocus. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_MassAirPushSTNL"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_MassAirPushSTNL"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
+                <priority>2</priority>
+                <radius>5</radius>
+                <minTargets>3</minTargets>
+                <maxRange>6</maxRange>
+                <avoidAllies>true</avoidAllies>
+                <harmless>true</harmless>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Mass pull: every living pawn within 5 tiles of the spot, friend or foe, is dragged up to 5 tiles toward the
+             caster and stunned for 1 s. Three enemies or more, none of ours inside, and the spot more than 5 tiles from
+             the caster (enemies already at its feet gain nothing). 7% psyfocus. NPCs only with a melee weapon, as for
+             Mass Beckon. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_MassAirPullSTNL"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_MassAirPullSTNL"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
+                <priority>3</priority>
+                <radius>5</radius>
+                <minTargets>3</minTargets>
+                <avoidAllies>true</avoidAllies>
+                <avoidSelf>true</avoidSelf>
+                <approachDistance>6</approachDistance>
+                <harmless>true</harmless>
+                <npc>
+                  <requires>Melee</requires>
+                </npc>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Tornado: a vanilla tornado at the spot (range 45.5, 45% psyfocus, 90 neural heat). It wanders at 1.7 tiles
+             a second for 45 to 168 s, nobody can say where, damaging everything within 4.2 tiles and random things
+             within 10, and tearing off thin roofs. It hits friend and foe alike, buildings included. Four enemies or
+             more within 20 tiles of the spot, none of ours and no friendly building within 20 either, and the spot at
+             least 20 tiles from the caster. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_TornadoSTNL"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_TornadoSTNL"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
+                <priority>5</priority>
+                <npcGate>BaseWrecking</npcGate>
+                <radius>20</radius>
+                <minTargets>4</minTargets>
+                <avoidAllies>true</avoidAllies>
+                <avoidBuildings>true</avoidBuildings>
+                <avoidSelf>true</avoidSelf>
+              </li>
+            </value>
+          </match>
+        </li>
+
+      </operations>
+    </match>
+  </Operation>
+</Patch>

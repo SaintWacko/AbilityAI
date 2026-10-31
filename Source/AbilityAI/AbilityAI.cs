@@ -493,7 +493,7 @@ namespace AbilityAI
         public bool avoidSelf;
         /// <summary>Hostile area and cone workers: not when a building of the caster's side, or of a faction not
         /// hostile to it, is inside (incendiaries cast by visitors near the player's base). Target hostile: within the
-        /// radius (default 5) of the target.</summary>
+        /// radius (default 5) of the target. Movement, targeted: within the radius of the landing cell.</summary>
         public bool avoidBuildings;
         /// <summary>Cone hostile: width at the far end of the cone; Beam hostile: width all along the beam (at least 1.5).
         /// Negative = read it from the effects, else 1 (a line).</summary>

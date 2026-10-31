@@ -1,0 +1,211 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ability AI rules for VPE - Gravcaster (the Gravmancer tree; needs the Odyssey DLC). Its psycasts are VPE psycasts
+     (VEF abilities), read by the VEF compat assembly and priced by the VPE one. Singularity and Telekinetic
+     satellites act on pawns hostile to the PLAYER, whoever casts them, so hostile NPCs never use them (a raider's
+     Singularity would stun and hurt the raiders); the player's pawns and friendly NPCs do. Molten pull and Meteor
+     strike wreck whatever stands where they land, so they carry the base wrecking gate.
+     Left out: Sky drop (calls down a resource meteorite, a utility), Greater Gravshield (the caster can't shed neural
+     heat while it is up, a cost the AI can't read) and Annihilation (destroys a world map site). -->
+<Patch>
+  <Operation Class="PatchOperationFindMod">
+    <mods>
+      <li>VPE - Gravcaster</li>
+    </mods>
+    <match Class="PatchOperationSequence">
+      <operations>
+
+        <!-- Crush: 10 to 15 blunt damage on one pawn, range 14.9, 5% psyfocus and 15 heat. On a pawn marked by
+             Singularity (Exposure: Crush, 30 seconds) it becomes Collapse instead: a Bomb 35 explosion of radius 2.9
+             around the target, which hurts everyone there. The AI can't tell which of the two a cast will be, so it
+             always keeps allies and friendly buildings 2.9 tiles clear of the target. Cheap filler, tried last. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_CrushSTNL"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_CrushSTNL"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
+                <priority>1</priority>
+                <approachDistance>6</approachDistance>
+                <radius>2.9</radius>
+                <avoidAllies>true</avoidAllies>
+                <avoidBuildings>true</avoidBuildings>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Gravshield: for about 5 hours (12 500 ticks times the caster's psychic sensitivity) every ranged hit on the
+             target does no damage and is thrown back at the shooter. Melee is untouched. Range 16.9, 7% psyfocus and
+             40 heat. On the caster or an ally only while shooters aim at them (or they were just shot), and never on
+             one that already has it. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Gravcaster_Gravshield_STNL"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Gravcaster_Gravshield_STNL"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Defensive</workerClass>
+                <priority>6</priority>
+                <rangedOnly>true</rangedOnly>
+                <minThreats>1</minThreats>
+                <hediff>VPE_Gravcaster_Gravshield_STNL</hediff>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Telekinetic satellites: stones orbit the caster until the hediff is cancelled, firing bursts of scattergun
+             shots at the nearest pawn hostile to the player within 25 tiles and in sight; each shot adds 5 neural heat
+             to the caster. Cast while an enemy is within 25 tiles and the caster doesn't have it. 15% psyfocus and 15
+             heat. Hostile NPCs never: the stones only look for the player's enemies. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_TelekineticSatelliteSTNL"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_TelekineticSatelliteSTNL"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_SelfBuff</workerClass>
+                <priority>5</priority>
+                <maxRange>25</maxRange>
+                <hediff>TelekineticSatellitesSTNL</hediff>
+                <npc>
+                  <enabled>false</enabled>
+                </npc>
+                <friendlyNpc>
+                  <enabled>true</enabled>
+                </friendlyNpc>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Increase gravity: pins one pawn to the ground for 30 000 ticks (about 12 hours): moving set to 0. Range
+             14.9, 12% psyfocus and 15 heat. No damage; never at one that already has it, and a second caster adds
+             nothing. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_IncreasedGravitySTNL"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_IncreasedGravitySTNL"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
+                <priority>3</priority>
+                <approachDistance>6</approachDistance>
+                <hediff>GravityEnhancedSTNL</hediff>
+                <harmless>true</harmless>
+                <exclusive>true</exclusive>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Gravimpact: a Bomb 50 explosion of radius 2.9 at the target cell, then 2 ticks later the caster lands on
+             that cell (the blast is over by then, so the caster isn't hit). Range 30.9, 5% psyfocus and 40 heat.
+             It always ends with the caster among the enemies it blasted, so only melee casters use it.
+             As an attack: aimed at an enemy with another within 2.9 of it, no ally of the caster and no friendly
+             building inside 2.9.
+             As a gap-closer: a melee caster with its target more than 6 tiles off lands beside it, and the blast at
+             the landing cell catches the target; no ally and no friendly building within 2.9 of the landing cell. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_GravimpactSTNL"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_GravimpactSTNL"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
+                <priority>4</priority>
+                <radius>2.9</radius>
+                <minTargets>2</minTargets>
+                <requires>Melee</requires>
+                <avoidAllies>true</avoidAllies>
+                <avoidBuildings>true</avoidBuildings>
+                <avoidSelf>true</avoidSelf>
+              </li>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Movement</workerClass>
+                <priority>2</priority>
+                <modes>GapClose</modes>
+                <radius>2.9</radius>
+                <avoidAllies>true</avoidAllies>
+                <avoidBuildings>true</avoidBuildings>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Molten pull: after a 3 second wind-up, lava rocks fall around the target and leave a temporary lava field.
+             Range 40.9, 12% psyfocus and 80 heat. The area is 2.5 tiles times the caster's psychic sensitivity (1 to
+             18); each cell in it gets a rock with a 5 to 10% chance, and the centre always does. The radius here is 5,
+             the area at sensitivity 2, kept clear of allies and friendly buildings. Two enemies or more. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_MoltenPullSTNL"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_MoltenPullSTNL"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
+                <priority>3</priority>
+                <npcGate>BaseWrecking</npcGate>
+                <radius>5</radius>
+                <minTargets>2</minTargets>
+                <avoidAllies>true</avoidAllies>
+                <avoidBuildings>true</avoidBuildings>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Meteor strike: after a 3 second wind-up, meteorites fall around the target. Range 40.9, 9% psyfocus and 60
+             heat. The same area as Molten pull, but each cell gets a meteorite with a 10 to 20% chance, and the centre
+             always does. Radius 5 for the same reason. Two enemies or more. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_FallingSkySTNL"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_FallingSkySTNL"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
+                <priority>4</priority>
+                <npcGate>BaseWrecking</npcGate>
+                <radius>5</radius>
+                <minTargets>2</minTargets>
+                <avoidAllies>true</avoidAllies>
+                <avoidBuildings>true</avoidBuildings>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Singularity: for 25 seconds, every 25 ticks, every pawn hostile to the PLAYER within 5 tiles of the target
+             cell is pulled a cell toward the centre, takes 2 blunt, is stunned for 60 ticks and marked with Exposure:
+             Crush, which turns Crush into Collapse. Range 18.9, 16% psyfocus and 75 heat. It never touches the
+             caster's allies, so there is no ally check; hostile NPCs never cast it (it would hit their own side). Two
+             enemies or more, skipping those already marked, one caster per group. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_SingularitySTNL"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_SingularitySTNL"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
+                <priority>5</priority>
+                <radius>5</radius>
+                <minTargets>2</minTargets>
+                <hediff>CrushOpportunitySTNL</hediff>
+                <exclusive>true</exclusive>
+                <npc>
+                  <enabled>false</enabled>
+                </npc>
+                <friendlyNpc>
+                  <enabled>true</enabled>
+                </friendlyNpc>
+              </li>
+            </value>
+          </match>
+        </li>
+
+      </operations>
+    </match>
+  </Operation>
+</Patch>

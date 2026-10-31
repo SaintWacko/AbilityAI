@@ -514,6 +514,13 @@ namespace AbilityAI
         /// <summary>Not while the caster has this hediff: an aura or channel the ability gives the caster alone, which a
         /// second cast would only restart (Luminis' Radiant beacon).</summary>
         public HediffDef unlessCasterHas;
+        /// <summary>The ability sets fires, so an enemy holding it is a fire threat to Target friendly's fireDanger.
+        /// One rule of the ability is enough; its radius (else the ability's) is how far the fire spreads past the aim.
+        /// Vanilla's fire spew and fire burst count without it.</summary>
+        public bool startsFires;
+        /// <summary>Target friendly: only allies in fire danger (burning, a fire within 2.5 tiles, or an enemy that
+        /// can set fires in reach of them, see AbilityAIFire) instead of allies who are fighting (Hydro shield).</summary>
+        public bool fireDanger;
         /// <summary>Changes to this rule for every caster that isn't the player's own pawn.</summary>
         public AbilityAIOverride npc;
         /// <summary>Further changes, over npc, for casters not hostile to the player (visitors, traders, allied
@@ -635,6 +642,8 @@ namespace AbilityAI
                 yield return $"npcGate does nothing on {workerClass.Name}: NPCs never cast from it";
             if (armedOnly && workerClass != null && !typeof(AbilityAIWorker_TargetHostile).IsAssignableFrom(workerClass))
                 yield return $"armedOnly is only read by Target hostile, not {workerClass.Name}";
+            if (fireDanger && workerClass != null && !typeof(AbilityAIWorker_TargetFriendly).IsAssignableFrom(workerClass))
+                yield return $"fireDanger is only read by Target friendly, not {workerClass.Name}";
             if (pathClearance < 0f) yield return "pathClearance can't be negative";
             else if (pathClearance > 0f && workerClass != null && !typeof(AbilityAIWorker_Movement).IsAssignableFrom(workerClass))
                 yield return $"pathClearance is only read by Movement, not {workerClass.Name}";

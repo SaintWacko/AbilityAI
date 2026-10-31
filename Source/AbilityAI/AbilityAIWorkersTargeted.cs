@@ -167,10 +167,11 @@ namespace AbilityAI
 
     /// <summary>
     /// Target friendly: a buff on one ally or the caster (Focus, Painblock on someone hurting). Allies in range
-    /// without the ability's hediff; with minPain only those in at least that much pain, otherwise only allies
-    /// fighting now; with auraKinds, only allies whose aura would reach enough enemies (AbilityAIUtility.AuraWorthIt).
-    /// Scored by (1 + pain), the caster x1.5, divided by distance over range. Cost: a checks, and for an aura rule
-    /// a pass over the enemies per ally that gets that far.
+    /// without the ability's hediff; with fireDanger only those in fire danger (AbilityAIFire), with minPain only
+    /// those in at least that much pain, otherwise only allies fighting now; with auraKinds, only allies whose aura
+    /// would reach enough enemies (AbilityAIUtility.AuraWorthIt). Scored by (1 + pain + fire danger), the caster
+    /// x1.5, divided by distance over range. Cost: a checks, and for an aura or fireDanger rule a pass over the
+    /// enemies per ally that gets that far.
     /// </summary>
     public class AbilityAIWorker_TargetFriendly : AbilityAIWorker
     {
@@ -194,9 +195,15 @@ namespace AbilityAI
                 float d = (a.Position - ctx.pawn.Position).LengthHorizontalSquared;
                 if (d > maxSq || AbilityAIUtility.Has(a, hediff) || !AbilityAIUtility.Fits(ext, a)) continue;
                 float pain = a.health?.hediffSet?.PainTotal ?? 0f;
-                if (ext.minPain > 0f ? pain < ext.minPain : !TargetingUtil.Fighting(ctx, a)) continue;
+                float fire = 0f;
+                if (ext.fireDanger)
+                {
+                    fire = AbilityAIFire.Danger(ctx, a);
+                    if (fire <= 0f) continue;
+                }
+                else if (ext.minPain > 0f ? pain < ext.minPain : !TargetingUtil.Fighting(ctx, a)) continue;
                 if (!AbilityAIUtility.AuraWorthIt(ctx, ability, ext, a)) continue;
-                float score = (1f + pain) * (isSelf ? 1.5f : 1f) / (1f + Mathf.Sqrt(d) / Mathf.Max(range, 1f));
+                float score = (1f + pain + fire) * (isSelf ? 1.5f : 1f) / (1f + Mathf.Sqrt(d) / Mathf.Max(range, 1f));
                 cands.Add(new TargetingUtil.Cand { pawn = a, score = score });
             }
             return TargetingUtil.FirstValid(cands, ability, out target);

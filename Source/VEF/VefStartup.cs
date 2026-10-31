@@ -35,11 +35,16 @@ namespace AbilityAI.Vef
                 {
                     AbilityAIRecast.Note(defs[i]);
                     AbilityAIGather.Note(defs[i]);
-                    AbilityAINpcGates.Note(defs[i]);
                 }
                 AbilityAIRecast.RegisterLifetime(SpawnedLifetime);
             }
             catch (Exception e) { Log.Error($"[Ability AI] Setting up recasting for VEF abilities failed; they are not recast: {e}"); }
+            try
+            {
+                var defs = DefDatabase<VEF.Abilities.AbilityDef>.AllDefsListForReading;
+                for (int i = 0; i < defs.Count; i++) AbilityAINpcGates.Note(defs[i]);
+            }
+            catch (Exception e) { Log.Error($"[Ability AI] Setting up the NPC gates for VEF abilities failed; their settings may not show: {e}"); }
         }
 
         // When a thing VEF's spawn abilities left runs out, for recasting. Ability_SpawnBuilding sets finalTick after the

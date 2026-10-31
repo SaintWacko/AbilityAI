@@ -59,8 +59,8 @@
           </match>
         </li>
 
-        <!-- Crimson deadlife burst: a cloud at the aimed cell (range 28.9) that spreads cell to cell for 12 steps
-             (the def's 9.9 plus 30%, which is what the code uses), stopped by closed doors, and lasts about 20
+        <!-- Crimson deadlife burst: a cloud at the aimed cell (range 28.9) that spreads cell to cell for 12 cardinal steps
+             (the def's 9.9 plus 30%, which is what the code uses), so never more than 12 tiles from the aim, stopped by closed doors, and lasts about 20
              seconds. Every pawn standing in it without full toxic resistance gets dustborne necrosis, friend or foe:
              it turns into a shambler only if it dies of it, and tending cures it. 9% psyfocus and 75 neural heat, so
              only for three enemies or more, with nobody of the caster's side and no friendly building within 12 tiles

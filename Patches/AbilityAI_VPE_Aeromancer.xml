@@ -44,6 +44,7 @@
                 <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
                 <priority>2</priority>
                 <hediff>VPE_Cyclone_HypoxiaSTNL</hediff>
+                <targetKinds>Humanlike, Animal, Other</targetKinds>
                 <exclusive>true</exclusive>
               </li>
             </value>
@@ -130,6 +131,7 @@
                 <npcGate>BaseWrecking</npcGate>
                 <radius>20</radius>
                 <minTargets>4</minTargets>
+                <exclusive>true</exclusive>
                 <avoidAllies>true</avoidAllies>
                 <avoidBuildings>true</avoidBuildings>
                 <avoidSelf>true</avoidSelf>

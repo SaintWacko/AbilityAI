@@ -1610,10 +1610,12 @@ namespace AbilityAI
                     float side = Mathf.Max(s.minHalf, length * s.tanHalf);
                     float ex = from.x + dir.x * length, ez = from.z + dir.y * length;
                     float px = -dir.y * side, pz = dir.x * side;
-                    int minX = Mathf.FloorToInt(Mathf.Min(from.x, Mathf.Min(ex + px, ex - px))) - 1;
-                    int maxX = Mathf.CeilToInt(Mathf.Max(from.x, Mathf.Max(ex + px, ex - px))) + 1;
-                    int minZ = Mathf.FloorToInt(Mathf.Min(from.z, Mathf.Min(ez + pz, ez - pz))) - 1;
-                    int maxZ = Mathf.CeilToInt(Mathf.Max(from.z, Mathf.Max(ez + pz, ez - pz))) + 1;
+                    // A beam is as wide at the caster as at its end (minHalf), which a wide one aimed diagonally needs
+                    float qx = -dir.y * s.minHalf, qz = dir.x * s.minHalf;
+                    int minX = Mathf.FloorToInt(Mathf.Min(Mathf.Min(from.x + qx, from.x - qx), Mathf.Min(ex + px, ex - px))) - 1;
+                    int maxX = Mathf.CeilToInt(Mathf.Max(Mathf.Max(from.x + qx, from.x - qx), Mathf.Max(ex + px, ex - px))) + 1;
+                    int minZ = Mathf.FloorToInt(Mathf.Min(Mathf.Min(from.z + qz, from.z - qz), Mathf.Min(ez + pz, ez - pz))) - 1;
+                    int maxZ = Mathf.CeilToInt(Mathf.Max(Mathf.Max(from.z + qz, from.z - qz), Mathf.Max(ez + pz, ez - pz))) + 1;
                     return CellRect.FromLimits(minX, minZ, maxX, maxZ);
                 }
             }

@@ -106,10 +106,15 @@ namespace AbilityAI
                 {
                     AbilityAIRecast.Note(abilityDefs[i]);
                     AbilityAIGather.Note(abilityDefs[i]);
-                    AbilityAINpcGates.Note(abilityDefs[i]);
                 }
             }
             catch (Exception e) { Log.Error($"[Ability AI] Setting up recasting failed; nothing is recast: {e}"); }
+            try
+            {
+                var abilityDefs = DefDatabase<AbilityDef>.AllDefsListForReading;
+                for (int i = 0; i < abilityDefs.Count; i++) AbilityAINpcGates.Note(abilityDefs[i]);
+            }
+            catch (Exception e) { Log.Error($"[Ability AI] Setting up the NPC gates failed; their settings may not show: {e}"); }
         }
     }
 

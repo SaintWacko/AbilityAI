@@ -583,6 +583,18 @@ namespace AbilityAI
             else RecastSpots.Of(parent.Map)?.Notify_Spawned(parent);
         }
 
+        // A runecircle is a building the player can deconstruct: that is the player taking it away, so its spot goes
+        // with it rather than leaving a marker for a colonist to etch it straight back. Any other end (worn out,
+        // broken by a raid, used up by an invoke) leaves the marker.
+        public override void PostDestroy(DestroyMode mode, Map previousMap)
+        {
+            base.PostDestroy(mode, previousMap);
+            if (mode != DestroyMode.Deconstruct || !kept) return;
+            var spots = RecastSpots.Of(previousMap);
+            var spot = spots?.For(parent);
+            if (spot != null) spots.Remove(spot);
+        }
+
         public override void PostExposeData()
         {
             base.PostExposeData();

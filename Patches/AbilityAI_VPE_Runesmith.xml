@@ -9,7 +9,10 @@
      circle at a time. The attacks work like traps: an enemy group at a circle sets them off, whether or not the
      caster is fighting or drafted. Hagalaz and Sowilo wait while more enemies are walking into the circle
      (waitForGather), up to 5 s.
-     Left out: Etch Runecircle and Etch Greater Runecircle (41 and 125 s to cast, 60 and 90% psyfocus). -->
+     Etch Runecircle and Etch Greater Runecircle are Recast rules: a circle a colonist etched is etched again where
+     it stood once it is destroyed (an Isa invoke with no free tile beside the circle destroys it too; a circle the
+     player deconstructs is let go). Circles never expire, so nothing is recast while one stands. Recasting is Basic
+     work, never combat and never NPCs (41 and 125 s to cast, 60 and 90% psyfocus). -->
 <Patch>
   <Operation Class="PatchOperationFindMod">
     <mods>
@@ -211,6 +214,34 @@
                 <hediff>VPER_Healing_Ban</hediff>
                 <avoidEnemies>true</avoidEnemies>
                 <currentMapOnly>true</currentMapOnly>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Etch Runecircle / Etch Greater Runecircle: each keeps up its own circle; the two don't stand in for
+             each other, since a greater circle holds three times the charge. Range 1.7, so the caster walks next
+             to the spot first. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPER_Etch_Runecircle"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPER_Etch_Runecircle"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Recast</workerClass>
+                <recastThing>VPER_Runecircle_Standard</recastThing>
+              </li>
+            </value>
+          </match>
+        </li>
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPER_Etch_Runecircle_Greater"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPER_Etch_Runecircle_Greater"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Recast</workerClass>
+                <recastThing>VPER_Runecircle_Greater</recastThing>
               </li>
             </value>
           </match>

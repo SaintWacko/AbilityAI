@@ -144,6 +144,7 @@
             <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_MoltenPullSTNL"]</xpath>
             <value>
               <li Class="AbilityAI.AbilityAIExtension">
+                <startsFires>true</startsFires>
                 <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
                 <priority>3</priority>
                 <npcGate>BaseWrecking</npcGate>

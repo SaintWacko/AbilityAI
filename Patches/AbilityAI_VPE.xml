@@ -1147,6 +1147,7 @@
             <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_ChainBolt"]</xpath>
             <value>
               <li Class="AbilityAI.AbilityAIExtension">
+                <startsFires>true</startsFires>
                 <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
                 <priority>3</priority>
                 <minTargets>2</minTargets>
@@ -1264,6 +1265,7 @@
             <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Flashstorm"]</xpath>
             <value>
               <li Class="AbilityAI.AbilityAIExtension">
+                <startsFires>true</startsFires>
                 <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
                 <priority>3</priority>
                 <minTargets>4</minTargets>

@@ -246,15 +246,19 @@ namespace AbilityAI
 
         // A cell within range of the target with a line of sight to it, nearest the pawn first. A margin off the
         // range keeps the verb's own check (from the exact cell, inclusive or not by system) from failing on arrival.
+        // A touch-range ability (Runesmith's etch, range 1.7) can't afford the full margin, which would leave no
+        // cell at all, so it takes the cells next to the target, whose distances (1 and 1.41) sit clear of 1.7.
+        // Never the target cell itself: the thing would spawn under the caster.
         private static bool TryFindStandCell(Pawn pawn, AIAbility a, IntVec3 target, out IntVec3 stand)
         {
             stand = IntVec3.Invalid;
             Map map = pawn.Map;
-            float range = Mathf.Min(a.Range - 1.5f, GenRadial.MaxRadialPatternRadius - 1f);
+            float range = a.Range >= 3f ? a.Range - 1.5f : a.Range - 0.25f;
+            range = Mathf.Min(range, GenRadial.MaxRadialPatternRadius - 1f);
             if (range < 1f) return false;
             int count = GenRadial.NumCellsInRadius(range);
             standCells.Clear();
-            for (int i = 0; i < count; i++)
+            for (int i = 1; i < count; i++)
             {
                 IntVec3 c = target + GenRadial.RadialPattern[i];
                 if (c.InBounds(map) && c.Standable(map) && !c.Fogged(map)) standCells.Add(c);

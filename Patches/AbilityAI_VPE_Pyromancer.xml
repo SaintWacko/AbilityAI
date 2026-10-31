@@ -71,6 +71,7 @@
               <li Class="AbilityAI.AbilityAIExtension">
                 <startsFires>true</startsFires>
                 <workerClass>AbilityAI.AbilityAIWorker_SelfBuff</workerClass>
+                <radius>1.9</radius>
                 <priority>3</priority>
                 <hediff>VPE_Pyromancer_Emberize_STNL</hediff>
               </li>

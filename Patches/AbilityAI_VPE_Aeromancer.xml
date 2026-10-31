@@ -80,7 +80,6 @@
               <li Class="AbilityAI.AbilityAIExtension">
                 <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
                 <priority>2</priority>
-                <radius>5</radius>
                 <minTargets>3</minTargets>
                 <maxRange>6</maxRange>
                 <avoidAllies>true</avoidAllies>
@@ -102,7 +101,6 @@
               <li Class="AbilityAI.AbilityAIExtension">
                 <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
                 <priority>3</priority>
-                <radius>5</radius>
                 <minTargets>3</minTargets>
                 <avoidAllies>true</avoidAllies>
                 <avoidSelf>true</avoidSelf>

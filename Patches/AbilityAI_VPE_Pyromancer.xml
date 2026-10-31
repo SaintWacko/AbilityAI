@@ -87,7 +87,6 @@
               <li Class="AbilityAI.AbilityAIExtension">
                 <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
                 <priority>5</priority>
-                <radius>14.9</radius>
                 <minTargets>3</minTargets>
                 <avoidAllies>true</avoidAllies>
                 <avoidBuildings>true</avoidBuildings>

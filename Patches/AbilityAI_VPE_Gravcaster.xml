@@ -115,7 +115,6 @@
               <li Class="AbilityAI.AbilityAIExtension">
                 <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
                 <priority>4</priority>
-                <radius>2.9</radius>
                 <minTargets>2</minTargets>
                 <requires>Melee</requires>
                 <avoidAllies>true</avoidAllies>
@@ -126,7 +125,6 @@
                 <workerClass>AbilityAI.AbilityAIWorker_Movement</workerClass>
                 <priority>2</priority>
                 <modes>GapClose</modes>
-                <radius>2.9</radius>
                 <avoidAllies>true</avoidAllies>
                 <avoidBuildings>true</avoidBuildings>
               </li>
@@ -190,7 +188,6 @@
               <li Class="AbilityAI.AbilityAIExtension">
                 <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
                 <priority>5</priority>
-                <radius>5</radius>
                 <minTargets>2</minTargets>
                 <hediff>CrushOpportunitySTNL</hediff>
                 <exclusive>true</exclusive>

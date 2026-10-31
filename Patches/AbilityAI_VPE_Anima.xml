@@ -27,7 +27,6 @@
                 <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
                 <priority>3</priority>
                 <minTargets>2</minTargets>
-                <radius>5.5</radius>
                 <avoidAllies>true</avoidAllies>
                 <avoidSelf>true</avoidSelf>
                 <approachDistance>8</approachDistance>
@@ -54,7 +53,6 @@
                 <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
                 <priority>2</priority>
                 <minTargets>3</minTargets>
-                <radius>5.5</radius>
                 <avoidAllies>true</avoidAllies>
                 <avoidSelf>true</avoidSelf>
                 <approachDistance>8</approachDistance>

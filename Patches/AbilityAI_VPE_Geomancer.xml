@@ -49,7 +49,6 @@
               <li Class="AbilityAI.AbilityAIExtension">
                 <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
                 <priority>3</priority>
-                <radius>4.5</radius>
                 <minTargets>2</minTargets>
                 <avoidAllies>true</avoidAllies>
                 <harmless>true</harmless>
@@ -96,7 +95,6 @@
                   <li>ChunkMarble</li>
                   <li MayRequire="Ludeon.RimWorld.Odyssey">ChunkVacstone</li>
                 </anchorThings>
-                <radius>2</radius>
                 <avoidAllies>true</avoidAllies>
               </li>
             </value>
@@ -142,7 +140,6 @@
               <li Class="AbilityAI.AbilityAIExtension">
                 <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
                 <priority>7</priority>
-                <radius>1.5</radius>
                 <avoidAllies>true</avoidAllies>
                 <npcGate>InstantKill</npcGate>
               </li>

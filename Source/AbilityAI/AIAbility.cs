@@ -603,6 +603,8 @@ namespace AbilityAI
                         // Psycast.CanApplyPsycastTo: once any comp is psychic, any comp not for mechs rules them out
                         if (!ae.applicableToMechs) e.notOnMechs = true;
                     }
+                    if (c is CompProperties_AbilityFireBurst burst && !e.hasEffectRadius) { e.hasEffectRadius = true; e.effectRadius = burst.radius; }
+                    if (c is CompProperties_AbilityFirefoampop foam && !e.hasEffectRadius) { e.hasEffectRadius = true; e.effectRadius = foam.firefoamRadius; }
                     if (c is CompProperties_AbilitySmokepop smoke)
                     {
                         e.smoke = true;

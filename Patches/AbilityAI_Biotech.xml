@@ -176,7 +176,6 @@
               <li Class="AbilityAI.AbilityAIExtension">
                 <workerClass>AbilityAI.AbilityAIWorker_Firefighting</workerClass>
                 <priority>6</priority>
-                <radius>3.5</radius>
                 <minTargets>3</minTargets>
               </li>
             </value>
@@ -193,7 +192,6 @@
               <li Class="AbilityAI.AbilityAIExtension">
                 <workerClass>AbilityAI.AbilityAIWorker_AoEHostileSelf</workerClass>
                 <priority>4</priority>
-                <radius>5.9</radius>
                 <minTargets>2</minTargets>
                 <avoidAllies>true</avoidAllies>
                 <avoidBuildings>true</avoidBuildings>

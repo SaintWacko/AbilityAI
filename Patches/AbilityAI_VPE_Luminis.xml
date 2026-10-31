@@ -26,7 +26,6 @@
               <li Class="AbilityAI.AbilityAIExtension">
                 <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
                 <priority>4</priority>
-                <radius>5.9</radius>
                 <minTargets>2</minTargets>
                 <avoidAllies>true</avoidAllies>
                 <avoidSelf>true</avoidSelf>
@@ -50,7 +49,6 @@
               <li Class="AbilityAI.AbilityAIExtension">
                 <workerClass>AbilityAI.AbilityAIWorker_Movement</workerClass>
                 <priority>4</priority>
-                <radius>5.9</radius>
                 <avoidAllies>true</avoidAllies>
                 <harmless>true</harmless>
               </li>
@@ -90,7 +88,6 @@
                 <workerClass>AbilityAI.AbilityAIWorker_AoEFriendly</workerClass>
                 <priority>5</priority>
                 <combat>Any</combat>
-                <radius>5</radius>
                 <minTargets>2</minTargets>
                 <health>Injured, Bleeding</health>
                 <unlessCasterHas>VPE_RadiantBeaconSTNL</unlessCasterHas>
@@ -112,7 +109,6 @@
               <li Class="AbilityAI.AbilityAIExtension">
                 <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
                 <priority>2</priority>
-                <radius>15</radius>
                 <minTargets>3</minTargets>
                 <avoidAllies>true</avoidAllies>
                 <avoidBuildings>true</avoidBuildings>

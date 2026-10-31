@@ -1739,6 +1739,9 @@ namespace AbilityAI
                 // Ready abilities with a worker, highest priority first (insertion sort: a pawn holds a handful). An
                 // ability with several extensions is a candidate once per extension.
                 candidates.Clear();
+                // A rule that works outside a fight, candidate or not (on cooldown, short of charges, wrong light): the
+                // NPC idle wait below would hold it back once it comes ready
+                bool outOfFightRule = false;
                 for (int i = 0; i < abilities.Count; i++)
                 {
                     AIAbility a = abilities[i];
@@ -1761,6 +1764,7 @@ namespace AbilityAI
                             if (whyNot != null) WhyNot(a, ext, AbilityAINpcGates.Why(ext.npcGate, role));
                             continue;
                         }
+                        if (ext.Worker.Combat != AbilityAICombat.InCombat) outOfFightRule = true;
                         if (huntOnly && !ext.whileHunting)
                         {
                             WhyNot(a, ext, "not used while hunting");
@@ -1786,6 +1790,11 @@ namespace AbilityAI
                         if (!ready)
                         {
                             if (whyNot != null) WhyNot(a, null, NotReadyWhy(pawn, a, state, tick, player));
+                            // The ability's later rules are never reached
+                            for (int k = j + 1; k < exts.Count && !outOfFightRule; k++)
+                                if (exts[k] is AbilityAIExtension later && later.For(role).Worker is AbilityAIWorker w
+                                    && w.DriverCasts && w.Combat != AbilityAICombat.InCombat)
+                                    outOfFightRule = true;
                             break;
                         }
                         if (ext.reserveCharges > 0 && a.UsesCharges && a.RemainingCharges <= ext.reserveCharges)
@@ -1807,7 +1816,7 @@ namespace AbilityAI
 
                 // Every candidate refused for want of a fight and none got as far as a target search: an NPC then
                 // waits NpcIdleIntervalTicks. A rule that works outside combat keeps the 30-tick check.
-                bool waitingForFight = !player;
+                bool waitingForFight = !player && !outOfFightRule;
                 for (int i = 0; i < candidates.Count; i++)
                 {
                     AIAbility a = candidates[i].ability;

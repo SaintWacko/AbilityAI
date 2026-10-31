@@ -393,7 +393,9 @@ namespace AbilityAI
             if (pe == null || pe.PsychicSensitivity < float.Epsilon) return false;
             float gain = ability.def.EntropyGain;
             if (gain > float.Epsilon && pe.WouldOverflowEntropy(gain + PsycastUtility.TotalEntropyFromQueuedPsycasts(pawn))) return false;
-            return ability.def.PsyfocusCost + PsycastUtility.TotalPsyfocusCostOfQueuedPsycasts(pawn)
+            float cost = ability.def.PsyfocusCost;
+            // ValidateTarget only checks psyfocus for a psycast that costs some
+            return cost <= float.Epsilon || cost + PsycastUtility.TotalPsyfocusCostOfQueuedPsycasts(pawn)
                 <= pe.CurrentPsyfocus + Pawn_PsychicEntropyTracker.PsyfocusCostTolerance;
         }
 

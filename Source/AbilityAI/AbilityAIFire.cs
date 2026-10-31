@@ -79,8 +79,9 @@ namespace AbilityAI
                 {
                     var rule = FireRule(abilities[i].Def);
                     if (rule == null) continue;
-                    reach = Mathf.Max(reach, Mathf.Max(abilities[i].Range, 0f)
-                        + Mathf.Max(AbilityAIUtility.Radius(abilities[i], rule), 0f));
+                    // A self-cast's range is how far its own targeting reaches (FireBurst's 5.9), not a throw
+                    float range = AbilityAIUtility.IsSelfCast(abilities[i]) ? 0f : Mathf.Max(abilities[i].Range, 0f);
+                    reach = Mathf.Max(reach, range + Mathf.Max(AbilityAIUtility.Radius(abilities[i], rule), 0f));
                 }
                 abilities.Clear();
             }

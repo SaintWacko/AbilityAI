@@ -404,13 +404,13 @@ namespace AbilityAI
         /// one of those defs, are walls, or, when a listed def is a plant, have no fertility, a tree or an edifice. Stops as soon as the
         /// answer is known either way. Cost: up to one thing-list read per cell (113 for radius 6), only for rules
         /// that set coveredBy, and only for the few centres the worker tries. A faction-mate's cast of the same ability
-        /// at a target within radius of centre counts as covering it (AbilityAIDriver.MateCastingNear), checked first:
-        /// the claims list is short and built once per evaluation.</summary>
+        /// close enough that its area would cover coveredFraction of this one counts as covering it
+        /// (AbilityAIDriver.MateCastingNear), checked first: the claims list is short and built once per evaluation.</summary>
         public static bool Covered(AbilityAIContext ctx, AIAbility ability, AbilityAIExtension ext, IntVec3 centre, float radius)
         {
             var defs = ext.coveredBy;
             if (defs == null || defs.Count == 0) return false;
-            if (AbilityAIDriver.MateCastingNear(ability.Def, centre, radius)) return true;
+            if (AbilityAIDriver.MateCastingNear(ability.Def, centre, radius * ext.CoverDistanceFactor)) return true;
             bool plant = false;
             for (int i = 0; i < defs.Count; i++)
                 if (defs[i].plant != null) { plant = true; break; }
@@ -603,7 +603,7 @@ namespace AbilityAI
                 if (AbilityAIUtility.Covered(ctx, ability, ext, centre.Position, radius))
                 {
                     if (AbilityAISettings.DebugLog)
-                        ctx.NoTargetWhy = AbilityAIDriver.MateCastingNear(ability.Def, centre.Position, radius)
+                        ctx.NoTargetWhy = AbilityAIDriver.MateCastingNear(ability.Def, centre.Position, radius * ext.CoverDistanceFactor)
                             ? $"a mate's cast is already landing near {centre.LabelShort}"
                             : $"the area around {centre.LabelShort} is already covered";
                     continue;

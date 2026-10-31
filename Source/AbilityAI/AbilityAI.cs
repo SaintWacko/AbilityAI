@@ -494,6 +494,29 @@ namespace AbilityAI
         /// nothing new grows there.</summary>
         public List<ThingDef> coveredBy;
         public float coveredFraction = 0.5f;
+        [Unsaved] private float coverDistanceFactor = -1f;
+
+        /// <summary>The centre distance, as a fraction of the radius, at which two discs of one radius share
+        /// coveredFraction of their area (0.81 at the default 0.5). A mate's cast in warmup covers the centres this
+        /// close to its target, the ones its brambles would cover once down (AbilityAIDriver.MateCastingNear).</summary>
+        public float CoverDistanceFactor
+        {
+            get
+            {
+                if (coverDistanceFactor < 0f)
+                {
+                    float lo = 0f, hi = 2f;
+                    for (int i = 0; i < 24; i++)
+                    {
+                        float x = (lo + hi) * 0.5f;
+                        float shared = (2f * Mathf.Acos(x * 0.5f) - x * 0.5f * Mathf.Sqrt(4f - x * x)) / Mathf.PI;
+                        if (shared >= coveredFraction) lo = x; else hi = x;
+                    }
+                    coverDistanceFactor = lo;
+                }
+                return coverDistanceFactor;
+            }
+        }
         /// <summary>AoE hostile: never centre the area within its radius of the caster, for areas that hit the caster
         /// too (berserk pulse). Unlike a fixed minRange it follows the radius when a stat or another mod scales it.</summary>
         public bool avoidSelf;
@@ -574,6 +597,8 @@ namespace AbilityAI
             copy.npc = copy.friendlyNpc = null;
             copy.npcRule = copy.friendlyNpcRule = null;
             copy.rulesBuilt = false;
+            // the role block may set its own coveredFraction
+            copy.coverDistanceFactor = -1f;
             return copy;
         }
 
@@ -1197,8 +1222,9 @@ namespace AbilityAI
         private static bool curPlayer;
 
         // Casts the evaluated pawn's faction-mates have under way (running, or walking into range for), for exclusive
-        // workers: built on the first exclusive target check of an evaluation, from the mates' current jobs rather
-        // than a record of what this AI started, so a cast the player ordered or vanilla's or VEF's AI began counts too
+        // workers and coveredBy rules: built on the first such check of an evaluation, from the mates' current jobs
+        // rather than a record of what this AI started, so a cast the player ordered or vanilla's or VEF's AI began
+        // counts too
         private struct Claim { public Def def; public LocalTargetInfo target; }
         private static readonly List<Claim> claims = new List<Claim>();
         private static bool claimsBuilt;
@@ -1564,14 +1590,14 @@ namespace AbilityAI
         }
 
         /// <summary>A faction-mate of the pawn being evaluated is casting def (in warmup, or walking into range to) at a
-        /// target within radius of centre. For coveredBy: a cast still in warmup has put nothing on the ground yet, so
+        /// target within distance of centre. For coveredBy: a cast still in warmup has put nothing on the ground yet, so
         /// without this every caster that looks before it lands picks the same spot (run 3 of build 0179: 7 Bramble
         /// maze casts on one spot within 2 s). False outside an evaluation.</summary>
-        internal static bool MateCastingNear(Def def, IntVec3 centre, float radius)
+        internal static bool MateCastingNear(Def def, IntVec3 centre, float distance)
         {
             if (!evaluating) return false;
             if (!claimsBuilt) BuildClaims(ctx.pawn);
-            float r2 = radius * radius;
+            float r2 = distance * distance;
             for (int i = 0; i < claims.Count; i++)
                 if (claims[i].def == def && (claims[i].target.Cell - centre).LengthHorizontalSquared <= r2) return true;
             return false;

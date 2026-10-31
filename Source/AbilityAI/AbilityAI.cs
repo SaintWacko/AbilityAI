@@ -1563,6 +1563,20 @@ namespace AbilityAI
             return false;
         }
 
+        /// <summary>A faction-mate of the pawn being evaluated is casting def (in warmup, or walking into range to) at a
+        /// target within radius of centre. For coveredBy: a cast still in warmup has put nothing on the ground yet, so
+        /// without this every caster that looks before it lands picks the same spot (run 3 of build 0179: 7 Bramble
+        /// maze casts on one spot within 2 s). False outside an evaluation.</summary>
+        internal static bool MateCastingNear(Def def, IntVec3 centre, float radius)
+        {
+            if (!evaluating) return false;
+            if (!claimsBuilt) BuildClaims(ctx.pawn);
+            float r2 = radius * radius;
+            for (int i = 0; i < claims.Count; i++)
+                if (claims[i].def == def && (claims[i].target.Cell - centre).LengthHorizontalSquared <= r2) return true;
+            return false;
+        }
+
         // Cost: one pass over the faction's spawned pawns, a job def test each (the sources answer from it first)
         private static void BuildClaims(Pawn pawn)
         {

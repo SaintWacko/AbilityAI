@@ -403,11 +403,14 @@ namespace AbilityAI
         /// <summary>coveredBy: at least coveredFraction of the cells within radius of centre (on the map) already hold
         /// one of those defs, are walls, or, when a listed def is a plant, have no fertility, a tree or an edifice. Stops as soon as the
         /// answer is known either way. Cost: up to one thing-list read per cell (113 for radius 6), only for rules
-        /// that set coveredBy, and only for the few centres the worker tries.</summary>
-        public static bool Covered(AbilityAIContext ctx, AbilityAIExtension ext, IntVec3 centre, float radius)
+        /// that set coveredBy, and only for the few centres the worker tries. A faction-mate's cast of the same ability
+        /// at a target within radius of centre counts as covering it (AbilityAIDriver.MateCastingNear), checked first:
+        /// the claims list is short and built once per evaluation.</summary>
+        public static bool Covered(AbilityAIContext ctx, AIAbility ability, AbilityAIExtension ext, IntVec3 centre, float radius)
         {
             var defs = ext.coveredBy;
             if (defs == null || defs.Count == 0) return false;
+            if (AbilityAIDriver.MateCastingNear(ability.Def, centre, radius)) return true;
             bool plant = false;
             for (int i = 0; i < defs.Count; i++)
                 if (defs[i].plant != null) { plant = true; break; }
@@ -597,9 +600,12 @@ namespace AbilityAI
             {
                 Thing centre = centres[i].thing;
                 if (ext.avoidBuildings && AbilityAIUtility.FriendlyBuildingWithin(ctx, centre.Position, radius, centre)) continue;
-                if (AbilityAIUtility.Covered(ctx, ext, centre.Position, radius))
+                if (AbilityAIUtility.Covered(ctx, ability, ext, centre.Position, radius))
                 {
-                    if (AbilityAISettings.DebugLog) ctx.NoTargetWhy = $"the area around {centre.LabelShort} is already covered";
+                    if (AbilityAISettings.DebugLog)
+                        ctx.NoTargetWhy = AbilityAIDriver.MateCastingNear(ability.Def, centre.Position, radius)
+                            ? $"a mate's cast is already landing near {centre.LabelShort}"
+                            : $"the area around {centre.LabelShort} is already covered";
                     continue;
                 }
                 target = AbilityAIUtility.PawnOrCell(ability, centre);
@@ -617,7 +623,7 @@ namespace AbilityAI
             {
                 Thing p = centres[i].thing;
                 // A spot that would be refused on arrival isn't walked to
-                if (AbilityAIUtility.Covered(ctx, ext, p.Position, AbilityAIUtility.Radius(ability, ext))) continue;
+                if (AbilityAIUtility.Covered(ctx, ability, ext, p.Position, AbilityAIUtility.Radius(ability, ext))) continue;
                 if (AbilityAIDriver.ValidIgnoringRange(ability, p) || AbilityAIDriver.ValidIgnoringRange(ability, p.Position)) { goal = p; break; }
             }
             centres.Clear();

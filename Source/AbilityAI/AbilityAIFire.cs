@@ -57,9 +57,10 @@ namespace AbilityAI
         private static float ReachOf(Pawn e)
         {
             int now = Find.TickManager.TicksGame;
-            if (now - lastPrune >= PruneTicks)
+            if (now < lastPrune || now - lastPrune >= PruneTicks)
             {
-                // Pawns that left the map or died are dropped here rather than tracked
+                // Pawns that left the map or died are dropped here rather than tracked; an earlier tick means another
+                // game was loaded, whose pawns must not be kept
                 reaches.Clear();
                 lastPrune = now;
             }

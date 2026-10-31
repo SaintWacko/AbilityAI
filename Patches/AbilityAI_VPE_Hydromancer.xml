@@ -38,7 +38,8 @@
         <!-- Hydro shield: one pawn can't catch fire for about 5000 ticks (times psychic sensitivity), and fires within
              2.5 tiles of it go out every half second. 10% psyfocus, 10 heat. Goes to an ally in fire danger: burning,
              beside a fire, or in reach of an enemy that can set fires (a flame or incendiary weapon, or an ability
-             whose rule says startsFires). The caster first, last among the casts, never to one that already has it. -->
+             whose rule says startsFires). The caster first, last among the casts, never to one that already has it.
+             In a fight or not, so pawns putting out a fire get it too. -->
         <li Class="PatchOperationConditional">
           <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_HydromancerHydroShieldSTNL"]</xpath>
           <match Class="PatchOperationAddModExtension">
@@ -49,6 +50,7 @@
                 <priority>1</priority>
                 <hediff>VPE_Hydromancer_HydroshieldSTNL</hediff>
                 <fireDanger>true</fireDanger>
+                <combat>Any</combat>
               </li>
             </value>
           </match>

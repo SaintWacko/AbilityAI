@@ -158,7 +158,9 @@ namespace AbilityAI
             if (t != null) return t;
             var job = e.CurJob;
             if (job != null && (job.def == JobDefOf.AttackStatic || job.def == JobDefOf.AttackMelee)) return job.targetA.Thing;
-            return null;
+            // A drafted colonist firing on its own (JobDriver_Wait's auto-attack) sets neither: only its stance knows.
+            // Without this no NPC ever counted a drafted colonist as aiming at it (run 15's tunneler never smoked).
+            return e.TargetCurrentlyAimingAt.Thing;
         }
 
         /// <summary>Standing next to the caster or anyone on its side (Friendlies, and allies in a hostile break), so

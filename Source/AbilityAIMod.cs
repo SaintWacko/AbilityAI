@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using HarmonyLib;
 using RimWorld;
@@ -36,6 +37,10 @@ namespace AbilityAI
         {
             // Settings only: no defs are loaded yet, and patching waits for AbilityAIStartup
             GetSettings<AbilityAIModSettings>();
+            // The VEF and VPE compat assemblies come in through IfModActive load folders, and a folder the game
+            // skipped leaves no error behind: this line is the only way to see which ones it took
+            if (Prefs.DevMode)
+                Log.Message($"[Ability AI] load folders: {string.Join(", ", content.foldersToLoadDescendingOrder)}; assemblies: {string.Join(", ", content.assemblies.loadedAssemblies.Select(a => a.GetName().Name))}");
         }
 
         public override string SettingsCategory() => "Ability AI";

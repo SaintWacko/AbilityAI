@@ -17,6 +17,8 @@
         <OutputPath>..\Assemblies\</OutputPath>
         <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
         <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+        <!-- The game resolves mod assemblies itself; a deps.json beside the DLL would only ship as clutter -->
+        <GenerateDependencyFile>false</GenerateDependencyFile>
         <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
         <DefineConstants>$(DefineConstants);RW17</DefineConstants>
         <!-- Keep in step with 1.6/Source -->

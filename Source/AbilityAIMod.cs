@@ -39,7 +39,20 @@ namespace AbilityAI
             // The VEF and VPE compat assemblies come in through IfModActive load folders, and a folder the game
             // skipped leaves no error behind: this line is the only way to see which ones it took
             if (Prefs.DevMode)
-                Log.Message($"[Ability AI] load folders: {string.Join(", ", content.foldersToLoadDescendingOrder)}; assemblies: {string.Join(", ", content.assemblies.loadedAssemblies.ConvertAll(a => a.GetName().Name))}");
+                Log.Message($"[Ability AI] load folders: {string.Join(", ", content.foldersToLoadDescendingOrder)}; assemblies: {LoadedCompat()}");
+        }
+
+        // Read off the AppDomain rather than content.assemblies: on 1.7 that list's Assembly type comes from the
+        // game's System.Runtime 10, which this net472 build can't name
+        private static string LoadedCompat()
+        {
+            var names = new List<string>();
+            foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                string name = asm.GetName().Name;
+                if (name.StartsWith("AbilityAI")) names.Add(name);
+            }
+            return string.Join(", ", names);
         }
 
         public override string SettingsCategory() => "Ability AI";

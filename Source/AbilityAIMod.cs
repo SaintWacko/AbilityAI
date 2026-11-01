@@ -37,7 +37,8 @@ namespace AbilityAI
             // Settings only: no defs are loaded yet, and patching waits for AbilityAIStartup
             GetSettings<AbilityAIModSettings>();
             // The VEF and VPE compat assemblies come in through IfModActive load folders, and a folder the game
-            // skipped leaves no error behind: this line is the only way to see which ones it took
+            // skipped leaves no error behind: this line is the only way to see which ones it took. No line at all
+            // means AbilityAI.dll itself didn't load
             if (Prefs.DevMode)
                 Log.Message($"[Ability AI] load folders: {string.Join(", ", content.foldersToLoadDescendingOrder)}; assemblies: {string.Join(", ", content.assemblies.loadedAssemblies.ConvertAll(a => a.GetName().Name))}");
         }
@@ -137,8 +138,8 @@ namespace AbilityAI
     /// decides (Handles): an NPC whose kind is switched off in the settings, or an unclaimed ability with Unclaimed
     /// off, keeps vanilla's behaviour.
     ///
-    /// Cost: one bool read on every call, and only calls vanilla answered true (abilities with aiCanUse that are
-    /// ready) go on to the extension lookup and the hooks' vote. Our own driver never calls this method, so it
+    /// Cost: only calls vanilla answered true (abilities with aiCanUse that are ready) go on to the extension lookup
+    /// and the hooks' vote. Our own driver never calls this method, so it
     /// doesn't stand itself down.
     /// </summary>
     [HarmonyPatch(typeof(Ability), nameof(Ability.AICanTargetNow))]

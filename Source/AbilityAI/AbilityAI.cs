@@ -301,23 +301,16 @@ namespace AbilityAI
         private readonly List<FieldInfo> fields = new List<FieldInfo>();
         internal readonly List<string> errors = new List<string>();
 
-        // Called by reflection: the 1.7 project compiles net472 against net10 reference assemblies, where a direct call
-        // to a game method that takes an XmlNode fails with CS1705 (System.Xml.ReaderWriter 10.0 vs 4.1.1)
-        private static MethodInfo objectFromXml;
-
         public void LoadDataFromXmlCustom(XmlNode xmlRoot)
         {
             try
             {
-                if (objectFromXml == null)
-                    objectFromXml = typeof(DirectXmlToObject).GetMethod("ObjectFromXml", BindingFlags.Public | BindingFlags.Static)
-                        .MakeGenericMethod(typeof(AbilityAIExtension));
-                values = (AbilityAIExtension)objectFromXml.Invoke(null, new object[] { xmlRoot, false });
+                values = DirectXmlToObject.ObjectFromXml<AbilityAIExtension>(xmlRoot, false);
             }
             catch (Exception e)
             {
                 // The block is left out (the rule applies to these casters unchanged) rather than the whole def
-                errors.Add($"<{xmlRoot.Name}> could not be read, so it is ignored: {(e.InnerException ?? e).Message}");
+                errors.Add($"<{xmlRoot.Name}> could not be read, so it is ignored: {e.Message}");
                 return;
             }
             foreach (XmlNode child in xmlRoot.ChildNodes)

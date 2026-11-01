@@ -5,6 +5,9 @@
     and both compile the shared .cs files in this folder. Referencing them here builds both.
 
     It has to be the only project file directly in Source/, or `dotnet build` there stops and asks which one to build.
+
+    The 1.7 projects target net10.0 and this one net472: SkipGetTargetFrameworkProperties stops MSBuild asking them
+    for a net472-compatible framework, which they don't have.
   -->
   <PropertyGroup>
     <TargetFramework>net472</TargetFramework>
@@ -20,18 +23,21 @@
     </ProjectReference>
     <ProjectReference Include="..\1.7\Source\AbilityAI.csproj">
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+      <SkipGetTargetFrameworkProperties>true</SkipGetTargetFrameworkProperties>
     </ProjectReference>
     <ProjectReference Include="..\1.6\Source\VEF\AbilityAI.VEF.csproj">
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
     </ProjectReference>
     <ProjectReference Include="..\1.7\Source\VEF\AbilityAI.VEF.csproj">
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+      <SkipGetTargetFrameworkProperties>true</SkipGetTargetFrameworkProperties>
     </ProjectReference>
     <ProjectReference Include="..\1.6\Source\VPE\AbilityAI.VPE.csproj">
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
     </ProjectReference>
     <ProjectReference Include="..\1.7\Source\VPE\AbilityAI.VPE.csproj">
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+      <SkipGetTargetFrameworkProperties>true</SkipGetTargetFrameworkProperties>
     </ProjectReference>
   </ItemGroup>
 </Project>

@@ -168,6 +168,8 @@
   <AAI_ZoneExpand_Desc>Drag to add cells to the {0} zone. Colonists with the psycast on autocast cast it on what lies there, as Basic work. Every caster on the map shares this zone; it doesn't affect any other zone or area.</AAI_ZoneExpand_Desc>
   <AAI_ZoneShrink>Shrink {0} zone</AAI_ZoneShrink>
   <AAI_ZoneShrink_Desc>Drag to take cells out of the {0} zone.</AAI_ZoneShrink_Desc>
+  <AAI_Zone_NeedsSensitivity>Not this pawn: it needs psychic sensitivity above {0} and has {1}.</AAI_Zone_NeedsSensitivity>
+  <AAI_Zone_TooOld>Not this pawn: another cast would age it past {0}, the limit in the mod settings.</AAI_Zone_TooOld>
   <AAI_Zone_Hint_QualityItems>On autocast, this pawn enchants items in this psycast's zone, as Basic work.</AAI_Zone_Hint_QualityItems>
   <AAI_Zone_Hint_Damaged>On autocast, this pawn mends damaged buildings and items in this psycast's zone, as Basic work.</AAI_Zone_Hint_Damaged>
   <AAI_Zone_Hint_Rechargeable>On autocast, this pawn recharges batteries and mechs in this psycast's zone, as Basic work.</AAI_Zone_Hint_Rechargeable>

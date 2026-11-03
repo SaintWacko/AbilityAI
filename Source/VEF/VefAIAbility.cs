@@ -414,6 +414,13 @@ namespace AbilityAI.Vef
             for (int i = 0; i < exts.Count; i++)
             {
                 var e = exts[i];
+                // Its Valid posts "is asleep" for a sleeping target whatever throwMessages says (VEF passes true to
+                // ValidateIsAwake), so a sleeping prisoner put a message up at every check
+                if (e is AbilityExtension_SocialInteraction && target.Thing is Pawn sleeper && !sleeper.Awake())
+                {
+                    oneTarget[0] = GlobalTargetInfo.Invalid;
+                    return false;
+                }
                 if (!e.CanApplyOn(target, ability, false) || !e.ValidateTarget(target, ability, false) || !e.Valid(oneTarget, ability, false))
                 {
                     oneTarget[0] = GlobalTargetInfo.Invalid;

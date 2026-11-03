@@ -125,7 +125,7 @@ namespace AbilityAI
             string recast = AbilityAIRecast.Hint(ability.def);
             if (recast != null) __result += "\n" + recast.Colorize(ColoredText.SubtleGrayColor);
             // Zone casting is undrafted work: without undrafted autocast it never runs
-            string zone = AbilityAISettings.UndraftedAutocast ? AbilityAIZones.Hint(ability.def) : null;
+            string zone = AbilityAISettings.UndraftedAutocast ? AbilityAIZones.Hint(ability.def, ability.pawn) : null;
             if (zone != null) __result += "\n" + zone.Colorize(ColoredText.SubtleGrayColor);
         }
     }

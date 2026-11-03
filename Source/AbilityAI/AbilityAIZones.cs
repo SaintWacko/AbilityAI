@@ -192,7 +192,8 @@ namespace AbilityAI
                 }
                 case AbilityAIZoneTarget.Prisoners:
                 {
-                    if (!(t is Pawn p) || !p.IsPrisonerOfColony || p.Downed || p.InMentalState || p.guest == null) return false;
+                    // Asleep: VEF's social-interaction check refuses it and posts "is asleep" whatever it is told
+                    if (!(t is Pawn p) || !p.IsPrisonerOfColony || p.Downed || p.InMentalState || !p.Awake() || p.guest == null) return false;
                     if (p.guest.Resistance <= 0f) return false;
                     return p.guest.IsInteractionEnabled(PrisonerInteractionModeDefOf.AttemptRecruit)
                         || p.guest.IsInteractionEnabled(PrisonerInteractionModeDefOf.ReduceResistance);
@@ -218,10 +219,30 @@ namespace AbilityAI
         }
 
         /// <summary>The tooltip line for an ability with a zone rule, or null.</summary>
-        internal static string Hint(Def abilityDef)
+        internal static string Hint(Def abilityDef, Pawn pawn)
         {
             var rule = RuleOf(abilityDef);
-            return rule == null ? null : (string)("AAI_Zone_Hint_" + rule.zoneTarget).Translate();
+            if (rule == null) return null;
+            string hint = ("AAI_Zone_Hint_" + rule.zoneTarget).Translate();
+            string blocked = pawn == null ? null : CasterBlockedReason(rule, pawn);
+            return blocked == null ? hint : hint + " " + blocked;
+        }
+
+        // The lasting reasons CasterMay turns this pawn away, said in the tooltip: without it a colonist at 100%
+        // sensitivity with Mend on autocast just never mends, with nothing to say why. Enthrall's wait for enemies
+        // passes by itself, so it isn't one.
+        private static string CasterBlockedReason(AbilityAIExtension rule, Pawn pawn)
+        {
+            if (rule.sensitivityAbove >= 0f)
+            {
+                float sensitivity = pawn.GetStatValue(StatDefOf.PsychicSensitivity, true, 250);
+                if (sensitivity <= rule.sensitivityAbove)
+                    return "AAI_Zone_NeedsSensitivity".Translate(rule.sensitivityAbove.ToStringPercent(), sensitivity.ToStringPercent());
+            }
+            if (rule.zoneTarget == AbilityAIZoneTarget.Unfinished && pawn.ageTracker != null
+                && pawn.ageTracker.AgeBiologicalYearsFloat + 1f > AbilityAISettings.ZoneTimeskipMaxAge)
+                return "AAI_Zone_TooOld".Translate(AbilityAISettings.ZoneTimeskipMaxAge);
+            return null;
         }
 
         /// <summary>The psycast's own icon: vanilla's AbilityDef.uiIcon, else another system's public Texture2D field

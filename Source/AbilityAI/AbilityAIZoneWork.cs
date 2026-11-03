@@ -120,7 +120,7 @@ namespace AbilityAI
                     {
                         Thing t = candidates[i];
                         if (!AbilityAIZones.Wants(kind, t)) continue;
-                        if (!Available(pawn, a, t))
+                        if (!Available(pawn, a, t, kind))
                         {
                             zones.Wait(pawn, t, tick + RetryTicks);
                             continue;
@@ -174,7 +174,7 @@ namespace AbilityAI
                 for (int r = 0; r < ready.Count; r++)
                 {
                     AIAbility a = ready[r].ability;
-                    if (!AbilityAIZones.Wants(ready[r].rule.zoneTarget, target) || !Available(pawn, a, target) || !a.ValidInRange(target)) continue;
+                    if (!AbilityAIZones.Wants(ready[r].rule.zoneTarget, target) || !Available(pawn, a, target, ready[r].rule.zoneTarget) || !a.ValidInRange(target)) continue;
                     Job cast = a.MakeCastJob(target, target);
                     if (cast == null) continue;
                     if (AbilityAISettings.DebugLog && Prefs.DevMode)
@@ -192,11 +192,12 @@ namespace AbilityAI
 
         // Everything about this target short of reach and range: not forbidden, not in someone else's hands (a warden
         // talking to the prisoner, a hauler carrying the corpse off), nobody already casting at it, and the ability's
-        // own rules and the pawn's psycast limits
-        private static bool Available(Pawn pawn, AIAbility a, Thing t)
+        // own rules and the pawn's psycast limits. An unfinished thing is reserved by whoever is making it, and finishing
+        // that one is the point of Craft Timeskip (VPE's cast doesn't reserve it either).
+        private static bool Available(Pawn pawn, AIAbility a, Thing t, AbilityAIZoneTarget kind)
         {
             if (!(t is Pawn) && t.IsForbidden(pawn)) return false;
-            if (!pawn.CanReserve(t)) return false;
+            if (kind != AbilityAIZoneTarget.Unfinished && !pawn.CanReserve(t)) return false;
             if (AbilityAIZones.Busy(t, a.Def) || OtherCasting(pawn, a.Def, t)) return false;
             return a.ValidIgnoringRange(t) && AbilityAIDriver.PsycastWithinLimits(a, t);
         }

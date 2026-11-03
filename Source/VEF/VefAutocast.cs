@@ -168,6 +168,8 @@ namespace AbilityAI.Vef
             __result += "\n\n" + "AAI_Autocast_Hint".Translate(mode).Colorize(ColoredText.SubtleGrayColor);
             string recast = AbilityAIRecast.Hint(ability.def);
             if (recast != null) __result += "\n" + recast.Colorize(ColoredText.SubtleGrayColor);
+            string zone = AbilityAIZones.Hint(ability.def);
+            if (zone != null) __result += "\n" + zone.Colorize(ColoredText.SubtleGrayColor);
         }
     }
 }

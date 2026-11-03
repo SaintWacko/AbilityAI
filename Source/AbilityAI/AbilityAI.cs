@@ -524,6 +524,11 @@ namespace AbilityAI
         public AbilityAIFeedOn feedOn;
         /// <summary>Recast: the thing the ability leaves behind that the player's colonists keep up.</summary>
         public ThingDef recastThing;
+        /// <summary>Zone: what the ability is cast at in its zone (or, for Prisoners, without one).</summary>
+        public AbilityAIZoneTarget zoneTarget;
+        /// <summary>Zone: only casters whose psychic sensitivity is above this, for an ability that does nothing below it
+        /// (VPE's Mend restores (sensitivity - 1) x 100 hit points). Negative = any caster.</summary>
+        public float sensitivityAbove = -1f;
         /// <summary>Other factions use the rule only while the matching setting allows it (AbilityAINpcGate). While
         /// it doesn't, the ability is still this mod's to decide, so VEF's and vanilla's own AI stay off it too.</summary>
         public AbilityAINpcGate npcGate;
@@ -679,6 +684,12 @@ namespace AbilityAI
                 yield return "a Recast rule needs a recastThing";
             else if (recastThing != null && workerClass != null && !typeof(AbilityAIWorker_Recast).IsAssignableFrom(workerClass))
                 yield return $"recastThing is only read by Recast, not {workerClass.Name}";
+            bool zoneWorker = workerClass != null && typeof(AbilityAIWorker_Zone).IsAssignableFrom(workerClass);
+            if (zoneWorker && zoneTarget == AbilityAIZoneTarget.None) yield return "a Zone rule needs a zoneTarget";
+            else if (!zoneWorker && workerClass != null && zoneTarget != AbilityAIZoneTarget.None)
+                yield return $"zoneTarget is only read by Zone, not {workerClass.Name}";
+            if (!zoneWorker && workerClass != null && sensitivityAbove >= 0f)
+                yield return $"sensitivityAbove is only read by Zone, not {workerClass.Name}";
             if (auraKinds != AbilityAITargetKinds.None)
             {
                 if (auraMin < 1) yield return "auraMin must be at least 1";
@@ -2350,6 +2361,21 @@ namespace AbilityAI
         public static float RecastAt = DefaultRecastAt;
         /// <summary>Recast: a colonist's cast of an ability with a Recast rule starts a spot to keep up.</summary>
         public static bool RecastTrackNewCasts = true;
+        /// <summary>Zone casting (AbilityAIZones): the quality an enchanted item is taken up to (VPE stops at what the
+        /// caster's sensitivity allows, Masterwork at most).</summary>
+        public const QualityCategory DefaultZoneEnchantUpTo = QualityCategory.Masterwork;
+        public static QualityCategory ZoneEnchantUpTo = DefaultZoneEnchantUpTo;
+        /// <summary>Zone casting: things under this share of their hit points are mended.</summary>
+        public const float DefaultZoneMendBelow = 0.8f;
+        public static float ZoneMendBelow = DefaultZoneMendBelow;
+        /// <summary>Zone casting: batteries and mechs under this share of their charge are recharged.</summary>
+        public const float DefaultZoneRechargeBelow = 0.5f;
+        public static float ZoneRechargeBelow = DefaultZoneRechargeBelow;
+        /// <summary>Zone casting: Craft Timeskip ages its caster a year per cast, never past this biological age.</summary>
+        public const int DefaultZoneTimeskipMaxAge = 50;
+        public static int ZoneTimeskipMaxAge = DefaultZoneTimeskipMaxAge;
+        /// <summary>Zone casting: Enthrall only while enemies are on the map (its skeletons last a day).</summary>
+        public static bool ZoneEnthrallOnlyWithEnemies = true;
         /// <summary>waitForGather rules hold while enemies are gathering (AbilityAIGather): the player's pawns, and
         /// other factions'.</summary>
         public static bool GatherWaitPlayer = true;
@@ -2407,6 +2433,11 @@ namespace AbilityAI
                     PlayerAutocast = UndraftedAutocast = ShowMarker = ChargeGapClose = RecastTrackNewCasts = GatherWaitPlayer = true;
                     ReturnToCover = false;
                     RecastAt = DefaultRecastAt;
+                    ZoneEnchantUpTo = DefaultZoneEnchantUpTo;
+                    ZoneMendBelow = DefaultZoneMendBelow;
+                    ZoneRechargeBelow = DefaultZoneRechargeBelow;
+                    ZoneTimeskipMaxAge = DefaultZoneTimeskipMaxAge;
+                    ZoneEnthrallOnlyWithEnemies = true;
                     UndraftedIntervalTicks = DefaultUndraftedIntervalTicks;
                     AbilityAIBlockedJobs.Reset();
                     if (BetterAutocastOwns)
@@ -2451,6 +2482,15 @@ namespace AbilityAI
             Scribe_Values.Look(ref NpcIdleIntervalTicks, "abilityAI_npcIdleIntervalTicks", DefaultNpcIdleIntervalTicks);
             NpcIdleIntervalTicks = Mathf.Clamp(NpcIdleIntervalTicks, 30, 600);
             RecastAt = Mathf.Clamp(RecastAt, 0f, 0.5f);
+            Scribe_Values.Look(ref ZoneEnchantUpTo, "abilityAI_zoneEnchantUpTo", DefaultZoneEnchantUpTo);
+            if (ZoneEnchantUpTo < QualityCategory.Normal || ZoneEnchantUpTo > QualityCategory.Masterwork) ZoneEnchantUpTo = DefaultZoneEnchantUpTo;
+            Scribe_Values.Look(ref ZoneMendBelow, "abilityAI_zoneMendBelow", DefaultZoneMendBelow);
+            ZoneMendBelow = Mathf.Clamp(ZoneMendBelow, 0.1f, 1f);
+            Scribe_Values.Look(ref ZoneRechargeBelow, "abilityAI_zoneRechargeBelow", DefaultZoneRechargeBelow);
+            ZoneRechargeBelow = Mathf.Clamp(ZoneRechargeBelow, 0.1f, 1f);
+            Scribe_Values.Look(ref ZoneTimeskipMaxAge, "abilityAI_zoneTimeskipMaxAge", DefaultZoneTimeskipMaxAge);
+            ZoneTimeskipMaxAge = Mathf.Clamp(ZoneTimeskipMaxAge, 14, 120);
+            Scribe_Values.Look(ref ZoneEnthrallOnlyWithEnemies, "abilityAI_zoneEnthrallOnlyWithEnemies", true);
             Scribe_Values.Look(ref CalmBreaks, "abilityAI_calmBreaks", DefaultCalmBreaks);
             Scribe_Values.Look(ref CalmRange, "abilityAI_calmRange", DefaultCalmRange);
             CalmRange = Mathf.Clamp(CalmRange, 5f, 60f);
@@ -2626,6 +2666,7 @@ namespace AbilityAI
                 RecastAt = Mathf.Round(list.Slider(RecastAt, 0f, 0.5f) * 100f) / 100f;
                 Hint(list, "AAI_Recast_Desc");
             }
+            if (AbilityAIZones.Any) DoZoneCasting(list);
             if (BetterAutocastActive)
             {
                 bool before = BetterAutocastOwns;
@@ -2640,6 +2681,35 @@ namespace AbilityAI
                 Out(list);
                 if (before != BetterAutocastOwns) AbilityAIAutocast.NotifyOwnerChanged();
             }
+        }
+
+        // Only the rows some rule reads: without VPE's Technomancer psycasts there is no Enchant row
+        private static void DoZoneCasting(Listing_Standard list)
+        {
+            Section(list, "AAI_Section_Zone");
+            if (AbilityAIZones.Uses(AbilityAIZoneTarget.QualityItems))
+            {
+                list.Label("AAI_ZoneEnchantUpTo".Translate(ZoneEnchantUpTo.GetLabel()), -1f, "AAI_ZoneEnchantUpTo_Tip".Translate());
+                ZoneEnchantUpTo = (QualityCategory)Mathf.RoundToInt(list.Slider((float)ZoneEnchantUpTo, (float)QualityCategory.Normal, (float)QualityCategory.Masterwork));
+            }
+            if (AbilityAIZones.Uses(AbilityAIZoneTarget.Damaged))
+            {
+                list.Label("AAI_ZoneMendBelow".Translate(Mathf.RoundToInt(ZoneMendBelow * 100f)), -1f, "AAI_ZoneMendBelow_Tip".Translate());
+                ZoneMendBelow = Mathf.Round(list.Slider(ZoneMendBelow, 0.1f, 1f) * 20f) / 20f;
+            }
+            if (AbilityAIZones.Uses(AbilityAIZoneTarget.Rechargeable))
+            {
+                list.Label("AAI_ZoneRechargeBelow".Translate(Mathf.RoundToInt(ZoneRechargeBelow * 100f)), -1f, "AAI_ZoneRechargeBelow_Tip".Translate());
+                ZoneRechargeBelow = Mathf.Round(list.Slider(ZoneRechargeBelow, 0.1f, 1f) * 20f) / 20f;
+            }
+            if (AbilityAIZones.Uses(AbilityAIZoneTarget.Unfinished))
+            {
+                list.Label("AAI_ZoneTimeskipMaxAge".Translate(ZoneTimeskipMaxAge), -1f, "AAI_ZoneTimeskipMaxAge_Tip".Translate());
+                ZoneTimeskipMaxAge = Mathf.RoundToInt(list.Slider(ZoneTimeskipMaxAge, 14f, 120f));
+            }
+            if (AbilityAIZones.Uses(AbilityAIZoneTarget.HumanlikeCorpses))
+                list.CheckboxLabeled("AAI_ZoneEnthrallOnlyWithEnemies".Translate(), ref ZoneEnthrallOnlyWithEnemies, "AAI_ZoneEnthrallOnlyWithEnemies_Tip".Translate());
+            Hint(list, "AAI_Zone_Desc");
         }
 
         private static void DoMentalBreaks(Listing_Standard list)

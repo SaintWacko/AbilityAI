@@ -1,0 +1,541 @@
+using System;
+using System.Collections.Generic;
+using RimWorld;
+using UnityEngine;
+using Verse;
+using Verse.AI;
+
+// Zone casting: psycasts that tend to things rather than fight (VPE's Enchant, Mend, Recharge, Power, Craft Timeskip,
+// Enthrall) are cast by the player's colonists on what lies in an area the player paints for that psycast, as Basic
+// work (WorkGiver_PsycastZone in AbilityAIZoneWork.cs). One area per psycast def per map, shared by every caster. It
+// overlaps every vanilla zone and area, is not one of the map's Areas (so it is in no allowed-area picker and not in
+// Manage Areas), and is drawn only while one of its designators is selected; those open from the psycast's autocast
+// menu, never the Architect menu. A rule whose targets need no area (Word of Trust: the prisoners the wardens are
+// recruiting) runs through the same work without one.
+namespace AbilityAI
+{
+    /// <summary>What a zone rule casts at. Each kind's own filter (AbilityAIZones.Wants) reads the Zone casting
+    /// settings; the ability's own checks still decide each target.</summary>
+    public enum AbilityAIZoneTarget : byte
+    {
+        None,
+        /// <summary>Items with a quality below the "enchant up to" setting (Enchant). Not books: VPE's cast skips them.</summary>
+        QualityItems,
+        /// <summary>The player's buildings and any items under the "mend below" share of their hit points (Mend).</summary>
+        Damaged,
+        /// <summary>The player's batteries and mechs under the "recharge below" share of their charge (Recharge).</summary>
+        Rechargeable,
+        /// <summary>The player's buildings drawing power now (Power).</summary>
+        PowerConsumers,
+        /// <summary>Unfinished items whose bill still exists (Craft Timeskip).</summary>
+        Unfinished,
+        /// <summary>Humanlike corpses of anyone but the player's own faction (Enthrall).</summary>
+        HumanlikeCorpses,
+        /// <summary>The colony's prisoners set to be recruited or have their resistance worn down, with resistance left.
+        /// Needs no zone (Word of Trust).</summary>
+        Prisoners,
+    }
+
+    /// <summary>Zone: casts the ability on what its zone holds (zoneTarget). Not run by the driver: zone casting is
+    /// Basic work for the player's colonists (AbilityAIZoneWork). The worker exists so the rule reads like every
+    /// other one and so the player's autocast menu is offered for the ability.</summary>
+    public class AbilityAIWorker_Zone : AbilityAIWorker
+    {
+        protected override AbilityAICombat DefaultCombat => AbilityAICombat.Any;
+
+        public override bool DriverCasts => false;
+
+        public override bool TryFindTarget(AbilityAIContext ctx, AIAbility ability, out LocalTargetInfo target, out LocalTargetInfo dest)
+        {
+            target = dest = LocalTargetInfo.Invalid;
+            return false;
+        }
+    }
+
+    [DefOf]
+    public static class AbilityAIZoneDefOf
+    {
+        public static JobDef AAI_ZoneCastWalk;
+
+        static AbilityAIZoneDefOf() => DefOfHelper.EnsureInitializedInCtor(typeof(AbilityAIZoneDefOf));
+    }
+
+    public static class AbilityAIZones
+    {
+        private static readonly List<Def> ruleDefs = new List<Def>();
+        private static readonly Dictionary<string, Def> byName = new Dictionary<string, Def>();
+        private static readonly bool[] kindsUsed = new bool[Enum.GetValues(typeof(AbilityAIZoneTarget)).Length];
+        private static readonly List<Func<Thing, Def, bool>> busyChecks = new List<Func<Thing, Def, bool>>();
+        private static readonly Dictionary<Def, Texture2D> icons = new Dictionary<Def, Texture2D>();
+        private static readonly Dictionary<Def, Color> colors = new Dictionary<Def, Color>();
+
+        /// <summary>Some ability has a zone rule: the settings section and the work giver have something to do.</summary>
+        public static bool Any => ruleDefs.Count > 0;
+
+        internal static List<Def> RuleDefs => ruleDefs;
+
+        /// <summary>Some rule casts at this kind: its setting is shown.</summary>
+        internal static bool Uses(AbilityAIZoneTarget kind) => kindsUsed[(int)kind];
+
+        internal static bool NeedsZone(AbilityAIZoneTarget kind) => kind != AbilityAIZoneTarget.Prisoners;
+
+        internal static Def DefNamed(string defName) => defName != null && byName.TryGetValue(defName, out Def def) ? def : null;
+
+        /// <summary>The ability def's zone rule, or null.</summary>
+        public static AbilityAIExtension RuleOf(Def def)
+        {
+            var exts = def?.modExtensions;
+            if (exts == null) return null;
+            for (int i = 0; i < exts.Count; i++)
+                if (exts[i] is AbilityAIExtension ext && ext.Worker is AbilityAIWorker_Zone && ext.zoneTarget != AbilityAIZoneTarget.None) return ext;
+            return null;
+        }
+
+        /// <summary>Called at startup for every ability def of every system, beside AbilityAIRecast.Note.</summary>
+        public static void Note(Def abilityDef)
+        {
+            var rule = RuleOf(abilityDef);
+            if (rule == null || byName.ContainsKey(abilityDef.defName)) return;
+            ruleDefs.Add(abilityDef);
+            byName[abilityDef.defName] = abilityDef;
+            kindsUsed[(int)rule.zoneTarget] = true;
+        }
+
+        /// <summary>For another ability system: true when this ability's effect is already under way on the thing (VPE's
+        /// Recharge, a hediff on the caster that charges its target for a while), so no second cast is sent. Asked for
+        /// the few targets a colonist is about to cast at. A check that throws is dropped for the session.</summary>
+        public static void RegisterBusy(Func<Thing, Def, bool> busy)
+        {
+            if (busy != null && !busyChecks.Contains(busy)) busyChecks.Add(busy);
+        }
+
+        internal static bool Busy(Thing thing, Def def)
+        {
+            for (int i = 0; i < busyChecks.Count; i++)
+            {
+                try { if (busyChecks[i](thing, def)) return true; }
+                catch (Exception e)
+                {
+                    Log.Error($"[Ability AI] a zone busy check threw for {def.defName}, so it is dropped: {e}");
+                    busyChecks.RemoveAt(i--);
+                }
+            }
+            return false;
+        }
+
+        /// <summary>The kind's own rule for a thing, from the Zone casting settings. Read when the zone's target list is
+        /// built and again for the target a colonist is about to take, since the list is up to 250 ticks old.</summary>
+        internal static bool Wants(AbilityAIZoneTarget kind, Thing t)
+        {
+            if (t == null || t.Destroyed || !t.Spawned) return false;
+            switch (kind)
+            {
+                case AbilityAIZoneTarget.QualityItems:
+                {
+                    if (t.def.category != ThingCategory.Item || t is Book) return false;
+                    var quality = t.GetInnerIfMinified().TryGetComp<CompQuality>();
+                    return quality != null && quality.Quality < AbilityAISettings.ZoneEnchantUpTo;
+                }
+                case AbilityAIZoneTarget.Damaged:
+                {
+                    if (!t.def.useHitPoints || t.HitPoints >= t.MaxHitPoints) return false;
+                    if (t.def.category == ThingCategory.Building)
+                    {
+                        // Natural rock and ruins have no faction: a mend would undo the mining. Frames and blueprints
+                        // are finished by construction.
+                        if (t.Faction != Faction.OfPlayer || t is Frame || t is Blueprint) return false;
+                    }
+                    else if (t.def.category != ThingCategory.Item || t is Corpse) return false;
+                    return t.HitPoints < t.MaxHitPoints * AbilityAISettings.ZoneMendBelow;
+                }
+                case AbilityAIZoneTarget.Rechargeable:
+                {
+                    if (t is Pawn p)
+                    {
+                        var energy = p.needs?.energy;
+                        // One on a charger is being charged anyway
+                        return p.Faction == Faction.OfPlayer && !p.Dead && p.RaceProps.IsMechanoid && energy != null
+                            && energy.currentCharger == null && energy.CurLevelPercentage < AbilityAISettings.ZoneRechargeBelow;
+                    }
+                    if (t.Faction != Faction.OfPlayer) return false;
+                    var battery = t.TryGetComp<CompPowerBattery>();
+                    return battery != null && battery.Props.storedEnergyMax > 0f && battery.StoredEnergyPct < AbilityAISettings.ZoneRechargeBelow;
+                }
+                case AbilityAIZoneTarget.PowerConsumers:
+                {
+                    if (t.def.category != ThingCategory.Building || t.Faction != Faction.OfPlayer) return false;
+                    var power = t.TryGetComp<CompPowerTrader>();
+                    // VPE's Power sets the output to 0 while it lasts, so a powered building drops out by itself
+                    return power != null && power.PowerOutput < 0f;
+                }
+                case AbilityAIZoneTarget.Unfinished:
+                {
+                    // A deleted bill leaves its unfinished thing behind; VPE's cast would finish it with no bill to count
+                    if (!(t is UnfinishedThing u) || u.BoundBill == null || u.Recipe == null) return false;
+                    // VPE's Ability_Finish takes the ingredient matching the stuff with First(), which throws without one
+                    if (u.def.MadeFromStuff)
+                    {
+                        var ingredients = u.ingredients;
+                        if (ingredients == null) return false;
+                        for (int i = 0; i < ingredients.Count; i++)
+                            if (ingredients[i].def == u.Stuff) return true;
+                        return false;
+                    }
+                    return true;
+                }
+                case AbilityAIZoneTarget.HumanlikeCorpses:
+                {
+                    // Not the colony's own dead: the corpse is destroyed, so it could never be buried
+                    Pawn inner = (t as Corpse)?.InnerPawn;
+                    return inner != null && inner.RaceProps.Humanlike && inner.Faction != Faction.OfPlayer;
+                }
+                case AbilityAIZoneTarget.Prisoners:
+                {
+                    if (!(t is Pawn p) || !p.IsPrisonerOfColony || p.Downed || p.InMentalState || p.guest == null) return false;
+                    if (p.guest.Resistance <= 0f) return false;
+                    return p.guest.IsInteractionEnabled(PrisonerInteractionModeDefOf.AttemptRecruit)
+                        || p.guest.IsInteractionEnabled(PrisonerInteractionModeDefOf.ReduceResistance);
+                }
+                default: return false;
+            }
+        }
+
+        /// <summary>Whether this colonist may cast the rule now, before any target is looked at: the settings that are
+        /// about the caster or the map rather than the target.</summary>
+        internal static bool CasterMay(AbilityAIExtension rule, Pawn pawn)
+        {
+            if (rule.sensitivityAbove >= 0f && pawn.GetStatValue(StatDefOf.PsychicSensitivity, true, 250) <= rule.sensitivityAbove) return false;
+            switch (rule.zoneTarget)
+            {
+                case AbilityAIZoneTarget.Unfinished:
+                    // Each cast ages the caster a year (VPE's AbilityExtension_Age): never past the setting
+                    return pawn.ageTracker != null && pawn.ageTracker.AgeBiologicalYearsFloat + 1f <= AbilityAISettings.ZoneTimeskipMaxAge;
+                case AbilityAIZoneTarget.HumanlikeCorpses:
+                    return !AbilityAISettings.ZoneEnthrallOnlyWithEnemies || GenHostility.AnyHostileActiveThreatToPlayer(pawn.Map);
+                default: return true;
+            }
+        }
+
+        /// <summary>The tooltip line for an ability with a zone rule, or null.</summary>
+        internal static string Hint(Def abilityDef)
+        {
+            var rule = RuleOf(abilityDef);
+            return rule == null ? null : (string)("AAI_Zone_Hint_" + rule.zoneTarget).Translate();
+        }
+
+        /// <summary>The psycast's own icon: vanilla's AbilityDef.uiIcon, else another system's public Texture2D field
+        /// "icon" (VEF's).</summary>
+        internal static Texture2D IconOf(Def def)
+        {
+            if (!icons.TryGetValue(def, out Texture2D tex))
+            {
+                tex = def is AbilityDef ad ? ad.uiIcon : def.GetType().GetField("icon")?.GetValue(def) as Texture2D;
+                if (tex == null) tex = BaseContent.BadTex;
+                icons[def] = tex;
+            }
+            return tex;
+        }
+
+        /// <summary>A colour of its own per psycast, so two zones drawn one after the other don't look the same.</summary>
+        internal static Color ColorOf(Def def)
+        {
+            if (!colors.TryGetValue(def, out Color c))
+            {
+                float hue = (def.shortHash % 360) / 360f;
+                c = Color.HSVToRGB(hue, 0.65f, 0.95f);
+                colors[def] = c;
+            }
+            return c;
+        }
+    }
+
+    /// <summary>One psycast's zone on one map. Only the cells are saved.</summary>
+    public class PsycastZone : IExposable, ICellBoolGiver
+    {
+        public string defName;
+        private BoolGrid grid;
+
+        internal Map map;
+        private CellBoolDrawer drawer;
+        private readonly List<IntVec3> cells = new List<IntVec3>();
+        private bool cellsDirty = true;
+        private Def def;
+
+        public PsycastZone() { }
+
+        internal PsycastZone(Map map, Def def)
+        {
+            this.map = map;
+            this.def = def;
+            defName = def.defName;
+            grid = new BoolGrid(map);
+        }
+
+        internal Def Def => def ?? (def = AbilityAIZones.DefNamed(defName));
+
+        internal bool this[IntVec3 c] => grid[c];
+
+        internal int CellCount => grid.TrueCount;
+
+        /// <summary>Set by a designator; the zone's targets are found again on the next look.</summary>
+        internal void Set(IntVec3 c, bool on)
+        {
+            if (grid[c] == on) return;
+            grid[c] = on;
+            cellsDirty = true;
+            drawer?.SetDirty();
+            PsycastZones.Of(map)?.Invalidate(Def);
+        }
+
+        internal List<IntVec3> Cells
+        {
+            get
+            {
+                if (cellsDirty)
+                {
+                    cells.Clear();
+                    foreach (IntVec3 c in grid.ActiveCells) cells.Add(c);
+                    cellsDirty = false;
+                }
+                return cells;
+            }
+        }
+
+        public Color Color => Def != null ? AbilityAIZones.ColorOf(Def) : Color.white;
+
+        public bool GetCellBool(int index) => grid[index];
+
+        public Color GetCellExtraColor(int index) => Color.white;
+
+        // Areas' render queue, so the zone draws over the ground as vanilla areas do
+        internal void MarkForDraw()
+        {
+            if (drawer == null) drawer = new CellBoolDrawer(this, map.Size.x, map.Size.z, 3650);
+            drawer.MarkForDraw();
+        }
+
+        internal void Update() => drawer?.CellBoolDrawerUpdate();
+
+        public void ExposeData()
+        {
+            Scribe_Values.Look(ref defName, "defName");
+            Scribe_Deep.Look(ref grid, "grid");
+        }
+    }
+
+    /// <summary>The psycast zones of one map, the targets each one holds, and who is on the way to which target.
+    /// Targets are found again at most every 250 ticks per psycast, and only when a colonist looks for work.</summary>
+    public class PsycastZones : MapComponent
+    {
+        internal const int TargetsRefreshTicks = 250;
+
+        private List<PsycastZone> zones = new List<PsycastZone>();
+
+        private sealed class Targets
+        {
+            public readonly List<Thing> things = new List<Thing>();
+            public int builtTick = -TargetsRefreshTicks;
+        }
+
+        private struct Claim
+        {
+            public Pawn pawn;
+            public int jobId;
+        }
+
+        // Not saved: a walk or cast under way is started again after a load, and the lists are found again
+        private readonly Dictionary<Def, Targets> targets = new Dictionary<Def, Targets>();
+        private readonly Dictionary<Thing, Claim> claims = new Dictionary<Thing, Claim>();
+        private readonly Dictionary<(Pawn, Thing), int> retryAfter = new Dictionary<(Pawn, Thing), int>();
+        private static readonly HashSet<Thing> seen = new HashSet<Thing>();
+        private static readonly List<Thing> expired = new List<Thing>();
+        private static readonly List<(Pawn, Thing)> expiredWaits = new List<(Pawn, Thing)>();
+
+        public PsycastZones(Map map) : base(map) { }
+
+        internal static PsycastZones Of(Map map) => map?.GetComponent<PsycastZones>();
+
+        internal PsycastZone ZoneFor(Def def, bool create)
+        {
+            for (int i = 0; i < zones.Count; i++)
+                if (zones[i].defName == def.defName) return zones[i];
+            if (!create) return null;
+            var zone = new PsycastZone(map, def);
+            zones.Add(zone);
+            return zone;
+        }
+
+        internal bool HasCells(Def def) => ZoneFor(def, false)?.CellCount > 0;
+
+        internal void Invalidate(Def def)
+        {
+            if (def != null && targets.TryGetValue(def, out var t)) t.builtTick = -TargetsRefreshTicks;
+        }
+
+        /// <summary>What the rule casts at on this map now, at most TargetsRefreshTicks old. Things in the zone that
+        /// Wants accepts, or for a rule without a zone the pawns it is for.</summary>
+        internal List<Thing> TargetsFor(Def def, AbilityAIZoneTarget kind, int tick)
+        {
+            if (!targets.TryGetValue(def, out var t)) targets[def] = t = new Targets();
+            if (tick - t.builtTick < TargetsRefreshTicks) return t.things;
+            t.builtTick = tick;
+            t.things.Clear();
+            if (kind == AbilityAIZoneTarget.Prisoners)
+            {
+                var prisoners = map.mapPawns.PrisonersOfColonySpawned;
+                for (int i = 0; i < prisoners.Count; i++)
+                    if (AbilityAIZones.Wants(kind, prisoners[i])) t.things.Add(prisoners[i]);
+                return t.things;
+            }
+            var zone = ZoneFor(def, false);
+            if (zone == null || zone.CellCount == 0) return t.things;
+            var cells = zone.Cells;
+            try
+            {
+                for (int i = 0; i < cells.Count; i++)
+                {
+                    var list = map.thingGrid.ThingsListAtFast(cells[i]);
+                    for (int j = 0; j < list.Count; j++)
+                    {
+                        Thing thing = list[j];
+                        // A building larger than a cell is listed on each of its cells
+                        if ((thing.def.size.x > 1 || thing.def.size.z > 1) && !seen.Add(thing)) continue;
+                        if (AbilityAIZones.Wants(kind, thing)) t.things.Add(thing);
+                    }
+                }
+            }
+            finally { seen.Clear(); }
+            return t.things;
+        }
+
+        /// <summary>Some rule has something to cast at on this map. JobGiver_Work asks this (through
+        /// WorkGiver_PsycastZone.ShouldSkip) for every colonist with an autocast mode that looks for work.</summary>
+        internal bool AnyDue(int tick)
+        {
+            var defs = AbilityAIZones.RuleDefs;
+            for (int i = 0; i < defs.Count; i++)
+            {
+                var rule = AbilityAIZones.RuleOf(defs[i]);
+                if (rule == null) continue;
+                if (AbilityAIZones.NeedsZone(rule.zoneTarget) && !HasCells(defs[i])) continue;
+                if (TargetsFor(defs[i], rule.zoneTarget, tick).Count > 0) return true;
+            }
+            return false;
+        }
+
+        private static bool Holds(Claim c) => AbilityAIZoneWork.JobPending(c.pawn, c.jobId);
+
+        internal bool ClaimedByOther(Thing thing, Pawn pawn)
+        {
+            if (!claims.TryGetValue(thing, out var c)) return false;
+            if (Holds(c)) return c.pawn != pawn;
+            claims.Remove(thing);
+            return false;
+        }
+
+        internal void Claim(Thing thing, Pawn pawn, int jobId)
+        {
+            claims[thing] = new Claim { pawn = pawn, jobId = jobId };
+            if (claims.Count > 64) PruneClaims();
+        }
+
+        /// <summary>A zone walk's claim on its target: its own, or the target's when nobody else holds it (a walk loaded
+        /// from a save, whose claim wasn't saved), which it then takes.</summary>
+        internal bool ClaimFor(Pawn pawn, Thing thing, int jobId)
+        {
+            if (thing == null) return false;
+            if (claims.TryGetValue(thing, out var c) && Holds(c)) return c.pawn == pawn;
+            Claim(thing, pawn, jobId);
+            return true;
+        }
+
+        private void PruneClaims()
+        {
+            foreach (var kv in claims)
+                if (!Holds(kv.Value)) expired.Add(kv.Key);
+            for (int i = 0; i < expired.Count; i++) claims.Remove(expired[i]);
+            expired.Clear();
+        }
+
+        // A colonist that found no way to cast at a target leaves it for a while instead of trying again at every work
+        // check
+        internal bool Waiting(Pawn pawn, Thing thing, int tick) => retryAfter.TryGetValue((pawn, thing), out int t) && tick < t;
+
+        internal void Wait(Pawn pawn, Thing thing, int untilTick)
+        {
+            if (retryAfter.Count > 256)
+            {
+                int tick = Find.TickManager.TicksGame;
+                foreach (var kv in retryAfter)
+                    if (kv.Value <= tick) expiredWaits.Add(kv.Key);
+                for (int i = 0; i < expiredWaits.Count; i++) retryAfter.Remove(expiredWaits[i]);
+                expiredWaits.Clear();
+            }
+            retryAfter[(pawn, thing)] = untilTick;
+        }
+
+        public override void MapComponentUpdate()
+        {
+            for (int i = 0; i < zones.Count; i++) zones[i].Update();
+        }
+
+        public override void ExposeData()
+        {
+            base.ExposeData();
+            if (Scribe.mode == LoadSaveMode.Saving) zones.RemoveAll(z => z.CellCount == 0);
+            Scribe_Collections.Look(ref zones, "zones", LookMode.Deep);
+            if (Scribe.mode == LoadSaveMode.PostLoadInit)
+            {
+                if (zones == null) zones = new List<PsycastZone>();
+                zones.RemoveAll(z => z == null || z.defName.NullOrEmpty());
+                // A zone whose psycast has gone (its mod removed) is kept, unused, for when it comes back
+                for (int i = 0; i < zones.Count; i++) zones[i].map = map;
+            }
+        }
+    }
+
+    /// <summary>Paints a psycast's zone, or rubs it out, by dragging as vanilla's area designators do. Opened from the
+    /// psycast's autocast menu; the zone is drawn in its own colour while either one is selected.</summary>
+    public class Designator_PsycastZone : Designator_Cells
+    {
+        private static readonly Color ShrinkIconColor = new Color(1f, 0.6f, 0.6f);
+
+        private readonly Def castDef;
+        private readonly bool expand;
+
+        public Designator_PsycastZone(Def castDef, bool expand)
+        {
+            this.castDef = castDef;
+            this.expand = expand;
+            defaultLabel = (expand ? "AAI_ZoneExpand" : "AAI_ZoneShrink").Translate(castDef.label);
+            defaultDesc = (expand ? "AAI_ZoneExpand_Desc" : "AAI_ZoneShrink_Desc").Translate(castDef.label);
+            icon = AbilityAIZones.IconOf(castDef);
+            if (!expand) defaultIconColor = ShrinkIconColor;
+            useMouseIcon = true;
+            soundDragSustain = expand ? SoundDefOf.Designate_DragAreaAdd : SoundDefOf.Designate_DragAreaDelete;
+            soundDragChanged = expand ? SoundDefOf.Designate_DragZone_Changed : null;
+            soundSucceeded = expand ? SoundDefOf.Designate_ZoneAdd : SoundDefOf.Designate_ZoneDelete;
+        }
+
+        public override bool DragDrawMeasurements => true;
+
+        public override DrawStyleCategoryDef DrawStyleCategory => DrawStyleCategoryDefOf.Areas;
+
+        public override bool CanRemainSelected() => PsycastZones.Of(Map) != null;
+
+        public override AcceptanceReport CanDesignateCell(IntVec3 c)
+        {
+            if (!c.InBounds(Map)) return false;
+            var zone = PsycastZones.Of(Map)?.ZoneFor(castDef, false);
+            return expand ? zone == null || !zone[c] : zone != null && zone[c];
+        }
+
+        public override void DesignateSingleCell(IntVec3 c) => PsycastZones.Of(Map)?.ZoneFor(castDef, true).Set(c, expand);
+
+        public override void SelectedUpdate()
+        {
+            GenUI.RenderMouseoverBracket();
+            if (Find.WindowStack.FloatMenu == null) PsycastZones.Of(Map)?.ZoneFor(castDef, false)?.MarkForDraw();
+        }
+    }
+}

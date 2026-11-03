@@ -345,7 +345,8 @@ namespace AbilityAI
         // the in-place mode too: drafted autocast runs every worker while holding position, gap-close and escape
         // included. "Stationary" would promise the pawn stays put, so these get the plain "Autocast" label that touch
         // abilities have. Skip with only Rescue and Repel (VPE's) moves other pawns and keeps "Stationary". A Recast
-        // rule walks the caster into range of the spot, so it is plain "Autocast" too.
+        // rule walks the caster into range of the spot, so it is plain "Autocast" too, and so is a Zone rule, whose work
+        // walks the caster to the target.
         private static bool MovesCaster(Def def)
         {
             var exts = def.modExtensions;
@@ -353,7 +354,7 @@ namespace AbilityAI
             for (int i = 0; i < exts.Count; i++)
                 if (exts[i] is AbilityAIExtension ext && (ext.Worker is AbilityAIWorker_Movement
                     || ext.Worker is AbilityAIWorker_Skip && ext.skipMode == AbilityAISkipMode.Escape
-                    || ext.Worker is AbilityAIWorker_Recast)) return true;
+                    || ext.Worker is AbilityAIWorker_Recast || ext.Worker is AbilityAIWorker_Zone)) return true;
             return false;
         }
 
@@ -436,6 +437,17 @@ namespace AbilityAI
             if (recastThing != null && RecastSpots.Of(clicked.MapHeld) != null)
                 options.Add(new FloatMenuOption("AAI_RecastPlace".Translate(recastThing.label) + "...",
                     () => Find.DesignatorManager.Select(new Designator_RecastMarker(recastThing, def))));
+            // The zone is shared by every caster on the map, so any caster's menu edits it
+            var zoneRule = AbilityAIZones.RuleOf(def);
+            var zones = PsycastZones.Of(clicked.MapHeld);
+            if (zoneRule != null && AbilityAIZones.NeedsZone(zoneRule.zoneTarget) && zones != null)
+            {
+                options.Add(new FloatMenuOption("AAI_ZoneExpand".Translate(def.label) + "...",
+                    () => Find.DesignatorManager.Select(new Designator_PsycastZone(def, true))));
+                if (zones.HasCells(def))
+                    options.Add(new FloatMenuOption("AAI_ZoneShrink".Translate(def.label) + "...",
+                        () => Find.DesignatorManager.Select(new Designator_PsycastZone(def, false))));
+            }
             Find.WindowStack.Add(new FloatMenu(options, "AAI_Mode_Title".Translate(title.NullOrEmpty() ? (string)def.LabelCap : title)));
         }
     }

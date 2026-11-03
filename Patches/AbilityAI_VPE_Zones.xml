@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Zone casting rules for Vanilla Psycasts Expanded's utility psycasts (Source/AbilityAI/AbilityAIZones.cs). The
+     player paints a zone per psycast from its autocast menu; colonists with the psycast on autocast cast it on what the
+     zone holds, as Basic work. Word of Trust needs no zone: it goes to the prisoners the wardens are recruiting or wearing
+     down. What each kind takes is in AbilityAIZones.Wants, its thresholds in the Your pawns tab ("Zone casting").
+     NPCs never cast from these rules (the Zone worker isn't the driver's), so VEF's own AI keeps them, as before. -->
+<Patch>
+  <Operation Class="PatchOperationFindMod">
+    <mods>
+      <li>Vanilla Psycasts Expanded</li>
+    </mods>
+    <match Class="PatchOperationSequence">
+      <operations>
+
+        <!-- Enchant Quality: items with a quality, one step per cast, up to the setting or what the caster's
+             sensitivity allows (VPE's ValidateTarget), whichever is lower. Not books: VPE's cast does nothing to them. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_EnchantQuality"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_EnchantQuality"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Zone</workerClass>
+                <zoneTarget>QualityItems</zoneTarget>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Mend: the player's buildings and any items under the setting's share of their hit points. It restores
+             (sensitivity - 1) x 100, so a caster at 100% sensitivity or less is never sent. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Mend"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Mend"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Zone</workerClass>
+                <zoneTarget>Damaged</zoneTarget>
+                <sensitivityAbove>1</sensitivityAbove>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Recharge: the player's batteries and mechs (off their chargers) under the setting's share of their charge.
+             Not one a colonist's Recharge is already charging (the VPE compat's busy check). -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Recharge"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Recharge"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Zone</workerClass>
+                <zoneTarget>Rechargeable</zoneTarget>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Power: the player's buildings drawing power. A building already powered draws nothing, so it is recast
+             once the last one ends. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Power"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Power"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Zone</workerClass>
+                <zoneTarget>PowerConsumers</zoneTarget>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Craft Timeskip: unfinished items whose bill still exists. Ages the caster a year per cast, so never one
+             who would pass the setting's age. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_CraftTimeskip"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_CraftTimeskip"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Zone</workerClass>
+                <zoneTarget>Unfinished</zoneTarget>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Enthrall: humanlike corpses, never the colony's own dead. By default only while enemies are on the map,
+             since the skeleton lasts a day. Ranged (19.9), so the work walks into range first. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Enthrall"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Enthrall"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Zone</workerClass>
+                <zoneTarget>HumanlikeCorpses</zoneTarget>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Word of Trust: no zone. Prisoners of the colony set to recruit or reduce resistance, with resistance left,
+             not downed or in a break. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_WordofTrust"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_WordofTrust"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Zone</workerClass>
+                <zoneTarget>Prisoners</zoneTarget>
+              </li>
+            </value>
+          </match>
+        </li>
+
+      </operations>
+    </match>
+  </Operation>
+</Patch>

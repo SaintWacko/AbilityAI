@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
+using HarmonyLib;
 using RimWorld;
 using VanillaPsycastsExpanded;
 using VanillaPsycastsExpanded.Skipmaster;
+using VanillaPsycastsExpanded.Staticlord;
 using VanillaPsycastsExpanded.Technomancer;
 using Verse;
 using VefAbility = VEF.Abilities.Ability;
@@ -23,6 +25,36 @@ namespace AbilityAI.Vpe
             Vef.VefAIAbility.RegisterEffectsReader(ReadEffects);
             BetterAutocastBridge.Init();
             VpeQuietSpawners.Install();
+            try
+            {
+                rechargeTarget = AccessTools.FieldRefAccess<HediffComp_Recharge, Thing>("target");
+                AbilityAIZones.RegisterBusy(RechargeUnderWay);
+            }
+            catch (Exception e) { Log.Warning($"[Ability AI] VPE's recharge target wasn't found, so zone casting may send a second Recharge to a battery already charging: {e.Message}"); }
+        }
+
+        private static AccessTools.FieldRef<HediffComp_Recharge, Thing> rechargeTarget;
+
+        // Recharge is a hediff on the caster that charges its target for a while (HediffComp_Recharge); a second cast
+        // would stack another on top. Only the player's pawns cast in zones, so only theirs are looked at.
+        private static bool RechargeUnderWay(Thing thing, Def def)
+        {
+            if (!(def is VefAbilityDef d) || d.abilityClass == null || !typeof(Ability_Recharge).IsAssignableFrom(d.abilityClass)) return false;
+            Map map = thing.MapHeld;
+            if (map == null) return false;
+            var pawns = map.mapPawns.SpawnedPawnsInFaction(Faction.OfPlayer);
+            for (int i = 0; i < pawns.Count; i++)
+            {
+                var hediffs = pawns[i].health?.hediffSet?.hediffs;
+                if (hediffs == null) continue;
+                for (int j = 0; j < hediffs.Count; j++)
+                {
+                    if (hediffs[j].def != VPE_DefOf.VPE_Recharge || !(hediffs[j] is HediffWithComps hw)) continue;
+                    var comp = hw.TryGetComp<HediffComp_Recharge>();
+                    if (comp != null && rechargeTarget(comp) == thing) return true;
+                }
+            }
+            return false;
         }
 
         private static void ReadEffects(VefAbilityDef def, AIAbilityEffects e)

@@ -147,17 +147,13 @@ namespace AbilityAI
         }
     }
 
-    /// <summary>One place the player's colonists keep a thing going: where it was first cast (anchor), and the thing
-    /// standing for it now, which a recast beside the old one (an ice crystal can't be cast onto itself) moves to the
-    /// next cell over and back.</summary>
-    public class RecastSpot : IExposable
+    /// <summary>A cell the player's colonists come to cast at, as Basic work: a recast spot, or a cast marker
+    /// (AbilityAISpots). Holds the ability it is for, and who is on the way.</summary>
+    public abstract class MarkedSpot : IExposable
     {
         public IntVec3 anchor;
-        public ThingDef thingDef;
-        public Thing thing;
-        public int startTick;
-        // The ability that cast it last, kept by name and def type (a VEF def and a vanilla one aren't the same
-        // Def type); empty for a thing the player switched on with its gizmo
+        // The ability, kept by name and def type (a VEF def and a vanilla one aren't the same Def type); empty for a
+        // recast thing the player switched on with its gizmo
         private string castDefName, castDefType;
         private Def castDef;
         private bool castDefResolved;
@@ -165,28 +161,8 @@ namespace AbilityAI
         // Not saved: a walk or cast under way is started again after a load
         internal Pawn claimant;
         internal int claimJobId = -1;
-        internal RecastMarker marker;
         internal bool due;
         private Dictionary<Pawn, int> retryAfter;
-
-        public RecastSpot() { }
-
-        internal RecastSpot(IntVec3 cell, ThingDef thingDef, Def castDef, int tick)
-        {
-            anchor = cell;
-            this.thingDef = thingDef;
-            startTick = tick;
-            CastDef = castDef;
-        }
-
-        internal RecastSpot(Thing thing, Def castDef, int tick)
-        {
-            anchor = thing.Position;
-            thingDef = thing.def;
-            this.thing = thing;
-            startTick = tick;
-            CastDef = castDef;
-        }
 
         public Def CastDef
         {
@@ -254,17 +230,54 @@ namespace AbilityAI
             retryAfter[pawn] = untilTick;
         }
 
-        public void ExposeData()
+        public virtual void ExposeData()
+        {
+            Scribe_Values.Look(ref anchor, "anchor");
+            Scribe_Values.Look(ref castDefName, "castDef");
+            Scribe_Values.Look(ref castDefType, "castDefType");
+        }
+    }
+
+    /// <summary>One place the player's colonists keep a thing going: where it was first cast (anchor), and the thing
+    /// standing for it now, which a recast beside the old one (an ice crystal can't be cast onto itself) moves to the
+    /// next cell over and back.</summary>
+    public class RecastSpot : MarkedSpot
+    {
+        public ThingDef thingDef;
+        public Thing thing;
+        public int startTick;
+
+        // Not saved: made again from the spot on load
+        internal RecastMarker marker;
+
+        public RecastSpot() { }
+
+        internal RecastSpot(IntVec3 cell, ThingDef thingDef, Def castDef, int tick)
+        {
+            anchor = cell;
+            this.thingDef = thingDef;
+            startTick = tick;
+            CastDef = castDef;
+        }
+
+        internal RecastSpot(Thing thing, Def castDef, int tick)
+        {
+            anchor = thing.Position;
+            thingDef = thing.def;
+            this.thing = thing;
+            startTick = tick;
+            CastDef = castDef;
+        }
+
+        public override void ExposeData()
         {
             // A reference to a destroyed thing would not resolve on load. One in transit (on a gravship) is saved
             // with its ship, so its reference stays.
             if (Scribe.mode == LoadSaveMode.Saving && thing != null && thing.Destroyed) thing = null;
-            Scribe_Values.Look(ref anchor, "anchor");
+            base.ExposeData();
             Scribe_Defs.Look(ref thingDef, "thingDef");
             Scribe_References.Look(ref thing, "thing");
             Scribe_Values.Look(ref startTick, "startTick");
-            Scribe_Values.Look(ref castDefName, "castDef");
-            Scribe_Values.Look(ref castDefType, "castDefType");
         }
     }
 

@@ -177,4 +177,25 @@
   <AAI_Zone_Hint_Unfinished>On autocast, this pawn finishes unfinished items in this psycast's zone, as Basic work. Each cast ages them a year.</AAI_Zone_Hint_Unfinished>
   <AAI_Zone_Hint_HumanlikeCorpses>On autocast, this pawn enthralls the corpses of enemies and strangers in this psycast's zone, as Basic work.</AAI_Zone_Hint_HumanlikeCorpses>
   <AAI_Zone_Hint_Prisoners>On autocast, this pawn casts it on prisoners set to recruit or reduce resistance, as Basic work.</AAI_Zone_Hint_Prisoners>
+  <AAI_Zone_Hint_ConsumableCorpses>On autocast, this pawn consumes heaps of enemy and stranger corpses in this psycast's zone, as Basic work. It casts only where no other corpse is in reach.</AAI_Zone_Hint_ConsumableCorpses>
+  <AAI_ZoneConsumeMinCorpses>Consume bodies: at least {0} corpses per cast</AAI_ZoneConsumeMinCorpses>
+  <AAI_ZoneConsumeMinCorpses_Tip>Consume Bodies takes every humanlike corpse within its radius of the caster. A colonist casts it only at a spot in its zone with at least this many corpses of enemies or strangers in reach, and none of anyone else's.</AAI_ZoneConsumeMinCorpses_Tip>
+  <AAI_SpotCropMinCells>Crop markers: at least {0} open cells</AAI_SpotCropMinCells>
+  <AAI_SpotCropMinCells_Tip>A crop marker is cast at only once no crop grows in its radius, and with at least this many cells of fertile ground with no tree or building on them.</AAI_SpotCropMinCells_Tip>
+  <AAI_SpotTreeMinCells>Tree markers: at least {0} cells a tree can take</AAI_SpotTreeMinCells>
+  <AAI_SpotTreeMinCells_Tip>A tree marker is cast at only while no crop grows in its radius, and with at least this many cells in the caster's radius where a tree of this biome can grow with no plant beside it in the way. Tree Sprout has no cooldown, so this is what stops it on a full grove.</AAI_SpotTreeMinCells_Tip>
+  <AAI_Spot_Desc>Cast markers are Basic work too. Put them down from a psycast's autocast menu; colonists cast at each one whenever the ground around it is ready. Select a marker to see its reach and what it waits for.</AAI_Spot_Desc>
+  <AAI_Spot_Hint_Crops>On autocast, this pawn casts it at its markers once their crops are harvested, as Basic work.</AAI_Spot_Hint_Crops>
+  <AAI_Spot_Hint_Trees>On autocast, this pawn casts it at its markers while there is room for more trees, as Basic work.</AAI_Spot_Hint_Trees>
+  <AAI_SpotPlace>Place {0} markers</AAI_SpotPlace>
+  <AAI_SpotPlace_Desc>Click to put down markers for {0}, as many as you like; right-click or Escape to stop. Colonists with the psycast on autocast cast it at each marker whenever the ground around it is ready, as Basic work.</AAI_SpotPlace_Desc>
+  <AAI_SpotPlace_Taken>There is already a marker for this psycast there.</AAI_SpotPlace_Taken>
+  <AAI_SpotMarker_Label>{0} (marker)</AAI_SpotMarker_Label>
+  <AAI_SpotMarker_Crops>Waiting: crops still grow within {0} tiles.</AAI_SpotMarker_Crops>
+  <AAI_SpotMarker_Landing>Waiting: a cast is landing here.</AAI_SpotMarker_Landing>
+  <AAI_SpotMarker_TooFew_Crops>Waiting: it needs {0} open cells and has {1}.</AAI_SpotMarker_TooFew_Crops>
+  <AAI_SpotMarker_TooFew_Trees>Waiting: it needs {0} cells a tree can take and has {1}.</AAI_SpotMarker_TooFew_Trees>
+  <AAI_SpotMarker_Fogged>Waiting: the spot is hidden.</AAI_SpotMarker_Fogged>
+  <AAI_SpotMarker_Claimed>{0} is coming to cast it.</AAI_SpotMarker_Claimed>
+  <AAI_SpotMarker_Remove_Desc>Stop casting here.</AAI_SpotMarker_Remove_Desc>
 </LanguageData>

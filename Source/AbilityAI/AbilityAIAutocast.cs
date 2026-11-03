@@ -354,7 +354,7 @@ namespace AbilityAI
             for (int i = 0; i < exts.Count; i++)
                 if (exts[i] is AbilityAIExtension ext && (ext.Worker is AbilityAIWorker_Movement
                     || ext.Worker is AbilityAIWorker_Skip && ext.skipMode == AbilityAISkipMode.Escape
-                    || ext.Worker is AbilityAIWorker_Recast || ext.Worker is AbilityAIWorker_Zone)) return true;
+                    || ext.Worker is AbilityAIWorker_Recast || ext.Worker is AbilityAIWorker_Zone || ext.Worker is AbilityAIWorker_Spot)) return true;
             return false;
         }
 
@@ -437,6 +437,9 @@ namespace AbilityAI
             if (recastThing != null && RecastSpots.Of(clicked.MapHeld) != null)
                 options.Add(new FloatMenuOption("AAI_RecastPlace".Translate(recastThing.label) + "...",
                     () => Find.DesignatorManager.Select(new Designator_RecastMarker(recastThing, def))));
+            if (AbilityAISpots.RuleOf(def) != null && CastSpots.Of(clicked.MapHeld) != null)
+                options.Add(new FloatMenuOption("AAI_SpotPlace".Translate(def.label) + "...",
+                    () => Find.DesignatorManager.Select(new Designator_CastSpot(def))));
             // The zone is shared by every caster on the map, so any caster's menu edits it
             var zoneRule = AbilityAIZones.RuleOf(def);
             var zones = PsycastZones.Of(clicked.MapHeld);

@@ -529,6 +529,11 @@ namespace AbilityAI
         /// <summary>Zone: only casters whose psychic sensitivity is above this, for an ability that does nothing below it
         /// (VPE's Mend restores (sensitivity - 1) x 100 hit points). Negative = any caster.</summary>
         public float sensitivityAbove = -1f;
+        /// <summary>Spot: what a marker of this ability waits for before it is cast at (AbilityAISpots).</summary>
+        public AbilityAISpotKind spotKind;
+        /// <summary>Spot: how far from the marker the cast can reach, the most any caster's radius can be (VPE's Tree
+        /// Sprout grows with sensitivity up to 8). The marker draws it, and no crop may grow inside it.</summary>
+        public float spotRadius;
         /// <summary>Other factions use the rule only while the matching setting allows it (AbilityAINpcGate). While
         /// it doesn't, the ability is still this mod's to decide, so VEF's and vanilla's own AI stay off it too.</summary>
         public AbilityAINpcGate npcGate;
@@ -690,6 +695,10 @@ namespace AbilityAI
                 yield return $"zoneTarget is only read by Zone, not {workerClass.Name}";
             if (!zoneWorker && workerClass != null && sensitivityAbove >= 0f)
                 yield return $"sensitivityAbove is only read by Zone, not {workerClass.Name}";
+            bool spotWorker = workerClass != null && typeof(AbilityAIWorker_Spot).IsAssignableFrom(workerClass);
+            if (spotWorker && (spotKind == AbilityAISpotKind.None || spotRadius <= 0f)) yield return "a Spot rule needs a spotKind and a spotRadius";
+            else if (!spotWorker && workerClass != null && (spotKind != AbilityAISpotKind.None || spotRadius > 0f))
+                yield return $"spotKind and spotRadius are only read by Spot, not {workerClass.Name}";
             if (auraKinds != AbilityAITargetKinds.None)
             {
                 if (auraMin < 1) yield return "auraMin must be at least 1";
@@ -2376,6 +2385,15 @@ namespace AbilityAI
         public static int ZoneTimeskipMaxAge = DefaultZoneTimeskipMaxAge;
         /// <summary>Zone casting: Enthrall only while enemies are on the map (its skeletons last a day).</summary>
         public static bool ZoneEnthrallOnlyWithEnemies = true;
+        /// <summary>Zone casting: Consume Bodies is cast only where at least this many corpses of its zone are in reach.</summary>
+        public const int DefaultZoneConsumeMinCorpses = 3;
+        public static int ZoneConsumeMinCorpses = DefaultZoneConsumeMinCorpses;
+        /// <summary>Cast markers (AbilityAISpots): a crop marker is cast at only with at least this many open cells in
+        /// reach, a tree marker with at least this many cells a tree can take.</summary>
+        public const int DefaultSpotCropMinCells = 20;
+        public static int SpotCropMinCells = DefaultSpotCropMinCells;
+        public const int DefaultSpotTreeMinCells = 3;
+        public static int SpotTreeMinCells = DefaultSpotTreeMinCells;
         /// <summary>waitForGather rules hold while enemies are gathering (AbilityAIGather): the player's pawns, and
         /// other factions'.</summary>
         public static bool GatherWaitPlayer = true;
@@ -2438,6 +2456,9 @@ namespace AbilityAI
                     ZoneRechargeBelow = DefaultZoneRechargeBelow;
                     ZoneTimeskipMaxAge = DefaultZoneTimeskipMaxAge;
                     ZoneEnthrallOnlyWithEnemies = true;
+                    ZoneConsumeMinCorpses = DefaultZoneConsumeMinCorpses;
+                    SpotCropMinCells = DefaultSpotCropMinCells;
+                    SpotTreeMinCells = DefaultSpotTreeMinCells;
                     UndraftedIntervalTicks = DefaultUndraftedIntervalTicks;
                     AbilityAIBlockedJobs.Reset();
                     if (BetterAutocastOwns)
@@ -2491,6 +2512,12 @@ namespace AbilityAI
             Scribe_Values.Look(ref ZoneTimeskipMaxAge, "abilityAI_zoneTimeskipMaxAge", DefaultZoneTimeskipMaxAge);
             ZoneTimeskipMaxAge = Mathf.Clamp(ZoneTimeskipMaxAge, 14, 120);
             Scribe_Values.Look(ref ZoneEnthrallOnlyWithEnemies, "abilityAI_zoneEnthrallOnlyWithEnemies", true);
+            Scribe_Values.Look(ref ZoneConsumeMinCorpses, "abilityAI_zoneConsumeMinCorpses", DefaultZoneConsumeMinCorpses);
+            ZoneConsumeMinCorpses = Mathf.Clamp(ZoneConsumeMinCorpses, 1, 20);
+            Scribe_Values.Look(ref SpotCropMinCells, "abilityAI_spotCropMinCells", DefaultSpotCropMinCells);
+            SpotCropMinCells = Mathf.Clamp(SpotCropMinCells, 1, 100);
+            Scribe_Values.Look(ref SpotTreeMinCells, "abilityAI_spotTreeMinCells", DefaultSpotTreeMinCells);
+            SpotTreeMinCells = Mathf.Clamp(SpotTreeMinCells, 1, 40);
             Scribe_Values.Look(ref CalmBreaks, "abilityAI_calmBreaks", DefaultCalmBreaks);
             Scribe_Values.Look(ref CalmRange, "abilityAI_calmRange", DefaultCalmRange);
             CalmRange = Mathf.Clamp(CalmRange, 5f, 60f);
@@ -2666,7 +2693,7 @@ namespace AbilityAI
                 RecastAt = Mathf.Round(list.Slider(RecastAt, 0f, 0.5f) * 100f) / 100f;
                 Hint(list, "AAI_Recast_Desc");
             }
-            if (AbilityAIZones.Any) DoZoneCasting(list);
+            if (AbilityAIZones.Any || AbilityAISpots.Any) DoZoneCasting(list);
             if (BetterAutocastActive)
             {
                 bool before = BetterAutocastOwns;
@@ -2709,7 +2736,23 @@ namespace AbilityAI
             }
             if (AbilityAIZones.Uses(AbilityAIZoneTarget.HumanlikeCorpses))
                 list.CheckboxLabeled("AAI_ZoneEnthrallOnlyWithEnemies".Translate(), ref ZoneEnthrallOnlyWithEnemies, "AAI_ZoneEnthrallOnlyWithEnemies_Tip".Translate());
-            Hint(list, "AAI_Zone_Desc");
+            if (AbilityAIZones.Uses(AbilityAIZoneTarget.ConsumableCorpses))
+            {
+                list.Label("AAI_ZoneConsumeMinCorpses".Translate(ZoneConsumeMinCorpses), -1f, "AAI_ZoneConsumeMinCorpses_Tip".Translate());
+                ZoneConsumeMinCorpses = Mathf.RoundToInt(list.Slider(ZoneConsumeMinCorpses, 1f, 20f));
+            }
+            if (AbilityAISpots.Uses(AbilityAISpotKind.Crops))
+            {
+                list.Label("AAI_SpotCropMinCells".Translate(SpotCropMinCells), -1f, "AAI_SpotCropMinCells_Tip".Translate());
+                SpotCropMinCells = Mathf.RoundToInt(list.Slider(SpotCropMinCells, 1f, 100f));
+            }
+            if (AbilityAISpots.Uses(AbilityAISpotKind.Trees))
+            {
+                list.Label("AAI_SpotTreeMinCells".Translate(SpotTreeMinCells), -1f, "AAI_SpotTreeMinCells_Tip".Translate());
+                SpotTreeMinCells = Mathf.RoundToInt(list.Slider(SpotTreeMinCells, 1f, 40f));
+            }
+            if (AbilityAIZones.Any) Hint(list, "AAI_Zone_Desc");
+            if (AbilityAISpots.Any) Hint(list, "AAI_Spot_Desc");
         }
 
         private static void DoMentalBreaks(Listing_Standard list)

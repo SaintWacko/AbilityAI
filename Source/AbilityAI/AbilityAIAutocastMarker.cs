@@ -127,6 +127,8 @@ namespace AbilityAI
             // Zone casting is undrafted work: without undrafted autocast it never runs
             string zone = AbilityAISettings.UndraftedAutocast ? AbilityAIZones.Hint(ability.def, ability.pawn) : null;
             if (zone != null) __result += "\n" + zone.Colorize(ColoredText.SubtleGrayColor);
+            string spot = AbilityAISettings.UndraftedAutocast ? AbilityAISpots.Hint(ability.def) : null;
+            if (spot != null) __result += "\n" + spot.Colorize(ColoredText.SubtleGrayColor);
         }
     }
 }

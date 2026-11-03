@@ -11,14 +11,13 @@
      Love, Luck Transfer, Health Swap, Essence Transfer, Location Swap, Farskip, Nightstep, Neuroquake, Timequake),
      crafting and utility ones (constructs, Psyring, Transmute, Corpsetalk, Word of
      Productivity/Alliance/Joy/Inspiration/Progress/Foretelling/Animals, Mind Wipe, Bliss, Darkvision, Group
-     Link, Skipdoor, Crop Burst, Tree Sprout, Shrineshield, Cold Zone), map-wide ones (Soothe, Eclipse, Intensify
+     Link, Skipdoor, Shrineshield, Cold Zone), map-wide ones (Soothe, Eclipse, Intensify
      Shadows, Raid Pause, Hurricane, Bend Probability, Manhunter Pulse, Animal Allies), the ones that put the caster in a coma (Mass Hallucination, Fire Beam, Blizzard, Time Reversal, Season
-     Timeskip, Timeskip Meditation, Skillroll, Resurrect, Reverse Engineer, Summon Pack), corpse targets (Consume
-     Bodies, Drain Psyessence), Neural Heat Dump (comas a colonist), Paralysis Pulse (always paralyses its own
+     Timeskip, Timeskip Meditation, Skillroll, Resurrect, Reverse Engineer, Summon Pack), Drain Psyessence (a corpse target), Neural Heat Dump (comas a colonist), Paralysis Pulse (always paralyses its own
      caster), Guardian Skipbarrier (channelled until cancelled), and for now the heat-scaled ones (Aggressive Heat
      Dump, Neural Heat Detonation, Heat Focus), which need a heat gate.
-     Enchant, Mend, Recharge, Power, Craft Timeskip, Enthrall and Word of Trust are zone casting rules, in
-     AbilityAI_VPE_Zones.xml.
+     Enchant, Mend, Recharge, Power, Craft Timeskip, Enthrall, Consume Bodies and Word of Trust are zone casting
+     rules, and Crop Burst and Tree Sprout cast marker rules, in AbilityAI_VPE_Zones.xml.
      <npc> and <friendlyNpc> change a rule for casters that aren't the player's pawns (friendlyNpc: visitors,
      traders, allied soldiers, on top of npc). -->
 <Patch>

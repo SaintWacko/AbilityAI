@@ -34,6 +34,9 @@ namespace AbilityAI
         /// <summary>The colony's prisoners set to be recruited or have their resistance worn down, with resistance left.
         /// Needs no zone (Word of Trust).</summary>
         Prisoners,
+        /// <summary>The same corpses as HumanlikeCorpses, consumed in heaps by a self-cast area (Consume Bodies): the
+        /// caster walks to the cell with the most of them in reach (AbilityAIZoneWork.TryFindConsumeCell).</summary>
+        ConsumableCorpses,
     }
 
     /// <summary>Zone: casts the ability on what its zone holds (zoneTarget). Not run by the driver: zone casting is
@@ -184,6 +187,7 @@ namespace AbilityAI
                     return true;
                 }
                 case AbilityAIZoneTarget.HumanlikeCorpses:
+                case AbilityAIZoneTarget.ConsumableCorpses:
                 {
                     // Only enemies' and the factionless: the corpse is destroyed, so the colony's own dead or a friendly
                     // visitor could never be buried
@@ -369,6 +373,7 @@ namespace AbilityAI
         private readonly Dictionary<Def, Targets> targets = new Dictionary<Def, Targets>();
         private readonly Dictionary<Thing, TargetClaim> claims = new Dictionary<Thing, TargetClaim>();
         private readonly Dictionary<(Pawn, Thing), int> retryAfter = new Dictionary<(Pawn, Thing), int>();
+        private readonly Dictionary<(Pawn, Def), int> zoneRetryAfter = new Dictionary<(Pawn, Def), int>();
         private static readonly HashSet<Thing> seen = new HashSet<Thing>();
         private static readonly List<Thing> expired = new List<Thing>();
         private static readonly List<(Pawn, Thing)> expiredWaits = new List<(Pawn, Thing)>();
@@ -440,7 +445,8 @@ namespace AbilityAI
                 var rule = AbilityAIZones.RuleOf(defs[i]);
                 if (rule == null) continue;
                 if (AbilityAIZones.NeedsZone(rule.zoneTarget) && !HasCells(defs[i])) continue;
-                if (TargetsFor(defs[i], rule.zoneTarget, tick).Count > 0) return true;
+                int need = rule.zoneTarget == AbilityAIZoneTarget.ConsumableCorpses ? AbilityAISettings.ZoneConsumeMinCorpses : 1;
+                if (TargetsFor(defs[i], rule.zoneTarget, tick).Count >= need) return true;
             }
             return false;
         }
@@ -477,6 +483,16 @@ namespace AbilityAI
                 if (!Holds(kv.Value)) expired.Add(kv.Key);
             for (int i = 0; i < expired.Count; i++) claims.Remove(expired[i]);
             expired.Clear();
+        }
+
+        // A colonist that found no place to cast an area psycast (Consume Bodies) leaves the whole zone for a while,
+        // since finding one looks at every corpse in it
+        internal bool WaitingZone(Pawn pawn, Def def, int tick) => zoneRetryAfter.TryGetValue((pawn, def), out int t) && tick < t;
+
+        internal void WaitZone(Pawn pawn, Def def, int untilTick)
+        {
+            if (zoneRetryAfter.Count > 64) zoneRetryAfter.Clear();
+            zoneRetryAfter[(pawn, def)] = untilTick;
         }
 
         // A colonist that found no way to cast at a target leaves it for a while instead of trying again at every work

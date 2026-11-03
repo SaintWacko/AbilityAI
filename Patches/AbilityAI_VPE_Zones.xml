@@ -3,6 +3,8 @@
      player paints a zone per psycast from its autocast menu; colonists with the psycast on autocast cast it on what the
      zone holds, as Basic work. Word of Trust needs no zone: it goes to the prisoners the wardens are recruiting or wearing
      down. What each kind takes is in AbilityAIZones.Wants, its thresholds in the Your pawns tab ("Zone casting").
+     Crop Burst and Tree Sprout are cast at markers instead (Source/AbilityAI/AbilityAISpots.cs), put down from the
+     autocast menu, whenever no crop grows within spotRadius of one and enough cells in reach are open.
      NPCs never cast from these rules (the Zone worker isn't the driver's), so VEF's own AI keeps them, as before. -->
 <Patch>
   <Operation Class="PatchOperationFindMod">
@@ -101,6 +103,55 @@
               <li Class="AbilityAI.AbilityAIExtension">
                 <workerClass>AbilityAI.AbilityAIWorker_Zone</workerClass>
                 <zoneTarget>HumanlikeCorpses</zoneTarget>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Consume Bodies: the same corpses as Enthrall, in heaps. The caster walks to the cell with the most of the
+             zone's corpses within its radius (3.9), at least the setting's minimum, and only where no other humanlike
+             corpse is in reach: VPE destroys every one there, through walls. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_ConsumeBodies"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_ConsumeBodies"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Zone</workerClass>
+                <zoneTarget>ConsumableCorpses</zoneTarget>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Crop Burst: at markers, once the last burst's crops are all harvested (no crop within 6) and enough cells
+             are fertile ground with no tree or building. Its one-day cooldown keeps it to one burst a day. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_CropBurst"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_CropBurst"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Spot</workerClass>
+                <spotKind>Crops</spotKind>
+                <spotRadius>6</spotRadius>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Tree Sprout: at markers, while no crop grows within 8 (its largest radius) and enough cells in the caster's
+             own radius (3 x sensitivity, 8 at most) can take a tree. It has no cooldown, so the open-cell minimum is
+             what stops it on a full grove. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_TreeSprout"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_TreeSprout"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Spot</workerClass>
+                <spotKind>Trees</spotKind>
+                <spotRadius>8</spotRadius>
               </li>
             </value>
           </match>

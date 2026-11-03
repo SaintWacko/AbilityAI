@@ -28,11 +28,11 @@ namespace AbilityAI.Vpe
         private static void GiveTestPsycasts(Pawn pawn) =>
             Give(pawn, RuledPsycasts.Select(n => DefDatabase<VefAbilityDef>.GetNamedSilentFail(n)).Where(d => d != null));
 
-        // Every psycast with a zone rule, from whichever paths they are on, to try zone casting on one colonist
+        // Every psycast with a zone or marker rule, from whichever paths they are on, to try zone casting on one colonist
         [DebugAction("Ability AI", "Give VPE zone psycasts", actionType = DebugActionType.ToolMapForPawns,
             allowedGameStates = AllowedGameStates.PlayingOnMap, requiresRoyalty = true)]
         private static void GiveZonePsycasts(Pawn pawn) =>
-            Give(pawn, AbilityAIZones.RuleDefs.OfType<VefAbilityDef>());
+            Give(pawn, AbilityAIZones.RuleDefs.Concat(AbilityAISpots.RuleDefs).OfType<VefAbilityDef>());
 
         // One entry per VPE path, giving every psycast of it that has an Ability AI rule, to try a path's rules on
         // raiders without a psycaster of that path turning up

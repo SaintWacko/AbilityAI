@@ -73,6 +73,18 @@ namespace AbilityAI
         private static readonly System.Comparison<Thing> ByDistance =
             (a, b) => (a.Position - sortFrom).LengthHorizontalSquared.CompareTo((b.Position - sortFrom).LengthHorizontalSquared);
 
+        // Consume Bodies: of the cells with enough corpses in reach, how many one look for work checks for corpses that
+        // would block them
+        private const int MaxConsumeCellsTried = 6;
+        private static readonly Dictionary<IntVec3, int> cellCounts = new Dictionary<IntVec3, int>();
+        private static readonly List<IntVec3> consumeCells = new List<IntVec3>();
+        private static readonly List<Thing> consumed = new List<Thing>();
+        private static readonly System.Comparison<IntVec3> ByCorpsesThenDistance = (a, b) =>
+        {
+            int byCount = cellCounts[b].CompareTo(cellCounts[a]);
+            return byCount != 0 ? byCount : (a - sortFrom).LengthHorizontalSquared.CompareTo((b - sortFrom).LengthHorizontalSquared);
+        };
+
         /// <summary>The pawn's job with this id is its current or a queued one.</summary>
         internal static bool JobPending(Pawn pawn, int jobId)
         {
@@ -107,6 +119,12 @@ namespace AbilityAI
                     AbilityAIZoneTarget kind = ready[r].rule.zoneTarget;
                     var targets = zones.TargetsFor(a.Def, kind, tick);
                     if (targets.Count == 0) continue;
+                    if (kind == AbilityAIZoneTarget.ConsumableCorpses)
+                    {
+                        Job consume = TryGiveConsumeJob(pawn, a, zones, targets, tick);
+                        if (consume != null) return consume;
+                        continue;
+                    }
                     candidates.Clear();
                     for (int i = 0; i < targets.Count; i++)
                     {
@@ -174,6 +192,21 @@ namespace AbilityAI
                 for (int r = 0; r < ready.Count; r++)
                 {
                     AIAbility a = ready[r].ability;
+                    if (ready[r].rule.zoneTarget == AbilityAIZoneTarget.ConsumableCorpses)
+                    {
+                        // The walk's target is one corpse of the heap; the cast takes the heap around where the pawn
+                        // stands now
+                        if (!AbilityAIZones.Wants(AbilityAIZoneTarget.ConsumableCorpses, target)) continue;
+                        float radius = a.DefaultRadius;
+                        if (!ConsumeReady(pawn, a) || !CorpsesAt(pawn, a.Def, zones, pawn.Position, radius, AbilityAISettings.ZoneConsumeMinCorpses))
+                            continue;
+                        Job consume = a.MakeCastJob(pawn, pawn);
+                        if (consume == null) continue;
+                        ClaimConsumed(zones, pawn, consume.loadID);
+                        if (AbilityAISettings.DebugLog && Prefs.DevMode)
+                            Log.Message($"[Ability AI] {pawn.LabelShort} casts {a.Label} at {pawn.Position} on {consumed.Count} corpses (zone work)");
+                        return consume;
+                    }
                     if (!AbilityAIZones.Wants(ready[r].rule.zoneTarget, target) || !Available(pawn, a, target, ready[r].rule.zoneTarget) || !a.ValidInRange(target)) continue;
                     Job cast = a.MakeCastJob(target, target);
                     if (cast == null) continue;
@@ -187,7 +220,113 @@ namespace AbilityAI
             {
                 collected.Clear();
                 ready.Clear();
+                consumed.Clear();
             }
+        }
+
+        // Consume Bodies: the cell with the most of the zone's corpses within the radius, at least the setting's
+        // minimum. VEF takes every humanlike corpse in the radius around the caster, through walls, whoever's it is,
+        // and destroys them, so a cell is refused when any corpse in reach isn't one the zone offers (the colony's dead,
+        // a friendly faction's, one outside the zone or forbidden, one another colonist is about to cast at). Each
+        // corpse marks every cell within the radius of it, which counts each cell's corpses in one pass; only the best
+        // few cells are checked for the corpses that would block them.
+        private static Job TryGiveConsumeJob(Pawn pawn, AIAbility a, PsycastZones zones, List<Thing> targets, int tick)
+        {
+            Def def = a.Def;
+            int need = AbilityAISettings.ZoneConsumeMinCorpses;
+            float radius = a.DefaultRadius;
+            if (targets.Count < need || zones.WaitingZone(pawn, def, tick) || radius <= 0f || radius >= GenRadial.MaxRadialPatternRadius) return null;
+            if (!ConsumeReady(pawn, a)) return null;
+            Map map = pawn.Map;
+            try
+            {
+                int reach = GenRadial.NumCellsInRadius(radius);
+                for (int i = 0; i < targets.Count; i++)
+                {
+                    Thing t = targets[i];
+                    if (t.Map != map || !Counts(pawn, zones, t)) continue;
+                    // From 1: VEF leaves a corpse on the caster's own cell
+                    for (int k = 1; k < reach; k++)
+                    {
+                        IntVec3 c = t.Position + GenRadial.RadialPattern[k];
+                        cellCounts[c] = (cellCounts.TryGetValue(c, out int n) ? n : 0) + 1;
+                    }
+                }
+                foreach (var kv in cellCounts)
+                    if (kv.Value >= need) consumeCells.Add(kv.Key);
+                sortFrom = pawn.Position;
+                consumeCells.Sort(ByCorpsesThenDistance);
+                int tried = 0;
+                for (int i = 0; i < consumeCells.Count && tried < MaxConsumeCellsTried; i++)
+                {
+                    IntVec3 c = consumeCells[i];
+                    if (!c.InBounds(map) || c.Fogged(map) || !c.Standable(map)) continue;
+                    tried++;
+                    if (!CorpsesAt(pawn, def, zones, c, radius, need)) continue;
+                    if (c != pawn.Position && !pawn.CanReach(c, PathEndMode.OnCell, Danger.Some)) continue;
+                    if (c == pawn.Position)
+                    {
+                        Job cast = a.MakeCastJob(pawn, pawn);
+                        if (cast == null) break;
+                        ClaimConsumed(zones, pawn, cast.loadID);
+                        zones.WaitZone(pawn, def, tick + CastWaitTicks);
+                        if (AbilityAISettings.DebugLog && Prefs.DevMode)
+                            Log.Message($"[Ability AI] {pawn.LabelShort} casts {a.Label} at {c} on {consumed.Count} corpses (zone work)");
+                        return cast;
+                    }
+                    Job walk = JobMaker.MakeJob(AbilityAIZoneDefOf.AAI_ZoneCastWalk, consumed[0], c);
+                    ClaimConsumed(zones, pawn, walk.loadID);
+                    if (AbilityAISettings.DebugLog && Prefs.DevMode)
+                        Log.Message($"[Ability AI] {pawn.LabelShort} walks to {c} to cast {a.Label} on {consumed.Count} corpses (zone work)");
+                    return walk;
+                }
+                zones.WaitZone(pawn, def, tick + RetryTicks);
+                return null;
+            }
+            finally
+            {
+                cellCounts.Clear();
+                consumeCells.Clear();
+                consumed.Clear();
+            }
+        }
+
+        private static bool ConsumeReady(Pawn pawn, AIAbility a) =>
+            a.ValidIgnoringRange(pawn) && AbilityAIDriver.PsycastWithinLimits(a, pawn);
+
+        // One of the zone's corpses this pawn may count: not forbidden, not in someone else's hands, nobody else casting
+        // at it
+        private static bool Counts(Pawn pawn, PsycastZones zones, Thing t) =>
+            AbilityAIZones.Wants(AbilityAIZoneTarget.ConsumableCorpses, t) && !t.IsForbidden(pawn) && !zones.ClaimedByOther(t, pawn)
+            && pawn.CanReserve(t);
+
+        // What a cast at c would take, into consumed, and whether that is enough and nothing else is in reach. A corpse
+        // a hauler has reserved isn't counted but doesn't block either: it is one the zone offers.
+        private static bool CorpsesAt(Pawn pawn, Def def, PsycastZones zones, IntVec3 c, float radius, int need)
+        {
+            consumed.Clear();
+            Map map = pawn.Map;
+            var zone = zones.ZoneFor(def, false);
+            if (zone == null || radius <= 0f) return false;
+            foreach (Thing t in GenRadial.RadialDistinctThingsAround(c, map, radius, true))
+            {
+                if (!(t is Corpse corpse) || corpse.InnerPawn == null || !corpse.InnerPawn.RaceProps.Humanlike || t.Position == c) continue;
+                bool offered = zone[t.Position] && AbilityAIZones.Wants(AbilityAIZoneTarget.ConsumableCorpses, t) && !t.IsForbidden(pawn)
+                    && !zones.ClaimedByOther(t, pawn);
+                if (!offered)
+                {
+                    consumed.Clear();
+                    return false;
+                }
+                if (pawn.CanReserve(t)) consumed.Add(t);
+            }
+            return consumed.Count >= need;
+        }
+
+        // The claim on every corpse of the heap follows the walk, then the cast, so no other colonist counts them
+        private static void ClaimConsumed(PsycastZones zones, Pawn pawn, int jobId)
+        {
+            for (int i = 0; i < consumed.Count; i++) zones.Claim(consumed[i], pawn, jobId);
         }
 
         // Everything about this target short of reach and range: not forbidden, not in someone else's hands (a warden

@@ -337,7 +337,7 @@ namespace AbilityAI
             public int builtTick = -TargetsRefreshTicks;
         }
 
-        private struct Claim
+        private struct TargetClaim
         {
             public Pawn pawn;
             public int jobId;
@@ -345,7 +345,7 @@ namespace AbilityAI
 
         // Not saved: a walk or cast under way is started again after a load, and the lists are found again
         private readonly Dictionary<Def, Targets> targets = new Dictionary<Def, Targets>();
-        private readonly Dictionary<Thing, Claim> claims = new Dictionary<Thing, Claim>();
+        private readonly Dictionary<Thing, TargetClaim> claims = new Dictionary<Thing, TargetClaim>();
         private readonly Dictionary<(Pawn, Thing), int> retryAfter = new Dictionary<(Pawn, Thing), int>();
         private static readonly HashSet<Thing> seen = new HashSet<Thing>();
         private static readonly List<Thing> expired = new List<Thing>();
@@ -423,7 +423,7 @@ namespace AbilityAI
             return false;
         }
 
-        private static bool Holds(Claim c) => AbilityAIZoneWork.JobPending(c.pawn, c.jobId);
+        private static bool Holds(TargetClaim c) => AbilityAIZoneWork.JobPending(c.pawn, c.jobId);
 
         internal bool ClaimedByOther(Thing thing, Pawn pawn)
         {
@@ -435,7 +435,7 @@ namespace AbilityAI
 
         internal void Claim(Thing thing, Pawn pawn, int jobId)
         {
-            claims[thing] = new Claim { pawn = pawn, jobId = jobId };
+            claims[thing] = new TargetClaim { pawn = pawn, jobId = jobId };
             if (claims.Count > 64) PruneClaims();
         }
 

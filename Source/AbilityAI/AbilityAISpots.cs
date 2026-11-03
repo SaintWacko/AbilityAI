@@ -105,9 +105,14 @@ namespace AbilityAI
         /// <summary>Whether a cast centred on centre is wanted now. clearRadius: no crop and no spawner still landing
         /// within it. openRadius: the cells counted as open (the caster's own radius when one is about to cast).</summary>
         internal static AbilityAISpotState Evaluate(Map map, IntVec3 centre, AbilityAISpotKind kind, float clearRadius, float openRadius,
-            int need, out int open)
+            int need, out int open) => Evaluate(map, centre, kind, clearRadius, openRadius, need, out open, out _);
+
+        /// <summary>As Evaluate; crop: the plant that keeps it CropsGrowing.</summary>
+        internal static AbilityAISpotState Evaluate(Map map, IntVec3 centre, AbilityAISpotKind kind, float clearRadius, float openRadius,
+            int need, out int open, out ThingDef crop)
         {
             open = 0;
+            crop = null;
             if (!centre.InBounds(map) || centre.Fogged(map)) return AbilityAISpotState.Fogged;
             float max = GenRadial.MaxRadialPatternRadius - 1f;
             int clearCount = GenRadial.NumCellsInRadius(Mathf.Min(clearRadius, max));
@@ -128,7 +133,11 @@ namespace AbilityAI
                     if (t is Plant plant)
                     {
                         if (plant.def.plant.IsTree) openHere = false;
-                        else if (clear && plant.def.plant.Sowable) return AbilityAISpotState.CropsGrowing;
+                        else if (clear && plant.def.plant.Sowable)
+                        {
+                            crop = plant.def;
+                            return AbilityAISpotState.CropsGrowing;
+                        }
                     }
                     else if (t is GroundSpawner)
                     {
@@ -174,6 +183,8 @@ namespace AbilityAI
         internal CastSpotMarker marker;
         internal AbilityAISpotState state;
         internal int openCells;
+        // A wild plant that happens to be sowable holds the marker as a crop does, so the marker names it
+        internal ThingDef crop;
 
         public CastSpot() { }
 
@@ -226,7 +237,7 @@ namespace AbilityAI
                 s.due = false;
                 if (!live) continue;
                 s.state = AbilityAISpots.Evaluate(map, s.anchor, rule.spotKind, rule.spotRadius, rule.spotRadius,
-                    AbilityAISpots.MinCells(rule.spotKind), out s.openCells);
+                    AbilityAISpots.MinCells(rule.spotKind), out s.openCells, out s.crop);
                 s.due = s.state == AbilityAISpotState.Due;
                 if (s.due) dueCount++;
             }
@@ -274,7 +285,8 @@ namespace AbilityAI
         }
 
         /// <summary>The marker a walk is for: the one at its cell this pawn claimed, else one there no one has (a walk
-        /// loaded from a save, whose claim wasn't saved), which it claims for the walk.</summary>
+        /// loaded from a save, whose claim wasn't saved), which it claims for the walk. Markers of two psycasts may share
+        /// a cell, and the walk doesn't say which, so the free one has to be of a psycast the pawn has on autocast.</summary>
         internal CastSpot ClaimFor(Pawn pawn, IntVec3 anchor, int jobId)
         {
             CastSpot free = null;
@@ -283,7 +295,8 @@ namespace AbilityAI
                 var s = spots[i];
                 if (s.anchor != anchor) continue;
                 if (s.claimant == pawn && s.ClaimHolds()) return s;
-                if (free == null && !s.ClaimHolds()) free = s;
+                if (free == null && !s.ClaimHolds() && s.CastDef != null
+                    && AbilityAIAutocast.ModeFor(pawn, s.CastDef) != AbilityAIAutocastMode.Off) free = s;
             }
             free?.Claim(pawn, jobId);
             return free;
@@ -375,7 +388,9 @@ namespace AbilityAI
             switch (spot.state)
             {
                 case AbilityAISpotState.Due: text = "AAI_RecastMarker_Inspect".Translate(); break;
-                case AbilityAISpotState.CropsGrowing: text = "AAI_SpotMarker_Crops".Translate(Radius.ToString("0.#")); break;
+                case AbilityAISpotState.CropsGrowing:
+                    text = "AAI_SpotMarker_Crops".Translate(spot.crop?.label ?? "?", Radius.ToString("0.#"));
+                    break;
                 case AbilityAISpotState.Landing: text = "AAI_SpotMarker_Landing".Translate(); break;
                 case AbilityAISpotState.TooFewCells:
                     var rule = AbilityAISpots.RuleOf(spot.CastDef);

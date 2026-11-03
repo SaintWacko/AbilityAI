@@ -191,7 +191,7 @@
   <AAI_SpotPlace_Desc>Click to put down markers for {0}, as many as you like; right-click or Escape to stop. Colonists with the psycast on autocast cast it at each marker whenever the ground around it is ready, as Basic work.</AAI_SpotPlace_Desc>
   <AAI_SpotPlace_Taken>There is already a marker for this psycast there.</AAI_SpotPlace_Taken>
   <AAI_SpotMarker_Label>{0} (marker)</AAI_SpotMarker_Label>
-  <AAI_SpotMarker_Crops>Waiting: crops still grow within {0} tiles.</AAI_SpotMarker_Crops>
+  <AAI_SpotMarker_Crops>Waiting: a sowable plant ({0}) grows within {1} tiles, and a cast would wipe it. Harvest or cut it to free the marker.</AAI_SpotMarker_Crops>
   <AAI_SpotMarker_Landing>Waiting: a cast is landing here.</AAI_SpotMarker_Landing>
   <AAI_SpotMarker_TooFew_Crops>Waiting: it needs {0} open cells and has {1}.</AAI_SpotMarker_TooFew_Crops>
   <AAI_SpotMarker_TooFew_Trees>Waiting: it needs {0} cells a tree can take and has {1}.</AAI_SpotMarker_TooFew_Trees>

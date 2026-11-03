@@ -163,7 +163,7 @@
   <AAI_ZoneTimeskipMaxAge_Tip>Each craft timeskip ages its caster by a full year. A colonist whose next cast would take their biological age past this doesn't cast it.</AAI_ZoneTimeskipMaxAge_Tip>
   <AAI_ZoneEnthrallOnlyWithEnemies>Enthrall only while enemies are on the map</AAI_ZoneEnthrallOnlyWithEnemies>
   <AAI_ZoneEnthrallOnlyWithEnemies_Tip>An enthralled skeleton fights for a day, then falls apart. On: corpses in Enthrall's zone are raised only while there are enemies to fight. Off: they are raised whenever a caster is free.</AAI_ZoneEnthrallOnlyWithEnemies_Tip>
-  <AAI_Zone_Desc>Zone casting is Basic work: colonists do it between other jobs in Work tab order, never while drafted, and each goes for the nearest target nobody else is heading to. Paint a psycast's zone from its autocast menu (right-click its button). Every caster on the map shares it.</AAI_Zone_Desc>
+  <AAI_Zone_Desc>Zone casting is Basic work: colonists do it between other jobs in Work tab order, never while drafted, and each goes for the nearest target nobody else is heading to. Paint a psycast's zone from its autocast menu (right-click its button). Every caster on the map shares it. Needs undrafted autocast on.</AAI_Zone_Desc>
   <AAI_ZoneExpand>Expand {0} zone</AAI_ZoneExpand>
   <AAI_ZoneExpand_Desc>Drag to add cells to the {0} zone. Colonists with the psycast on autocast cast it on what lies there, as Basic work. Every caster on the map shares this zone; it doesn't affect any other zone or area.</AAI_ZoneExpand_Desc>
   <AAI_ZoneShrink>Shrink {0} zone</AAI_ZoneShrink>
@@ -173,6 +173,6 @@
   <AAI_Zone_Hint_Rechargeable>On autocast, this pawn recharges batteries and mechs in this psycast's zone, as Basic work.</AAI_Zone_Hint_Rechargeable>
   <AAI_Zone_Hint_PowerConsumers>On autocast, this pawn powers buildings that draw power in this psycast's zone, as Basic work.</AAI_Zone_Hint_PowerConsumers>
   <AAI_Zone_Hint_Unfinished>On autocast, this pawn finishes unfinished items in this psycast's zone, as Basic work. Each cast ages them a year.</AAI_Zone_Hint_Unfinished>
-  <AAI_Zone_Hint_HumanlikeCorpses>On autocast, this pawn enthralls corpses in this psycast's zone, as Basic work.</AAI_Zone_Hint_HumanlikeCorpses>
+  <AAI_Zone_Hint_HumanlikeCorpses>On autocast, this pawn enthralls the corpses of enemies and strangers in this psycast's zone, as Basic work.</AAI_Zone_Hint_HumanlikeCorpses>
   <AAI_Zone_Hint_Prisoners>On autocast, this pawn casts it on prisoners set to recruit or reduce resistance, as Basic work.</AAI_Zone_Hint_Prisoners>
 </LanguageData>

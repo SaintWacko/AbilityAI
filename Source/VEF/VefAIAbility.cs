@@ -428,11 +428,16 @@ namespace AbilityAI.Vef
         {
             var info = Info;
             if (info.self) return true;
-            // The type's own check only for a def that wants no sight line: it ends in the base ValidateTarget, whose
-            // CanHitTarget would want one from where the caster stands now, which a walk-up cast doesn't need. Zone
+            // The type's own check only for a def that wants no sight line, and a target within the def's range: it
+            // ends in the base ValidateTarget, whose CanHitTarget measures both from where the caster stands now, which
+            // a walk-up cast doesn't need. VPE's walk-up psycasts state no sight line and a range of 999999. Zone
             // casting needs it for VPE's Enchant (the quality the caster can reach) and Mend (only damaged things).
             if (info.touch)
-                return ability.pawn.CanReach(target, PathEndMode.Touch, Danger.Deadly) && (ability.def.requireLineOfSight || OwnTargetCheck(target));
+            {
+                if (!ability.pawn.CanReach(target, PathEndMode.Touch, Danger.Deadly)) return false;
+                if (ability.def.requireLineOfSight || target.Cell.DistanceTo(ability.pawn.Position) >= ability.GetRangeForPawn()) return true;
+                return OwnTargetCheck(target);
+            }
             return ability.CanHitTarget(target) && OwnTargetCheck(target);
         }
 

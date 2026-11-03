@@ -29,7 +29,7 @@ namespace AbilityAI
         PowerConsumers,
         /// <summary>Unfinished items whose bill still exists (Craft Timeskip).</summary>
         Unfinished,
-        /// <summary>Humanlike corpses of anyone but the player's own faction (Enthrall).</summary>
+        /// <summary>Humanlike corpses of factionless pawns and of factions hostile to the player (Enthrall).</summary>
         HumanlikeCorpses,
         /// <summary>The colony's prisoners set to be recruited or have their resistance worn down, with resistance left.
         /// Needs no zone (Word of Trust).</summary>
@@ -185,9 +185,10 @@ namespace AbilityAI
                 }
                 case AbilityAIZoneTarget.HumanlikeCorpses:
                 {
-                    // Not the colony's own dead: the corpse is destroyed, so it could never be buried
+                    // Only enemies' and the factionless: the corpse is destroyed, so the colony's own dead or a friendly
+                    // visitor could never be buried
                     Pawn inner = (t as Corpse)?.InnerPawn;
-                    return inner != null && inner.RaceProps.Humanlike && inner.Faction != Faction.OfPlayer;
+                    return inner != null && inner.RaceProps.Humanlike && (inner.Faction == null || inner.Faction.HostileTo(Faction.OfPlayer));
                 }
                 case AbilityAIZoneTarget.Prisoners:
                 {
@@ -275,7 +276,7 @@ namespace AbilityAI
 
         internal bool this[IntVec3 c] => grid[c];
 
-        internal int CellCount => grid.TrueCount;
+        internal int CellCount => grid?.TrueCount ?? 0;
 
         /// <summary>Set by a designator; the zone's targets are found again on the next look.</summary>
         internal void Set(IntVec3 c, bool on)
@@ -487,7 +488,7 @@ namespace AbilityAI
             if (Scribe.mode == LoadSaveMode.PostLoadInit)
             {
                 if (zones == null) zones = new List<PsycastZone>();
-                zones.RemoveAll(z => z == null || z.defName.NullOrEmpty());
+                zones.RemoveAll(z => z == null || z.defName.NullOrEmpty() || z.CellCount == 0);
                 // A zone whose psycast has gone (its mod removed) is kept, unused, for when it comes back
                 for (int i = 0; i < zones.Count; i++) zones[i].map = map;
             }

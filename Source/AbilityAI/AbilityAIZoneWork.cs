@@ -199,10 +199,13 @@ namespace AbilityAI
                 AIAbility a = heatBlocked[r].ability;
                 AbilityAIZoneTarget kind = heatBlocked[r].rule.zoneTarget;
                 var targets = zones.TargetsFor(a.Def, kind, tick);
+                // A heap is worth it only with the setting's corpses, and not while this pawn waits out a failed search
+                if (kind == AbilityAIZoneTarget.ConsumableCorpses
+                    && (targets.Count < AbilityAISettings.ZoneConsumeMinCorpses || zones.WaitingZone(pawn, a.Def, tick))) continue;
                 for (int i = 0; i < targets.Count; i++)
                 {
                     Thing t = targets[i];
-                    if (t.Map != pawn.Map || zones.ClaimedByOther(t, pawn) || !AbilityAIZones.Wants(kind, t)) continue;
+                    if (t.Map != pawn.Map || zones.Waiting(pawn, t, tick) || zones.ClaimedByOther(t, pawn) || !AbilityAIZones.Wants(kind, t)) continue;
                     return AbilityAIHeat.TryWorkVentJob(pawn, collected, a, "zone work");
                 }
             }

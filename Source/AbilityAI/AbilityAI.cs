@@ -1220,6 +1220,8 @@ namespace AbilityAI
             public int barrierJobId = -1;
             public int barrierLowSince = -1;
             public int barrierNextCheck;
+            // The first evaluation since the state was made (a load, or the pawn's first) has looked for a barrier
+            public bool barrierLooked;
         }
 
         /// <summary>Which workers a player's pawn may use at the moment.</summary>
@@ -1790,8 +1792,6 @@ namespace AbilityAI
                 state.nextEvalTick = tick;
             }
             if (state.home.IsValid) CheckHome(pawn, state, player);
-            // Before every interval and ability check: a barrier is dropped while the pawn moves or casts nothing
-            if (state.barrierHediff != null && tick >= state.barrierNextCheck) BarrierUpkeep(pawn, state, tick, player);
             // A Full walk is over and nothing has sent the pawn back yet: unless it casts now, it heads home
             bool returnDue = state.home.IsValid && state.approachJobId < 0 && state.returnJobId < 0;
             // Undrafted player pawns with nothing combat-related going on are checked at the slow interval; the
@@ -1829,6 +1829,12 @@ namespace AbilityAI
                 // Only now, past the interval checks: a pawn that isn't due pays no wrapper lookups
                 var abilities = collected;
                 AIAbilitySources.Collect(pawn, abilities);
+                // The state isn't saved: a barrier an NPC had up when the game was saved is taken on at its first check
+                if (!state.barrierLooked)
+                {
+                    state.barrierLooked = true;
+                    if (!player && AbilityAIBarrier.Any && state.barrierHediff == null) AdoptBarrier(pawn, state, abilities, tick);
+                }
                 curSet = player && !drafted ? UndraftedSetNow(pawn) : PlayerSet.All;
                 curPlayer = player;
                 // An undrafted player pawn on a hunt is only interrupted for a whileHunting rule (see CanActNowPlayer)
@@ -1877,7 +1883,8 @@ namespace AbilityAI
                             if (whyNot != null) WhyNot(a, ext, AbilityAINpcGates.Why(ext.npcGate, role));
                             continue;
                         }
-                        // A vent only follows another rule that heat held back: that rule's mode decides
+                        // A vent is only tried after another rule that heat held back found a target, so it never
+                        // needs the quick check on its own: the held-back rule's mode decides the NPC idle wait
                         if (ext.Worker.Combat != AbilityAICombat.InCombat && !ext.heatVent) outOfFightRule = true;
                         if (huntOnly && !ext.whileHunting)
                         {
@@ -2034,12 +2041,8 @@ namespace AbilityAI
                 }
                 if (worker is AbilityAIWorker_Barrier)
                 {
-                    state.barrierHediff = ext.hediff;
-                    state.barrierStart = AbilityAIWorker_Barrier.LastCount;
-                    state.barrierRadius = AbilityAIWorker_Barrier.LastRadius;
+                    TrackBarrier(state, ext.hediff, AbilityAIWorker_Barrier.LastCount, AbilityAIWorker_Barrier.LastRadius, tick);
                     state.barrierJobId = cast.loadID;
-                    state.barrierLowSince = -1;
-                    state.barrierNextCheck = tick + EvalIntervalTicks;
                 }
                 if (AbilityAISettings.DebugLog && Prefs.DevMode)
                     Log.Message($"[Ability AI] {pawn.LabelShort} casts {a.Label} ({worker.GetType().Name}) on {TargetLabel(target)}"
@@ -2096,6 +2099,55 @@ namespace AbilityAI
             return null;
         }
 
+        /// <summary>Barriers this AI is watching (TrackBarrier). Only a fast-path gate for BarrierCheck: a pawn destroyed
+        /// with one up leaves it counted, which costs one table lookup per constant-tree check until the next load.</summary>
+        internal static int BarriersUp;
+
+        private static void TrackBarrier(PawnState state, HediffDef hediff, int start, float radius, int tick)
+        {
+            if (state.barrierHediff == null) BarriersUp++;
+            state.barrierHediff = hediff;
+            state.barrierStart = start;
+            state.barrierRadius = radius;
+            state.barrierJobId = -1;
+            state.barrierLowSince = -1;
+            state.barrierNextCheck = tick + EvalIntervalTicks;
+        }
+
+        private static void ClearBarrier(PawnState state)
+        {
+            if (state.barrierHediff == null) return;
+            state.barrierHediff = null;
+            if (BarriersUp > 0) BarriersUp--;
+        }
+
+        // An NPC's barrier from before a load: nothing recorded the volley it was raised against, so the least that
+        // raises one stands in for it
+        private static void AdoptBarrier(Pawn pawn, PawnState state, List<AIAbility> abilities, int tick)
+        {
+            for (int i = 0; i < abilities.Count; i++)
+            {
+                var exts = abilities[i].Def.modExtensions;
+                for (int j = 0; j < exts.Count; j++)
+                {
+                    if (!(exts[j] is AbilityAIExtension rule) || !(rule.Worker is AbilityAIWorker_Barrier) || !AbilityAIUtility.Has(pawn, rule.hediff)) continue;
+                    TrackBarrier(state, rule.hediff, AbilityAISettings.BarrierMinShooters, AbilityAIUtility.Radius(abilities[i], rule), tick);
+                    return;
+                }
+            }
+        }
+
+        /// <summary>Called from the constant-tree postfix for every pawn while any barrier is watched, ahead of every
+        /// reason the driver might not evaluate the pawn (a job from the constant tree, a lord, autocast switched off
+        /// since), so a barrier the AI raised always comes down by its rule.</summary>
+        internal static void BarrierCheck(Pawn pawn)
+        {
+            if (evaluating || !states.TryGetValue(pawn, out PawnState state) || state.barrierHediff == null) return;
+            int tick = Find.TickManager.TicksGame;
+            if (tick < state.barrierNextCheck) return;
+            BarrierUpkeep(pawn, state, tick, pawn.Faction != null && pawn.Faction.IsPlayer);
+        }
+
         // A barrier this AI raised (AbilityAIBarrier) comes down once fewer than BarrierDropFraction of the shooters it
         // was raised against have stayed for BarrierDropSeconds, or for the player's pawns at their heat limit. The
         // hediff only appears once the warmup is over, so until then the cast job is what is waited on.
@@ -2106,7 +2158,7 @@ namespace AbilityAI
             if (barrier == null)
             {
                 if (state.barrierJobId >= 0 && pawn.CurJob != null && pawn.CurJob.loadID == state.barrierJobId) return;
-                state.barrierHediff = null;
+                ClearBarrier(state);
                 return;
             }
             state.barrierJobId = -1;
@@ -2130,7 +2182,7 @@ namespace AbilityAI
             }
             if (why == null) return;
             pawn.health.RemoveHediff(barrier);
-            state.barrierHediff = null;
+            ClearBarrier(state);
             if (AbilityAISettings.DebugLog && Prefs.DevMode)
                 Log.Message($"[Ability AI] {pawn.LabelShort} drops {barrier.LabelBase}: {why}");
         }
@@ -3011,6 +3063,11 @@ namespace AbilityAI
             // Before the Enabled check: a hold taken just before the AI was switched off still has to be put back
             if (AbilityAICombatAI.Holding) AbilityAICombatAI.CheckHold(___pawn);
             if (!AbilityAISettings.Enabled) return;
+            if (AbilityAIDriver.BarriersUp > 0 && ___pawn != null)
+            {
+                try { AbilityAIDriver.BarrierCheck(___pawn); }
+                catch (Exception e) { Log.ErrorOnce($"[Ability AI] barrier check threw for {___pawn.def.defName}: {e}", ___pawn.def.shortHash ^ 0x5B31); }
+            }
             // An undrafted colonist's hostility response (Attack or Flee) answers every constant-tree check while a
             // threat is near, so without this the AI would never get a look in for a colonist set to anything but
             // Ignore: it would attack or run from a berserk friend instead of calming it. The player's pawns only;

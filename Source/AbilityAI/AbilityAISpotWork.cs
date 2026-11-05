@@ -141,7 +141,7 @@ namespace AbilityAI
                     }
                     s.Wait(pawn, tick + RetryTicks);
                 }
-                return TryVent(pawn, list);
+                return TryVent(pawn, list, tick);
             }
             finally
             {
@@ -155,7 +155,7 @@ namespace AbilityAI
 
         // Nothing else to cast, and heat alone holds back a psycast with a due, unclaimed marker: a heat vent
         // (AbilityAIHeat), if the pawn has one on autocast
-        private static Job TryVent(Pawn pawn, List<CastSpot> list)
+        private static Job TryVent(Pawn pawn, List<CastSpot> list, int tick)
         {
             for (int r = 0; r < heatBlocked.Count; r++)
             {
@@ -163,7 +163,7 @@ namespace AbilityAI
                 for (int i = 0; i < list.Count; i++)
                 {
                     var s = list[i];
-                    if (!s.due || s.Dormant || s.CastDef != def || (s.claimant != null && s.ClaimHolds())) continue;
+                    if (!s.due || s.Dormant || s.CastDef != def || s.Waiting(pawn, tick) || (s.claimant != null && s.ClaimHolds())) continue;
                     return AbilityAIHeat.TryWorkVentJob(pawn, collected, heatBlocked[r].ability, "marker work");
                 }
             }

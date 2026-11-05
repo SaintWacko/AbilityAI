@@ -37,8 +37,8 @@ namespace AbilityAI
             // Settings only: no defs are loaded yet, and patching waits for AbilityAIStartup
             GetSettings<AbilityAIModSettings>();
             // The VEF and VPE compat assemblies come in through IfModActive load folders, and a folder the game
-            // skipped leaves no error behind: this line is the only way to see which ones it took. No line at all
-            // means AbilityAI.dll itself didn't load
+            // skipped leaves no error behind: this line is the only way to see which ones it took. With dev mode on,
+            // no line at all means AbilityAI.dll itself didn't load
             if (Prefs.DevMode)
                 Log.Message($"[Ability AI] load folders: {string.Join(", ", content.foldersToLoadDescendingOrder)}; assemblies: {string.Join(", ", content.assemblies.loadedAssemblies.ConvertAll(a => a.GetName().Name))}");
         }

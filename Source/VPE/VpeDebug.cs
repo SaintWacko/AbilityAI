@@ -34,6 +34,13 @@ namespace AbilityAI.Vpe
         private static void GiveZonePsycasts(Pawn pawn) =>
             Give(pawn, AbilityAIZones.RuleDefs.Concat(AbilityAISpots.RuleDefs).OfType<VefAbilityDef>());
 
+        // Group Link and every Word with a rule, to try linking first on one pawn
+        [DebugAction("Ability AI", "Give VPE group link and words", actionType = DebugActionType.ToolMapForPawns,
+            allowedGameStates = AllowedGameStates.PlayingOnMap, requiresRoyalty = true)]
+        private static void GiveLinkPsycasts(Pawn pawn) =>
+            Give(pawn, DefDatabase<VefAbilityDef>.AllDefsListForReading.Where(d => d.HasModExtension<AbilityAIExtension>()
+                && d.abilityClass != null && (typeof(Ability_WordOf).IsAssignableFrom(d.abilityClass) || typeof(Ability_GroupLink).IsAssignableFrom(d.abilityClass))));
+
         // One entry per VPE path, giving every psycast of it that has an Ability AI rule, to try a path's rules on
         // raiders without a psycaster of that path turning up
         [DebugAction("Ability AI", "Give VPE path psycasts", allowedGameStates = AllowedGameStates.PlayingOnMap, requiresRoyalty = true)]

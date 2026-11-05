@@ -2100,7 +2100,8 @@ namespace AbilityAI
         }
 
         /// <summary>Barriers this AI is watching (TrackBarrier). Only a fast-path gate for BarrierCheck: a pawn destroyed
-        /// with one up leaves it counted, which costs one table lookup per constant-tree check until the next load.</summary>
+        /// with one up leaves it counted for the rest of the session, which costs one table lookup per constant-tree
+        /// check.</summary>
         internal static int BarriersUp;
 
         private static void TrackBarrier(PawnState state, HediffDef hediff, int start, float radius, int tick)
@@ -2145,7 +2146,8 @@ namespace AbilityAI
             if (evaluating || !states.TryGetValue(pawn, out PawnState state) || state.barrierHediff == null) return;
             int tick = Find.TickManager.TicksGame;
             if (tick < state.barrierNextCheck) return;
-            BarrierUpkeep(pawn, state, tick, pawn.Faction != null && pawn.Faction.IsPlayer);
+            // As the driver decided when it raised it: a colonist in a break run by the NPC rules isn't under the player's
+            BarrierUpkeep(pawn, state, tick, ControlOf(pawn) == Control.Player);
         }
 
         // A barrier this AI raised (AbilityAIBarrier) comes down once fewer than BarrierDropFraction of the shooters it
@@ -2162,6 +2164,8 @@ namespace AbilityAI
                 return;
             }
             state.barrierJobId = -1;
+            // Not before its first tick: VPE's PostRemoved ends a sound only PostTick starts, and throws without it
+            if (barrier.ageTicks == 0) return;
             string why = null;
             if (player && AbilityAIBarrier.AtHeatLimit(pawn)) why = "it reached its heat limit";
             else if (pawn.Spawned)
@@ -3062,12 +3066,13 @@ namespace AbilityAI
         {
             // Before the Enabled check: a hold taken just before the AI was switched off still has to be put back
             if (AbilityAICombatAI.Holding) AbilityAICombatAI.CheckHold(___pawn);
-            if (!AbilityAISettings.Enabled) return;
+            // Also before the Enabled check: a barrier raised just before the AI was switched off still comes down
             if (AbilityAIDriver.BarriersUp > 0 && ___pawn != null)
             {
                 try { AbilityAIDriver.BarrierCheck(___pawn); }
                 catch (Exception e) { Log.ErrorOnce($"[Ability AI] barrier check threw for {___pawn.def.defName}: {e}", ___pawn.def.shortHash ^ 0x5B31); }
             }
+            if (!AbilityAISettings.Enabled) return;
             // An undrafted colonist's hostility response (Attack or Flee) answers every constant-tree check while a
             // threat is near, so without this the AI would never get a look in for a colonist set to anything but
             // Ignore: it would attack or run from a berserk friend instead of calming it. The player's pawns only;

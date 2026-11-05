@@ -206,6 +206,7 @@ namespace AbilityAI
                 {
                     Thing t = targets[i];
                     if (t.Map != pawn.Map || zones.Waiting(pawn, t, tick) || zones.ClaimedByOther(t, pawn) || !AbilityAIZones.Wants(kind, t)) continue;
+                    if (!Free(pawn, a, t, kind)) continue;
                     return AbilityAIHeat.TryWorkVentJob(pawn, collected, a, "zone work");
                 }
             }
@@ -409,12 +410,16 @@ namespace AbilityAI
         // talking to the prisoner, a hauler carrying the corpse off), nobody already casting at it, and the ability's
         // own rules and the pawn's psycast limits. An unfinished thing is reserved by whoever is making it, and finishing
         // that one is the point of Craft Timeskip (VPE's cast doesn't reserve it either).
-        private static bool Available(Pawn pawn, AIAbility a, Thing t, AbilityAIZoneTarget kind)
+        private static bool Available(Pawn pawn, AIAbility a, Thing t, AbilityAIZoneTarget kind) =>
+            Free(pawn, a, t, kind) && a.ValidIgnoringRange(t) && AbilityAIDriver.PsycastWithinLimits(a, t);
+
+        // Available's checks that don't depend on what the caster can pay, so TryVent can ask them of a psycast heat
+        // holds back
+        private static bool Free(Pawn pawn, AIAbility a, Thing t, AbilityAIZoneTarget kind)
         {
             if (!(t is Pawn) && t.IsForbidden(pawn)) return false;
             if (kind != AbilityAIZoneTarget.Unfinished && !pawn.CanReserve(t)) return false;
-            if (AbilityAIZones.Busy(t, a.Def) || OtherCasting(pawn, a.Def, t)) return false;
-            return a.ValidIgnoringRange(t) && AbilityAIDriver.PsycastWithinLimits(a, t);
+            return !AbilityAIZones.Busy(t, a.Def) && !OtherCasting(pawn, a.Def, t);
         }
 
         // A colonist casting this psycast at the target by hand, or one whose claim was lost to a load

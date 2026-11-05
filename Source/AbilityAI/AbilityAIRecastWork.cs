@@ -191,6 +191,8 @@ namespace AbilityAI
                         s.Wait(pawn, tick + RetryTicks);
                         continue;
                     }
+                    // As for a cast: a vent refused on start would otherwise be handed out again in the same tick
+                    s.Wait(pawn, tick + RetryTicks);
                     return AbilityAIHeat.TryWorkVentJob(pawn, collected, a, "recast work");
                 }
             }

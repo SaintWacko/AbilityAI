@@ -168,11 +168,13 @@ namespace AbilityAI
                     if (!s.due || s.Dormant || s.CastDef != def || s.Waiting(pawn, tick) || (s.claimant != null && s.ClaimHolds())) continue;
                     tried++;
                     // A marker these psycasts serve alone never reaches the main loop's waits
-                    if (!CastableAt(pawn, heatBlocked[r].ability, heatBlocked[r].rule, s.anchor, true))
+                    if (!pawn.CanReach(s.anchor, PathEndMode.Touch, Danger.Some) || !CastableAt(pawn, heatBlocked[r].ability, heatBlocked[r].rule, s.anchor, true))
                     {
                         s.Wait(pawn, tick + RetryTicks);
                         continue;
                     }
+                    // As for a cast: a vent refused on start would otherwise be handed out again in the same tick
+                    s.Wait(pawn, tick + RetryTicks);
                     return AbilityAIHeat.TryWorkVentJob(pawn, collected, heatBlocked[r].ability, "marker work");
                 }
             }

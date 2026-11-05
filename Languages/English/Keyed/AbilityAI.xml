@@ -195,6 +195,7 @@
   <AAI_SpotMarker_Landing>Waiting: a cast is landing here.</AAI_SpotMarker_Landing>
   <AAI_SpotMarker_TooFew_Crops>Waiting: it needs {0} open cells and has {1}.</AAI_SpotMarker_TooFew_Crops>
   <AAI_SpotMarker_TooFew_Trees>Waiting: it needs {0} cells a tree can take and has {1}.</AAI_SpotMarker_TooFew_Trees>
+  <AAI_SpotMarker_NoTrees>Never cast here: no trees grow wild in this biome, so tree sprout would only sprout other wild plants.</AAI_SpotMarker_NoTrees>
   <AAI_SpotMarker_Fogged>Waiting: the spot is hidden.</AAI_SpotMarker_Fogged>
   <AAI_SpotMarker_Claimed>{0} is coming to cast it.</AAI_SpotMarker_Claimed>
   <AAI_SpotMarker_Remove_Desc>Stop casting here.</AAI_SpotMarker_Remove_Desc>

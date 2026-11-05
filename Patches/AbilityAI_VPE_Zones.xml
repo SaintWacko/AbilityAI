@@ -109,7 +109,7 @@
         </li>
 
         <!-- Consume Bodies: the same corpses as Enthrall, in heaps. The caster walks to the cell with the most of the
-             zone's corpses within its radius (3.9), at least the setting's minimum, and only where no other humanlike
+             zone's corpses within its radius (3.9 unless a mod scales it), at least the setting's minimum, and only where no other humanlike
              corpse is in reach: VPE destroys every one there, through walls. -->
         <li Class="PatchOperationConditional">
           <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_ConsumeBodies"]</xpath>

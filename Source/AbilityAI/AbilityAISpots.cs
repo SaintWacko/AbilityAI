@@ -31,6 +31,9 @@ namespace AbilityAI
         CropsGrowing,
         Landing,
         TooFewCells,
+        /// <summary>Trees: the biome has no wild trees. VPE then sprouts any wild plant, which leaves the cells as open
+        /// as before, so a marker with no cooldown would be cast at forever.</summary>
+        NoTrees,
     }
 
     /// <summary>Spot: cast at markers the player puts down, when the ground there is ready (spotKind). Not run by the
@@ -119,6 +122,7 @@ namespace AbilityAI
             int openCount = GenRadial.NumCellsInRadius(Mathf.Min(openRadius, max));
             int count = Mathf.Max(clearCount, openCount);
             List<ThingDef> trees = kind == AbilityAISpotKind.Trees ? TreesOf(map) : null;
+            if (trees != null && trees.Count == 0) return AbilityAISpotState.NoTrees;
             for (int i = 0; i < count; i++)
             {
                 IntVec3 c = centre + GenRadial.RadialPattern[i];
@@ -392,6 +396,7 @@ namespace AbilityAI
                     text = "AAI_SpotMarker_Crops".Translate(spot.crop?.label ?? "?", Radius.ToString("0.#"));
                     break;
                 case AbilityAISpotState.Landing: text = "AAI_SpotMarker_Landing".Translate(); break;
+                case AbilityAISpotState.NoTrees: text = "AAI_SpotMarker_NoTrees".Translate(); break;
                 case AbilityAISpotState.TooFewCells:
                     var rule = AbilityAISpots.RuleOf(spot.CastDef);
                     text = rule == null ? "" : (string)("AAI_SpotMarker_TooFew_" + rule.spotKind).Translate(AbilityAISpots.MinCells(rule.spotKind), spot.openCells);

@@ -19,7 +19,9 @@ namespace AbilityAI
 
     public class JobDriver_ZoneCastWalk : JobDriver
     {
-        // targetA: the thing to cast at; targetB: the cell to cast from
+        // targetA: the thing to cast at (for a heap cast, one corpse of the heap); targetB: the cell to cast from;
+        // targetC: the pawn itself for a heap cast (Consume Bodies), so the walk ends in the cast it was for and not in
+        // another psycast that takes the same corpse (Enthrall)
         private bool Claimed() => PsycastZones.Of(pawn.Map)?.ClaimFor(pawn, job.targetA.Thing, job.loadID) == true;
 
         public override bool TryMakePreToilReservations(bool errorOnFailed) => Claimed();
@@ -34,7 +36,7 @@ namespace AbilityAI
             {
                 Thing target = job.targetA.Thing;
                 var zones = PsycastZones.Of(pawn.Map);
-                Job castJob = zones == null ? null : AbilityAIZoneWork.MakeCastJob(pawn, target);
+                Job castJob = zones == null ? null : AbilityAIZoneWork.MakeCastJob(pawn, target, job.targetC.Thing == pawn);
                 if (castJob == null)
                 {
                     zones?.Wait(pawn, target, Find.TickManager.TicksGame + AbilityAIZoneWork.RetryTicks);
@@ -79,6 +81,8 @@ namespace AbilityAI
         private static readonly Dictionary<IntVec3, int> cellCounts = new Dictionary<IntVec3, int>();
         private static readonly List<IntVec3> consumeCells = new List<IntVec3>();
         private static readonly List<Thing> consumed = new List<Thing>();
+        private static readonly List<Thing> alsoTaken = new List<Thing>();
+        private static readonly List<IntVec3> blockers = new List<IntVec3>();
         private static readonly System.Comparison<IntVec3> ByCorpsesThenDistance = (a, b) =>
         {
             int byCount = cellCounts[b].CompareTo(cellCounts[a]);
@@ -182,7 +186,7 @@ namespace AbilityAI
 
         /// <summary>The cast at the end of a walk, or null when nothing the pawn has can be cast at the target from where
         /// it stands now.</summary>
-        internal static Job MakeCastJob(Pawn pawn, Thing target)
+        internal static Job MakeCastJob(Pawn pawn, Thing target, bool heap)
         {
             var zones = PsycastZones.Of(pawn.Map);
             if (zones == null || target == null || !target.Spawned) return null;
@@ -192,7 +196,8 @@ namespace AbilityAI
                 for (int r = 0; r < ready.Count; r++)
                 {
                     AIAbility a = ready[r].ability;
-                    if (ready[r].rule.zoneTarget == AbilityAIZoneTarget.ConsumableCorpses)
+                    if ((ready[r].rule.zoneTarget == AbilityAIZoneTarget.ConsumableCorpses) != heap) continue;
+                    if (heap)
                     {
                         // The walk's target is one corpse of the heap; the cast takes the heap around where the pawn
                         // stands now
@@ -221,6 +226,7 @@ namespace AbilityAI
                 collected.Clear();
                 ready.Clear();
                 consumed.Clear();
+                alsoTaken.Clear();
             }
         }
 
@@ -257,12 +263,19 @@ namespace AbilityAI
                 sortFrom = pawn.Position;
                 consumeCells.Sort(ByCorpsesThenDistance);
                 int tried = 0;
+                float r2 = radius * radius;
                 for (int i = 0; i < consumeCells.Count && tried < MaxConsumeCellsTried; i++)
                 {
                     IntVec3 c = consumeCells[i];
-                    if (!c.InBounds(map) || c.Fogged(map) || !c.Standable(map)) continue;
+                    if (!c.InBounds(map) || c.Fogged(map) || !c.Standable(map) || NearBlocker(c, r2)) continue;
                     tried++;
-                    if (!CorpsesAt(pawn, def, zones, c, radius, need)) continue;
+                    if (!CorpsesAt(pawn, def, zones, c, radius, need, out Thing blocker))
+                    {
+                        // The best cells crowd round the densest heap: one of the colony's dead in it would otherwise
+                        // use up every try on cells it blocks too
+                        if (blocker != null) blockers.Add(blocker.Position);
+                        continue;
+                    }
                     if (c != pawn.Position && !pawn.CanReach(c, PathEndMode.OnCell, Danger.Some)) continue;
                     if (c == pawn.Position)
                     {
@@ -274,7 +287,7 @@ namespace AbilityAI
                             Log.Message($"[Ability AI] {pawn.LabelShort} casts {a.Label} at {c} on {consumed.Count} corpses (zone work)");
                         return cast;
                     }
-                    Job walk = JobMaker.MakeJob(AbilityAIZoneDefOf.AAI_ZoneCastWalk, consumed[0], c);
+                    Job walk = JobMaker.MakeJob(AbilityAIZoneDefOf.AAI_ZoneCastWalk, consumed[0], c, pawn);
                     ClaimConsumed(zones, pawn, walk.loadID);
                     if (AbilityAISettings.DebugLog && Prefs.DevMode)
                         Log.Message($"[Ability AI] {pawn.LabelShort} walks to {c} to cast {a.Label} on {consumed.Count} corpses (zone work)");
@@ -288,7 +301,16 @@ namespace AbilityAI
                 cellCounts.Clear();
                 consumeCells.Clear();
                 consumed.Clear();
+                alsoTaken.Clear();
+                blockers.Clear();
             }
+        }
+
+        private static bool NearBlocker(IntVec3 c, float r2)
+        {
+            for (int i = 0; i < blockers.Count; i++)
+                if (blockers[i] != c && (blockers[i] - c).LengthHorizontalSquared <= r2) return true;
+            return false;
         }
 
         private static bool ConsumeReady(Pawn pawn, AIAbility a) =>
@@ -300,11 +322,18 @@ namespace AbilityAI
             AbilityAIZones.Wants(AbilityAIZoneTarget.ConsumableCorpses, t) && !t.IsForbidden(pawn) && !zones.ClaimedByOther(t, pawn)
             && pawn.CanReserve(t);
 
-        // What a cast at c would take, into consumed, and whether that is enough and nothing else is in reach. A corpse
-        // a hauler has reserved isn't counted but doesn't block either: it is one the zone offers.
-        private static bool CorpsesAt(Pawn pawn, Def def, PsycastZones zones, IntVec3 c, float radius, int need)
+        // What a cast at c would take, into consumed, and whether that is enough and nothing else is in reach (else the
+        // corpse in the way, as blocker). A corpse a hauler has reserved isn't counted but doesn't block either: it is one
+        // the zone offers. The cast takes it all the same if it is still there, so it is claimed with the rest
+        // (alsoTaken), or a second colonist's heap could hold it too and VPE would destroy it twice.
+        private static bool CorpsesAt(Pawn pawn, Def def, PsycastZones zones, IntVec3 c, float radius, int need) =>
+            CorpsesAt(pawn, def, zones, c, radius, need, out _);
+
+        private static bool CorpsesAt(Pawn pawn, Def def, PsycastZones zones, IntVec3 c, float radius, int need, out Thing blocker)
         {
             consumed.Clear();
+            alsoTaken.Clear();
+            blocker = null;
             Map map = pawn.Map;
             var zone = zones.ZoneFor(def, false);
             if (zone == null || radius <= 0f) return false;
@@ -316,9 +345,12 @@ namespace AbilityAI
                 if (!offered)
                 {
                     consumed.Clear();
+                    alsoTaken.Clear();
+                    blocker = t;
                     return false;
                 }
                 if (pawn.CanReserve(t)) consumed.Add(t);
+                else alsoTaken.Add(t);
             }
             return consumed.Count >= need;
         }
@@ -327,6 +359,7 @@ namespace AbilityAI
         private static void ClaimConsumed(PsycastZones zones, Pawn pawn, int jobId)
         {
             for (int i = 0; i < consumed.Count; i++) zones.Claim(consumed[i], pawn, jobId);
+            for (int i = 0; i < alsoTaken.Count; i++) zones.Claim(alsoTaken[i], pawn, jobId);
         }
 
         // Everything about this target short of reach and range: not forbidden, not in someone else's hands (a warden

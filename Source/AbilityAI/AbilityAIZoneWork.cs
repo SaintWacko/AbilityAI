@@ -37,7 +37,11 @@ namespace AbilityAI
                 Thing target = job.targetA.Thing;
                 var zones = PsycastZones.Of(pawn.Map);
                 bool heap = job.targetC.Thing == pawn;
-                Job castJob = zones == null ? null : AbilityAIZoneWork.MakeCastJob(pawn, target, heap);
+                // A walk to link several prisoners: the link if it still reaches enough of them from here, else the Word
+                // on its target alone
+                Job castJob = zones == null ? null
+                    : (job.def == AbilityAIZoneDefOf.AAI_ZoneLinkWalk ? AbilityAIZoneWork.MakeLinkCastJob(pawn, target) : null)
+                        ?? AbilityAIZoneWork.MakeCastJob(pawn, target, heap);
                 if (castJob == null)
                 {
                     // A heap cast's search is gated per psycast, not per corpse
@@ -143,6 +147,20 @@ namespace AbilityAI
                     }
                     sortFrom = pawn.Position;
                     candidates.Sort(ByDistance);
+                    // Word of Trust (AbilityAIGroupLink): through a link up already only if everyone linked may take it;
+                    // without one, perhaps the pawn's Group link first, where it reaches several prisoners
+                    if (AbilityAIGroupLink.Registered && AbilityAIGroupLink.IsWord(a.Def))
+                    {
+                        if (AbilityAIGroupLink.LinkOf(pawn) != null)
+                        {
+                            if (!AbilityAIGroupLink.LinkedMayTake(null, pawn, a, ready[r].rule, out _)) continue;
+                        }
+                        else if (ready[r].rule.linkFirst)
+                        {
+                            Job link = TryGiveLinkJob(pawn, a, ready[r].rule, zones, tick);
+                            if (link != null) return link;
+                        }
+                    }
                     for (int i = 0; i < candidates.Count && i < MaxTargetsTried; i++)
                     {
                         Thing t = candidates[i];
@@ -258,6 +276,7 @@ namespace AbilityAI
                         return consume;
                     }
                     if (!AbilityAIZones.Wants(ready[r].rule.zoneTarget, target) || !Available(pawn, a, target, ready[r].rule.zoneTarget) || !a.ValidInRange(target)) continue;
+                    if (!AbilityAIGroupLink.LinkedMayTake(null, pawn, a, ready[r].rule, out _)) continue;
                     Job cast = a.MakeCastJob(target, target);
                     if (cast == null) continue;
                     if (AbilityAISettings.DebugLog && Prefs.DevMode)
@@ -274,6 +293,145 @@ namespace AbilityAI
                 consumed.Clear();
                 alsoTaken.Clear();
             }
+        }
+
+        // Of a Word's nearest targets, how many a search for a cell to link from starts from
+        private const int MaxLinkCandidates = 12;
+        private static readonly List<Pawn> linkable = new List<Pawn>();
+        private static readonly List<Pawn> linkTargets = new List<Pawn>();
+
+        // A Word with zone work (Word of Trust) and several of its targets close together: the cell from which the
+        // pawn's Group link reaches the most of them, at least GroupLinkMinTargets, and nobody the Word mustn't reach
+        // (AbilityAIGroupLink.Survey). Found as Consume Bodies finds its cell: each target marks every cell within the
+        // link's radius of it, and the best few cells are checked. The pawn casts the link there, or walks there first
+        // (AAI_ZoneLinkWalk), and the Word follows from the driver once the link is up. Starts from candidates, the Word's
+        // targets nobody else has claimed, nearest first. A failed search waits RetryTicks.
+        private static Job TryGiveLinkJob(Pawn pawn, AIAbility word, AbilityAIExtension rule, PsycastZones zones, int tick)
+        {
+            AIAbility linker = AbilityAIGroupLink.FindLinker(pawn, collected, true, AbilityAIRole.Player);
+            if (linker == null || zones.WaitingZone(pawn, linker.Def, tick)) return null;
+            float radius = linker.DefaultRadius;
+            if (radius <= 0f || radius >= GenRadial.MaxRadialPatternRadius) return null;
+            int need = AbilityAIGroupLink.MinTargets;
+            Map map = pawn.Map;
+            try
+            {
+                for (int i = 0; i < candidates.Count && linkable.Count < MaxLinkCandidates; i++)
+                    if (candidates[i] is Pawn p && AbilityAIZones.Wants(rule.zoneTarget, p) && Available(pawn, word, p, rule.zoneTarget))
+                        linkable.Add(p);
+                if (linkable.Count < need) return null;
+                int reach = GenRadial.NumCellsInRadius(radius);
+                for (int i = 0; i < linkable.Count; i++)
+                    for (int k = 0; k < reach; k++)
+                    {
+                        IntVec3 c = linkable[i].Position + GenRadial.RadialPattern[k];
+                        cellCounts[c] = (cellCounts.TryGetValue(c, out int n) ? n : 0) + 1;
+                    }
+                foreach (var kv in cellCounts)
+                    if (kv.Value >= need) consumeCells.Add(kv.Key);
+                sortFrom = pawn.Position;
+                consumeCells.Sort(ByCorpsesThenDistance);
+                int tried = 0;
+                for (int i = 0; i < consumeCells.Count && tried < MaxConsumeCellsTried; i++)
+                {
+                    IntVec3 c = consumeCells[i];
+                    if (!c.InBounds(map) || c.Fogged(map) || !c.Standable(map)) continue;
+                    tried++;
+                    if (c != pawn.Position && !pawn.CanReach(c, PathEndMode.OnCell, Danger.Some)) continue;
+                    if (!LinkTargetsAt(pawn, word, rule, zones, c, radius, out Pawn nearest)) continue;
+                    if (!AbilityAIGroupLink.Worth(pawn, linker, word, nearest, linkTargets.Count, true)) break;
+                    if (c == pawn.Position)
+                    {
+                        Job cast = linker.MakeCastJob(pawn, pawn);
+                        if (cast == null) break;
+                        AbilityAIDriver.PlanLink(pawn, word.Def, rule, cast);
+                        ClaimLinked(zones, pawn, cast.loadID);
+                        if (AbilityAISettings.DebugLog && Prefs.DevMode)
+                            Log.Message($"[Ability AI] {pawn.LabelShort} casts {linker.Label} first, to reach {linkTargets.Count} targets of {word.Label} (zone work)");
+                        return cast;
+                    }
+                    Job walk = JobMaker.MakeJob(AbilityAIZoneDefOf.AAI_ZoneLinkWalk, nearest, c);
+                    ClaimLinked(zones, pawn, walk.loadID);
+                    if (AbilityAISettings.DebugLog && Prefs.DevMode)
+                        Log.Message($"[Ability AI] {pawn.LabelShort} walks to {c} to link {linkTargets.Count} targets of {word.Label} (zone work)");
+                    return walk;
+                }
+                zones.WaitZone(pawn, linker.Def, tick + RetryTicks);
+                return null;
+            }
+            finally
+            {
+                linkable.Clear();
+                linkTargets.Clear();
+                cellCounts.Clear();
+                consumeCells.Clear();
+            }
+        }
+
+        /// <summary>The cast at the end of a link walk: the pawn's Group link, if from where it stands now it still reaches
+        /// enough targets of a Word it has ready for this target and nobody that Word mustn't reach; else null, and the
+        /// walk casts the Word at its target alone.</summary>
+        internal static Job MakeLinkCastJob(Pawn pawn, Thing target)
+        {
+            var zones = PsycastZones.Of(pawn.Map);
+            if (zones == null || !(target is Pawn) || !target.Spawned || !AbilityAIGroupLink.Any || AbilityAIGroupLink.LinkOf(pawn) != null) return null;
+            try
+            {
+                CollectReady(pawn, zones);
+                AIAbility linker = AbilityAIGroupLink.FindLinker(pawn, collected, true, AbilityAIRole.Player);
+                if (linker == null) return null;
+                float radius = linker.DefaultRadius;
+                for (int r = 0; r < ready.Count; r++)
+                {
+                    AIAbility word = ready[r].ability;
+                    var rule = ready[r].rule;
+                    if (!rule.linkFirst || !AbilityAIGroupLink.IsWord(word.Def) || !AbilityAIZones.Wants(rule.zoneTarget, target)) continue;
+                    if (!LinkTargetsAt(pawn, word, rule, zones, pawn.Position, radius, out Pawn nearest)) continue;
+                    if (!AbilityAIGroupLink.Worth(pawn, linker, word, nearest, linkTargets.Count, true)) continue;
+                    Job cast = linker.MakeCastJob(pawn, pawn);
+                    if (cast == null) return null;
+                    AbilityAIDriver.PlanLink(pawn, word.Def, rule, cast);
+                    ClaimLinked(zones, pawn, cast.loadID);
+                    if (AbilityAISettings.DebugLog && Prefs.DevMode)
+                        Log.Message($"[Ability AI] {pawn.LabelShort} casts {linker.Label} first, to reach {linkTargets.Count} targets of {word.Label} (zone work)");
+                    return cast;
+                }
+                return null;
+            }
+            finally
+            {
+                collected.Clear();
+                ready.Clear();
+                heatBlocked.Clear();
+                linkTargets.Clear();
+            }
+        }
+
+        // The Word's targets a link at c would reach, into linkTargets, leaving out those another colonist has claimed;
+        // false when that is under GroupLinkMinTargets or someone in reach mustn't take the Word. nearest: the target
+        // nearest c, which the Word is cast at once the link is up.
+        private static bool LinkTargetsAt(Pawn pawn, AIAbility word, AbilityAIExtension rule, PsycastZones zones, IntVec3 c, float radius, out Pawn nearest)
+        {
+            nearest = null;
+            if (!AbilityAIGroupLink.Survey(null, pawn, c, radius, word, rule, linkTargets, out _)) return false;
+            float best = float.MaxValue;
+            for (int i = linkTargets.Count - 1; i >= 0; i--)
+            {
+                Pawn p = linkTargets[i];
+                if (zones.ClaimedByOther(p, pawn))
+                {
+                    linkTargets.RemoveAt(i);
+                    continue;
+                }
+                float d = (p.Position - c).LengthHorizontalSquared;
+                if (d < best) { best = d; nearest = p; }
+            }
+            return linkTargets.Count >= AbilityAIGroupLink.MinTargets;
+        }
+
+        private static void ClaimLinked(PsycastZones zones, Pawn pawn, int jobId)
+        {
+            for (int i = 0; i < linkTargets.Count; i++) zones.Claim(linkTargets[i], pawn, jobId);
         }
 
         // Consume Bodies: the cell with the most of the zone's corpses within the radius, at least the setting's

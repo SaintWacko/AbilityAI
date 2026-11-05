@@ -111,6 +111,16 @@ namespace AbilityAI
         // Grouping, avoidAllies and avoidBuildings: how far around the target they look
         private float Near => ext.radius >= 0f ? ext.radius : 5f;
 
+        // The per-enemy tests of Consider; grouping, avoidAllies and avoidBuildings are about where the area lands,
+        // which a linked Word has none of
+        protected internal override bool IsLinkTarget(AbilityAIContext ctx, AIAbility ability, Pawn p)
+        {
+            if (p.Downed || !p.HostileTo(ctx.pawn) || !AbilityAIUtility.WouldAffect(ability, ext, p)) return false;
+            if (ctx.IsBrokenAlly(p) && !AbilityAIUtility.MayHitBrokenAllies(ext)) return false;
+            if (ext.armedOnly && p.equipment?.Primary == null) return false;
+            return !ext.meleeOnly || AbilityAIUtility.InMeleeWithSide(ctx, p);
+        }
+
         private void Score(AbilityAIContext ctx, AIAbility ability, float range)
         {
             cands.Clear();
@@ -193,21 +203,29 @@ namespace AbilityAI
                 bool isSelf = a == ctx.pawn;
                 if (isSelf ? !self : onlySelf) continue;
                 float d = (a.Position - ctx.pawn.Position).LengthHorizontalSquared;
-                if (d > maxSq || AbilityAIUtility.Has(a, hediff) || !AbilityAIUtility.Fits(ext, a)) continue;
-                float pain = a.health?.hediffSet?.PainTotal ?? 0f;
-                float fire = 0f;
-                if (ext.fireDanger)
-                {
-                    fire = AbilityAIFire.Danger(ctx, a);
-                    if (fire <= 0f) continue;
-                }
-                else if (ext.minPain > 0f ? pain < ext.minPain : !TargetingUtil.Fighting(ctx, a)) continue;
-                if (!AbilityAIUtility.AuraWorthIt(ctx, ability, ext, a)) continue;
+                if (d > maxSq || !Wants(ctx, ability, a, hediff, out float pain, out float fire)) continue;
                 float score = (1f + pain + fire) * (isSelf ? 1.5f : 1f) / (1f + Mathf.Sqrt(d) / Mathf.Max(range, 1f));
                 cands.Add(new TargetingUtil.Cand { pawn = a, score = score });
             }
             return TargetingUtil.FirstValid(cands, ability, out target);
         }
+
+        private bool Wants(AbilityAIContext ctx, AIAbility ability, Pawn a, HediffDef hediff, out float pain, out float fire)
+        {
+            pain = fire = 0f;
+            if (AbilityAIUtility.Has(a, hediff) || !AbilityAIUtility.Fits(ext, a)) return false;
+            pain = a.health?.hediffSet?.PainTotal ?? 0f;
+            if (ext.fireDanger)
+            {
+                fire = AbilityAIFire.Danger(ctx, a);
+                if (fire <= 0f) return false;
+            }
+            else if (ext.minPain > 0f ? pain < ext.minPain : !TargetingUtil.Fighting(ctx, a)) return false;
+            return AbilityAIUtility.AuraWorthIt(ctx, ability, ext, a);
+        }
+
+        protected internal override bool IsLinkTarget(AbilityAIContext ctx, AIAbility ability, Pawn p) =>
+            p != ctx.pawn && ctx.SupportAllies.Contains(p) && Wants(ctx, ability, p, AbilityAIUtility.Hediff(ability, ext), out _, out _);
     }
 
     /// <summary>
@@ -318,26 +336,43 @@ namespace AbilityAI
             for (int i = 0; i < allies.Count; i++)
             {
                 Pawn p = allies[i];
-                if (p == ctx.pawn || !Wants(p, player) || !AbilityAIUtility.Fits(ext, p)) continue;
+                if (p == ctx.pawn || !Calms(p, player)) continue;
                 float d = (p.Position - ctx.pawn.Position).LengthHorizontalSquared;
                 if (d > maxSq) continue;
-                if (ext.minBreakSeconds > 0f && TicksLeft(p.MentalState) < ext.minBreakSeconds * GenTicks.TicksPerRealSecond) continue;
                 cands.Add(new TargetingUtil.Cand { pawn = p, score = -d });
             }
             // A catatonic breakdown is a hediff that downs the pawn for days, not a mental state, but vanilla's
             // StopMentalState cures it and prices it as extreme. The player's pawns only, when extreme breaks count.
-            if (player && AbilityAISettings.CalmBreaks != AbilityAICalmBreaks.Aggressive && HediffDefOf.CatatonicBreakdown != null)
+            if (CalmsCatatonic(player))
             {
                 var downed = ctx.DownedAllies;
                 for (int i = 0; i < downed.Count; i++)
                 {
                     Pawn p = downed[i];
                     float d = (p.Position - ctx.pawn.Position).LengthHorizontalSquared;
-                    if (d > maxSq || p.health?.hediffSet?.HasHediff(HediffDefOf.CatatonicBreakdown) != true || !AbilityAIUtility.Fits(ext, p)) continue;
+                    if (d > maxSq || !Catatonic(p)) continue;
                     cands.Add(new TargetingUtil.Cand { pawn = p, score = -d });
                 }
             }
             return TargetingUtil.FirstValid(cands, ability, out target);
+        }
+
+        private bool Calms(Pawn p, bool player) =>
+            Wants(p, player) && AbilityAIUtility.Fits(ext, p)
+            && !(ext.minBreakSeconds > 0f && TicksLeft(p.MentalState) < ext.minBreakSeconds * GenTicks.TicksPerRealSecond);
+
+        private static bool CalmsCatatonic(bool player) =>
+            player && AbilityAISettings.CalmBreaks != AbilityAICalmBreaks.Aggressive && HediffDefOf.CatatonicBreakdown != null;
+
+        private bool Catatonic(Pawn p) =>
+            p.health?.hediffSet?.HasHediff(HediffDefOf.CatatonicBreakdown) == true && AbilityAIUtility.Fits(ext, p);
+
+        protected internal override bool IsLinkTarget(AbilityAIContext ctx, AIAbility ability, Pawn p)
+        {
+            if (p == ctx.pawn) return false;
+            bool player = AbilityAIDriver.EvaluatingPlayer;
+            if (ctx.Allies.Contains(p)) return Calms(p, player);
+            return CalmsCatatonic(player) && ctx.DownedAllies.Contains(p) && Catatonic(p);
         }
 
         // Aggressive breaks always; anyMentalState on the extension, any break. The player's pawns go by the

@@ -10,13 +10,13 @@
      Left out: those needing two targets or a world tile or a confirmation (Chaos Skip, Mass Chaos Skip, Word of
      Love, Luck Transfer, Health Swap, Essence Transfer, Location Swap, Farskip, Nightstep, Neuroquake, Timequake),
      crafting and utility ones (constructs, Psyring, Transmute, Corpsetalk, Word of
-     Productivity/Alliance/Joy/Inspiration/Progress/Foretelling/Animals, Mind Wipe, Bliss, Darkvision, Group
-     Link, Skipdoor, Shrineshield, Cold Zone), map-wide ones (Soothe, Eclipse, Intensify
+     Productivity/Alliance/Joy/Inspiration/Progress/Foretelling/Animals, Mind Wipe, Bliss, Darkvision, Skipdoor, Shrineshield, Cold Zone), map-wide ones (Soothe, Eclipse, Intensify
      Shadows, Raid Pause, Hurricane, Bend Probability, Manhunter Pulse, Animal Allies), the ones that put the caster in a coma (Mass Hallucination, Fire Beam, Blizzard, Time Reversal, Season
      Timeskip, Timeskip Meditation, Skillroll, Resurrect, Reverse Engineer, Summon Pack), Drain Psyessence (a corpse target), Neural Heat Dump (comas a colonist), Paralysis Pulse (always paralyses its own
      caster).
      The heat vents (Aggressive Heat Dump, Neural Heat Detonation, Heat Focus) are cast only when heat holds back
      another psycast (heatVent, AbilityAIHeat); Guardian Skipbarrier is raised and dropped by AbilityAIBarrier.
+     Group Link is cast only ahead of a Word, and a Word is cast through a link only when everyone linked may take it.
      Enchant, Mend, Recharge, Power, Craft Timeskip, Enthrall, Consume Bodies and Word of Trust are zone casting
      rules, and Crop Burst and Tree Sprout cast marker rules, in AbilityAI_VPE_Zones.xml.
      <npc> and <friendlyNpc> change a rule for casters that aren't the player's pawns (friendlyNpc: visitors,
@@ -132,6 +132,7 @@
                 <priority>5</priority>
                 <maxRange>8</maxRange>
                 <minBreakSeconds>60</minBreakSeconds>
+                <linkFirst>false</linkFirst>
               </li>
             </value>
           </match>
@@ -159,6 +160,21 @@
           </match>
         </li>
 
+        <!-- Group link: cast only just before a Word of psycast on autocast, when the link would reach several of the
+             Word's targets and nobody it mustn't reach (AbilityAIGroupLink); each Word's rule says who that is
+             (linkSafe). Serenity is never linked first: VPE charges it per pawn it reaches, and comas them all. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_GroupLink"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_GroupLink"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_GroupLink</workerClass>
+              </li>
+            </value>
+          </match>
+        </li>
+
         <!-- Word of pain: 12 s of extreme pain on the most dangerous enemy within 14 tiles (the caster walks to
              within 14.9). No lasting harm. -->
         <li Class="PatchOperationConditional">
@@ -172,6 +188,7 @@
                 <maxRange>14</maxRange>
                 <harmless>true</harmless>
                 <exclusive>true</exclusive>
+                <linkSafe>Enemies</linkSafe>
               </li>
             </value>
           </match>
@@ -209,6 +226,7 @@
                 <workerClass>AbilityAI.AbilityAIWorker_TargetFriendly</workerClass>
                 <priority>3</priority>
                 <maxRange>7</maxRange>
+                <linkSafe>NonHostile</linkSafe>
               </li>
             </value>
           </match>
@@ -794,6 +812,7 @@
                 <maxRange>14</maxRange>
                 <harmless>true</harmless>
                 <exclusive>true</exclusive>
+                <linkSafe>Enemies</linkSafe>
               </li>
             </value>
           </match>
@@ -1015,6 +1034,7 @@
                 <maxRange>12</maxRange>
                 <health>Injured</health>
                 <healthThreshold>0.7</healthThreshold>
+                <linkSafe>NonHostile</linkSafe>
               </li>
             </value>
           </match>
@@ -1032,6 +1052,7 @@
                 <priority>2</priority>
                 <maxRange>12</maxRange>
                 <health>Disease</health>
+                <linkSafe>NonHostile</linkSafe>
               </li>
             </value>
           </match>

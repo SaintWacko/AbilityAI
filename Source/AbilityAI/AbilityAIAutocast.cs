@@ -346,7 +346,7 @@ namespace AbilityAI
         // included. "Stationary" would promise the pawn stays put, so these get the plain "Autocast" label that touch
         // abilities have. Skip with only Rescue and Repel (VPE's) moves other pawns and keeps "Stationary". A Recast
         // rule walks the caster into range of the spot, so it is plain "Autocast" too, and so is a Zone rule, whose work
-        // walks the caster to the target.
+        // walks the caster to the target. Group link goes with its Word, which may walk.
         private static bool MovesCaster(Def def)
         {
             var exts = def.modExtensions;
@@ -354,7 +354,8 @@ namespace AbilityAI
             for (int i = 0; i < exts.Count; i++)
                 if (exts[i] is AbilityAIExtension ext && (ext.Worker is AbilityAIWorker_Movement
                     || ext.Worker is AbilityAIWorker_Skip && ext.skipMode == AbilityAISkipMode.Escape
-                    || ext.Worker is AbilityAIWorker_Recast || ext.Worker is AbilityAIWorker_Zone || ext.Worker is AbilityAIWorker_Spot)) return true;
+                    || ext.Worker is AbilityAIWorker_Recast || ext.Worker is AbilityAIWorker_Zone || ext.Worker is AbilityAIWorker_Spot
+                    || ext.Worker is AbilityAIWorker_GroupLink)) return true;
             return false;
         }
 

@@ -158,7 +158,8 @@
         </li>
 
         <!-- Word of Trust: no zone. Prisoners of the colony set to recruit or reduce resistance, with resistance left,
-             not downed or in a break. -->
+             not downed or in a break. Through a group link it may reach anyone not hostile: a colonist only has an unused
+             resistance lowered and hears the word. -->
         <li Class="PatchOperationConditional">
           <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_WordofTrust"]</xpath>
           <match Class="PatchOperationAddModExtension">
@@ -167,6 +168,7 @@
               <li Class="AbilityAI.AbilityAIExtension">
                 <workerClass>AbilityAI.AbilityAIWorker_Zone</workerClass>
                 <zoneTarget>Prisoners</zoneTarget>
+                <linkSafe>NonHostile</linkSafe>
               </li>
             </value>
           </match>

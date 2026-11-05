@@ -31,7 +31,15 @@ namespace AbilityAI.Vpe
                 AbilityAIZones.RegisterBusy(RechargeUnderWay);
             }
             catch (Exception e) { Log.Warning($"[Ability AI] VPE's recharge target wasn't found, so zone casting may send a second Recharge to a battery already charging: {e.Message}"); }
+            AbilityAIGroupLink.Register(GroupLinkOf, h => (h as Hediff_GroupLink)?.linkedPawns, IsWord);
         }
+
+        // Ability_WordOf.Cast reads the link by this def
+        private static Hediff GroupLinkOf(Pawn pawn) =>
+            VPE_DefOf.VPE_GroupLink == null ? null : pawn.health?.hediffSet?.GetFirstHediffOfDef(VPE_DefOf.VPE_GroupLink);
+
+        private static bool IsWord(Def def) =>
+            def is VefAbilityDef d && d.abilityClass != null && typeof(Ability_WordOf).IsAssignableFrom(d.abilityClass);
 
         private static AccessTools.FieldRef<HediffComp_Recharge, Thing> rechargeTarget;
 

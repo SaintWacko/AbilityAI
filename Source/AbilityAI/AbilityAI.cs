@@ -565,6 +565,12 @@ namespace AbilityAI
         public StatDef heatFloorStat;
         /// <summary>Shed heat: the least heat the cast must remove to be worth casting.</summary>
         public float minHeatShed = 10f;
+        /// <summary>A Word of psycast (AbilityAIGroupLink): who besides the rule's own targets may take it through the
+        /// caster's group link. A Word is cast through a link only when everyone linked is one of these or a target.</summary>
+        public AbilityAILinkSafe linkSafe;
+        /// <summary>A Word of psycast: the caster's Group link may go first when it would reach GroupLinkMinTargets of
+        /// the rule's targets. Off for a Word priced per target (Word of Serenity), where a link saves nothing.</summary>
+        public bool linkFirst = true;
         /// <summary>Changes to this rule for every caster that isn't the player's own pawn.</summary>
         public AbilityAIOverride npc;
         /// <summary>Further changes, over npc, for casters not hostile to the player (visitors, traders, allied
@@ -1163,7 +1169,7 @@ namespace AbilityAI
         }
     }
 
-    public static class AbilityAIDriver
+    public static partial class AbilityAIDriver
     {
         // Between evaluations of one pawn. Vanilla asks the constant think tree every 30 ticks and again each time
         // the pawn picks a job, so without this a pawn changing jobs often would be evaluated more than that.
@@ -1222,6 +1228,17 @@ namespace AbilityAI
             public int barrierNextCheck;
             // The first evaluation since the state was made (a load, or the pawn's first) has looked for a barrier
             public bool barrierLooked;
+
+            // A group link this AI cast for a Word (AbilityAIGroupLinkDriver): the Word and its rule, the link's cast
+            // job, the link once it is up, the Word's cast job once made, and when the link comes down if the Word
+            // hasn't been made by then. Not saved: after a load a link is left to VPE, which ends it once nobody
+            // linked is near.
+            public Def linkWord;
+            public AbilityAIExtension linkRule;
+            public int linkJobId = -1;
+            public Hediff linkHediff;
+            public int linkWordJobId = -1;
+            public int linkDeadline = -1;
         }
 
         /// <summary>Which workers a player's pawn may use at the moment.</summary>
@@ -1807,8 +1824,13 @@ namespace AbilityAI
                 state.npcIdle = false;
                 if (state.nextEvalTick > tick) state.nextEvalTick = tick;
             }
-            if (tick < state.nextEvalTick) return null;
-            if (tick < state.nextCastTick) return returnDue ? ReturnJob(pawn, state) : null;
+            // The Word a group link was cast for goes the moment the link is up, whatever the intervals
+            bool linkDue = LinkWordDue(pawn, state);
+            if (!linkDue)
+            {
+                if (tick < state.nextEvalTick) return null;
+                if (tick < state.nextCastTick) return returnDue ? ReturnJob(pawn, state) : null;
+            }
             int interval = quick ? EvalIntervalTicks : Math.Max(EvalIntervalTicks, AbilityAISettings.UndraftedIntervalTicks);
             state.slowEval = interval > EvalIntervalTicks;
             state.nextEvalTick = tick + interval;
@@ -1854,6 +1876,11 @@ namespace AbilityAI
                 // Only extensions with an npc or friendlyNpc block care, but the hostility test is once per evaluation
                 var role = player ? AbilityAIRole.Player
                     : pawn.HostileTo(Faction.OfPlayer) ? AbilityAIRole.Npc : AbilityAIRole.FriendlyNpc;
+                if (linkDue)
+                {
+                    Job word = LinkFollowUp(pawn, state, abilities, tick, player);
+                    if (word != null) return word;
+                }
 
                 // Ready abilities with a worker, highest priority first (insertion sort: a pawn holds a handful). An
                 // ability with several extensions is a candidate once per extension.
@@ -1941,7 +1968,7 @@ namespace AbilityAI
                 // Every candidate refused for want of a fight and none got as far as a target search: an NPC then
                 // waits NpcIdleIntervalTicks. A rule that works outside combat keeps the 30-tick check.
                 bool waitingForFight = !player && !outOfFightRule;
-                Job job = TryCandidates(candidates, pawn, state, tick, player, ref waitingForFight, null);
+                Job job = TryCandidates(candidates, pawn, state, tick, player, role, ref waitingForFight, null);
                 if (job != null) return job;
                 // Nothing cast: a vent, if heat is what kept something else from being cast just now
                 if (vents.Count > 0)
@@ -1950,7 +1977,7 @@ namespace AbilityAI
                     if (blocked != null)
                     {
                         bool unused = false;
-                        job = TryCandidates(vents, pawn, state, tick, player, ref unused, blocked);
+                        job = TryCandidates(vents, pawn, state, tick, player, role, ref unused, blocked);
                         if (job != null) return job;
                     }
                     else if (whyNot != null) WhyNot(null, null, "its heat vents wait for a psycast heat holds back");
@@ -1989,7 +2016,7 @@ namespace AbilityAI
 
         // Tries each candidate's worker in order and returns the first cast made. ventFor: the psycast heat held back,
         // when these are heat vents (named in the dev log line).
-        private static Job TryCandidates(List<Candidate> list, Pawn pawn, PawnState state, int tick, bool player,
+        private static Job TryCandidates(List<Candidate> list, Pawn pawn, PawnState state, int tick, bool player, AbilityAIRole role,
             ref bool waitingForFight, AIAbility ventFor)
         {
             for (int i = 0; i < list.Count; i++)
@@ -2023,6 +2050,29 @@ namespace AbilityAI
                 {
                     if (whyNot != null) WhyNot(a, ext, $"over this pawn's autocast limits for {TargetLabel(target)}");
                     continue;
+                }
+                // A Word of psycast (AbilityAIGroupLink): through a link only if everyone linked may take it; without one,
+                // perhaps the pawn's Group link first
+                if (AbilityAIGroupLink.Registered && AbilityAIGroupLink.IsWord(a.Def))
+                {
+                    if (AbilityAIGroupLink.LinkOf(pawn) != null)
+                    {
+                        if (!AbilityAIGroupLink.LinkedMayTake(ctx, pawn, a, ext, out Pawn refused))
+                        {
+                            if (whyNot != null) WhyNot(a, ext, $"{refused.LabelShort} is linked to it and mustn't be reached");
+                            continue;
+                        }
+                    }
+                    else
+                    {
+                        Job link = TryLinkFirst(pawn, state, tick, player, role, a, ext, target);
+                        if (link != null)
+                        {
+                            exclusiveDef = null;
+                            affectedCounted = false;
+                            return link;
+                        }
+                    }
                 }
                 // Made before anything is recorded: another system's ability may still refuse at this point
                 // (VEF runs its extensions' own Valid and PreCast here)
@@ -2638,6 +2688,11 @@ namespace AbilityAI
         public static float BarrierDropFraction = DefaultBarrierDropFraction;
         public const int DefaultBarrierDropTicks = 180;
         public static int BarrierDropTicks = DefaultBarrierDropTicks;
+        /// <summary>Group links (AbilityAIGroupLink), every caster: cast before a Word only when the link reaches at least
+        /// this many of the Word's targets; a link the AI cast stays up after its Word with GroupLinkKeep.</summary>
+        public const int DefaultGroupLinkMinTargets = 2;
+        public static int GroupLinkMinTargets = DefaultGroupLinkMinTargets;
+        public static bool GroupLinkKeep;
 
         public static bool SkipAllowed(AbilityAISkipMode mode)
         {
@@ -2679,6 +2734,8 @@ namespace AbilityAI
                     BarrierMinShooters = DefaultBarrierMinShooters;
                     BarrierDropFraction = DefaultBarrierDropFraction;
                     BarrierDropTicks = DefaultBarrierDropTicks;
+                    GroupLinkMinTargets = DefaultGroupLinkMinTargets;
+                    GroupLinkKeep = false;
                     DebugLog = false;
                     break;
                 case Tab.OtherFactions:
@@ -2776,6 +2833,9 @@ namespace AbilityAI
             BarrierDropFraction = Mathf.Clamp(BarrierDropFraction, 0.1f, 1f);
             Scribe_Values.Look(ref BarrierDropTicks, "abilityAI_barrierDropTicks", DefaultBarrierDropTicks);
             BarrierDropTicks = Mathf.Clamp(BarrierDropTicks, 0, 600);
+            Scribe_Values.Look(ref GroupLinkMinTargets, "abilityAI_groupLinkMinTargets", DefaultGroupLinkMinTargets);
+            GroupLinkMinTargets = Mathf.Clamp(GroupLinkMinTargets, 2, 10);
+            Scribe_Values.Look(ref GroupLinkKeep, "abilityAI_groupLinkKeep", false);
             Scribe_Values.Look(ref DebugLog, "abilityAI_debugLog", false);
         }
 
@@ -2859,6 +2919,15 @@ namespace AbilityAI
                 list.Label("AAI_BarrierDropSeconds".Translate((BarrierDropTicks / 60f).ToString("0.#")), -1f, "AAI_BarrierDropSeconds_Tip".Translate());
                 BarrierDropTicks = Mathf.RoundToInt(list.Slider(BarrierDropTicks, 0f, 600f) / 30f) * 30;
                 Hint(list, "AAI_Barrier_Desc");
+            }
+            // Only with VPE's Group Link, or another linker with a rule
+            if (AbilityAIGroupLink.Any)
+            {
+                Section(list, "AAI_Section_GroupLink");
+                list.Label("AAI_GroupLinkMinTargets".Translate(GroupLinkMinTargets), -1f, "AAI_GroupLinkMinTargets_Tip".Translate());
+                GroupLinkMinTargets = Mathf.RoundToInt(list.Slider(GroupLinkMinTargets, 2f, 10f));
+                list.CheckboxLabeled("AAI_GroupLinkKeep".Translate(), ref GroupLinkKeep, "AAI_GroupLinkKeep_Tip".Translate());
+                Hint(list, "AAI_GroupLink_Desc");
             }
             if (VpeSpawnerPatchApplied)
             {
@@ -3070,6 +3139,12 @@ namespace AbilityAI
             // Before the Enabled check: a hold taken just before the AI was switched off still has to be put back
             if (AbilityAICombatAI.Holding) AbilityAICombatAI.CheckHold(___pawn);
             // Also before the Enabled check: a barrier raised just before the AI was switched off still comes down
+            // And a group link this AI cast, which comes down once its Word has gone off
+            if (AbilityAIDriver.LinksUp > 0 && ___pawn != null)
+            {
+                try { AbilityAIDriver.LinkCheck(___pawn); }
+                catch (Exception e) { Log.ErrorOnce($"[Ability AI] group link check threw for {___pawn.def.defName}: {e}", ___pawn.def.shortHash ^ 0x6C19); }
+            }
             if (AbilityAIDriver.BarriersUp > 0 && ___pawn != null)
             {
                 try { AbilityAIDriver.BarrierCheck(___pawn); }

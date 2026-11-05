@@ -41,6 +41,7 @@ namespace AbilityAI.Vef
                     AbilityAISpots.Note(defs[i]);
                     AbilityAIHeat.Note(defs[i]);
                     AbilityAIBarrier.Note(defs[i]);
+                    AbilityAIGroupLink.Note(defs[i]);
                 }
                 AbilityAIRecast.RegisterLifetime(SpawnedLifetime);
                 AbilityAIZones.RegisterBusy(InRunningCast);

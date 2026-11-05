@@ -130,6 +130,12 @@
   <AAI_BarrierDropSeconds>...for {0} seconds in a row</AAI_BarrierDropSeconds>
   <AAI_BarrierDropSeconds_Tip>How long the shooters must stay below that share before the barrier comes down, so a pause in the shooting doesn't drop it.</AAI_BarrierDropSeconds_Tip>
   <AAI_Barrier_Desc>For every pawn that raises barriers on its own: yours set to autocast one (drafted only), and other factions' psycasters. While a Guardian Skipbarrier is up the caster can't use other psycasts and gains heat every second. Your pawns also drop it at their Max heat limit.</AAI_Barrier_Desc>
+  <AAI_Section_GroupLink>Group link</AAI_Section_GroupLink>
+  <AAI_GroupLinkMinTargets>Link first when it reaches {0} or more targets of the Word</AAI_GroupLinkMinTargets>
+  <AAI_GroupLinkMinTargets_Tip>A pawn with Group Link on autocast casts it just before a Word of psycast on autocast when the link would take in at least this many of that Word's targets, so one Word reaches them all. It also needs the link and one Word to cost less than a Word for each target (psyfocus and heat), and both casts to fit the pawn's limits.</AAI_GroupLinkMinTargets_Tip>
+  <AAI_GroupLinkKeep>Keep links up after their Word</AAI_GroupLinkKeep>
+  <AAI_GroupLinkKeep_Tip>Off: a group link the AI cast comes down once its Word has gone off. The Word's effect stays on each pawn for its own duration either way; the link only decides who the next Word cast by this pawn reaches. On: the link stays until VPE ends it, when nobody linked is near.</AAI_GroupLinkKeep_Tip>
+  <AAI_GroupLink_Desc>For your pawns and other factions' psycasters alike. A Word reaches everyone linked to its caster, so while a pawn is linked (by the AI or by your order) the AI casts a Word only when everyone linked may take it: enemies for Word of Pain and Fear, anyone not hostile for Protection, Healing, Immunity and Trust, and only those it would calm for Serenity.</AAI_GroupLink_Desc>
   <AAI_Section_Vpe>Vanilla Psycasts Expanded</AAI_Section_Vpe>
   <AAI_VpeQuietSpawners>Silence emerging plants</AAI_VpeQuietSpawners>
   <AAI_VpeQuietSpawners_Tip>Bramble maze and the other Wildspeaker plant psycasts make one emerging spot per cell, each with its own tunnel rumble: about 112 for a bramble maze. Starting that many sounds at once causes a stutter on every cast, and a long freeze when several casters use it in one fight. Only one rumble can be heard at a time, so with this on the casts are silent apart from the cast sound. Applies to plants that start emerging after the change.</AAI_VpeQuietSpawners_Tip>
@@ -197,6 +203,7 @@
   <AAI_Spot_Hint_Trees>On autocast, this pawn casts it at its markers while there is room for more trees, as Basic work.</AAI_Spot_Hint_Trees>
   <AAI_HeatVent_Hint>On autocast, this pawn casts it only when neural heat is what stops it casting another psycast on autocast: the heat cap or your Max heat limit.</AAI_HeatVent_Hint>
   <AAI_Barrier_Hint>On autocast, this pawn raises it while drafted once {0} or more shooters aim in from outside, and drops it once fewer than {2} are left for {1} seconds.</AAI_Barrier_Hint>
+  <AAI_GroupLink_Hint>On autocast, this pawn casts it just before a Word on autocast when the link would reach {0} or more of that Word's targets and nobody the Word shouldn't touch.</AAI_GroupLink_Hint>
   <AAI_SpotPlace>Place {0} markers</AAI_SpotPlace>
   <AAI_SpotPlace_Desc>Click to put down markers for {0}, as many as you like; right-click or Escape to stop. Colonists with the psycast on autocast cast it at each marker whenever the ground around it is ready, as Basic work.</AAI_SpotPlace_Desc>
   <AAI_SpotPlace_Taken>There is already a marker for this psycast there.</AAI_SpotPlace_Taken>

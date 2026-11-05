@@ -53,12 +53,16 @@ namespace AbilityAI
             target = dest = LocalTargetInfo.Invalid;
             return false;
         }
+
+        // Word of Trust: the prisoners its zone work would cast at
+        protected internal override bool IsLinkTarget(AbilityAIContext ctx, AIAbility ability, Pawn p) => AbilityAIZones.Wants(ext.zoneTarget, p);
     }
 
     [DefOf]
     public static class AbilityAIZoneDefOf
     {
         public static JobDef AAI_ZoneCastWalk;
+        public static JobDef AAI_ZoneLinkWalk;
 
         static AbilityAIZoneDefOf() => DefOfHelper.EnsureInitializedInCtor(typeof(AbilityAIZoneDefOf));
     }

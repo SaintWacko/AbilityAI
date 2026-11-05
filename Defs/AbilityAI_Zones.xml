@@ -1,13 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Zone casting (Source/AbilityAI/AbilityAIZones.cs, AbilityAIZoneWork.cs). Basic work, so the Work tab orders it
      against everything else a colonist does; it needs Royalty, as every psycast does. The walk is only for ranged
-     psycasts (Enthrall): walk-up ones are walked there by their own cast job. -->
+     psycasts (Enthrall): walk-up ones are walked there by their own cast job. The link walk takes a colonist to where
+     its Group Link reaches several prisoners for one Word of Trust (AbilityAIGroupLink.cs). -->
 <Defs>
 
   <JobDef>
     <defName>AAI_ZoneCastWalk</defName>
     <driverClass>AbilityAI.JobDriver_ZoneCastWalk</driverClass>
     <reportString>going to cast a psycast.</reportString>
+    <casualInterruptible>true</casualInterruptible>
+  </JobDef>
+
+  <JobDef>
+    <defName>AAI_ZoneLinkWalk</defName>
+    <driverClass>AbilityAI.JobDriver_ZoneCastWalk</driverClass>
+    <reportString>going to link prisoners.</reportString>
     <casualInterruptible>true</casualInterruptible>
   </JobDef>
 

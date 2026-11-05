@@ -133,6 +133,8 @@ namespace AbilityAI
             if (vent != null) __result += "\n" + vent.Colorize(ColoredText.SubtleGrayColor);
             string barrier = AbilityAIBarrier.Hint(ability.def);
             if (barrier != null) __result += "\n" + barrier.Colorize(ColoredText.SubtleGrayColor);
+            string link = AbilityAIGroupLink.Hint(ability.def);
+            if (link != null) __result += "\n" + link.Colorize(ColoredText.SubtleGrayColor);
         }
     }
 }

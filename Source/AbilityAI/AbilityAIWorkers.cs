@@ -53,6 +53,13 @@ namespace AbilityAI
         /// elsewhere (Recast, as Basic work): the rule still counts for the autocast menu and the stand-down.</summary>
         public virtual bool DriverCasts => true;
 
+        /// <summary>Whether this rule would cast at p now, wherever p stands: its own target tests short of range, the
+        /// ability's own checks left to the caller. What a group link may carry a Word of psycast to
+        /// (AbilityAIGroupLink). ctx is null for a Zone rule, which is asked outside an evaluation. False by default:
+        /// a Word whose worker doesn't answer is never linked first, and through a link only to pawns its linkSafe
+        /// allows.</summary>
+        protected internal virtual bool IsLinkTarget(AbilityAIContext ctx, AIAbility ability, Pawn p) => false;
+
         /// <summary>A target worth casting at now, or false. The driver runs AbilityAIDriver.Valid on the result
         /// once more, so a worker only needs to call it where it is choosing between candidates.</summary>
         public abstract bool TryFindTarget(AbilityAIContext ctx, AIAbility ability, out LocalTargetInfo target, out LocalTargetInfo dest);
@@ -1325,7 +1332,7 @@ namespace AbilityAI
             target = dest = LocalTargetInfo.Invalid;
             // Without health rules the hediff is only skipped when the extension names one: the effects' own first
             // hediff may be a long side effect that would otherwise stop a need rule for good
-            HediffDef hediff = ext.health != AbilityAIHealth.None || ext.hediff != null ? AbilityAIUtility.Hediff(ability, ext) : null;
+            HediffDef hediff = SkipHediff(ability);
             if (AbilityAIUtility.IsSelfCast(ability))
             {
                 if (Want(ctx.pawn, hediff) <= 0f) return false;
@@ -1354,6 +1361,16 @@ namespace AbilityAI
                 if (want <= 0f) continue;
                 cands.Add(new TargetingUtil.Cand { pawn = p, score = want * (isSelf ? 1.5f : 1f) / (1f + Mathf.Sqrt(d) / Mathf.Max(range, 1f)) });
             }
+        }
+
+        private HediffDef SkipHediff(AIAbility ability) =>
+            ext.health != AbilityAIHealth.None || ext.hediff != null ? AbilityAIUtility.Hediff(ability, ext) : null;
+
+        protected internal override bool IsLinkTarget(AbilityAIContext ctx, AIAbility ability, Pawn p)
+        {
+            if (p == ctx.pawn) return false;
+            if (!ctx.SupportAllies.Contains(p) && !(ext.health != AbilityAIHealth.None && ctx.DownedAllies.Contains(p))) return false;
+            return Want(p, SkipHediff(ability)) > 0f;
         }
 
         // How badly the pawn needs it, 0 = not at all

@@ -227,7 +227,27 @@ namespace AbilityAI
             return true;
         }
 
-        /// <summary>The nearest linked pawn the Word's rule would cast at and the ability accepts in range, or null.</summary>
+        /// <summary>Of a link's targets around c, the nearest, which the Word is cast at; for a walk-up Word, whose cast job
+        /// walks the caster to it, only the targets within radius of that one stay in the list, since VPE unlinks anyone
+        /// further than the radius from the caster every tick (Hediff_GroupLink.Tick). Null for an empty list.</summary>
+        internal static Pawn KeepInReach(List<Pawn> targets, IntVec3 c, float radius, AIAbility word)
+        {
+            Pawn nearest = null;
+            float best = float.MaxValue;
+            for (int i = 0; i < targets.Count; i++)
+            {
+                float d = (targets[i].Position - c).LengthHorizontalSquared;
+                if (d < best) { best = d; nearest = targets[i]; }
+            }
+            if (nearest == null || !word.IsTouch) return nearest;
+            float r2 = radius * radius;
+            for (int i = targets.Count - 1; i >= 0; i--)
+                if ((targets[i].Position - nearest.Position).LengthHorizontalSquared > r2) targets.RemoveAt(i);
+            return nearest;
+        }
+
+        /// <summary>The nearest linked pawn the Word's rule would cast at and the ability accepts (a walk-up Word from
+        /// anywhere, its cast job walks; any other in range), or null.</summary>
         internal static Pawn NearestLinkedTarget(AbilityAIContext ctx, Pawn caster, AIAbility word, AbilityAIExtension rule, List<Pawn> linked)
         {
             Pawn best = null;
@@ -237,7 +257,8 @@ namespace AbilityAI
                 Pawn p = linked[i];
                 if (p == null || p == caster || p.Dead || !p.Spawned || p.Map != caster.Map) continue;
                 float d = (p.Position - caster.Position).LengthHorizontalSquared;
-                if (d >= bestD || !rule.Worker.IsLinkTarget(ctx, word, p) || !AbilityAIDriver.Valid(word, p)) continue;
+                if (d >= bestD || !rule.Worker.IsLinkTarget(ctx, word, p)) continue;
+                if (!(word.IsTouch ? AbilityAIDriver.ValidIgnoringRange(word, p) : AbilityAIDriver.Valid(word, p))) continue;
                 best = p;
                 bestD = d;
             }

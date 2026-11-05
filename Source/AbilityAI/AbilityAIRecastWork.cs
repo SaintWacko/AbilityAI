@@ -45,6 +45,7 @@ namespace AbilityAI
                 }
                 // The claim follows the cast, so nobody else heads for the spot during the warmup
                 pawn.jobs.jobQueue.EnqueueFirst(castJob);
+                AbilityAIDriver.NoteQueuedCast(pawn, castJob);
                 s.Claim(pawn, castJob.loadID);
             };
             cast.defaultCompleteMode = ToilCompleteMode.Instant;

@@ -1234,11 +1234,17 @@ namespace AbilityAI
             // hasn't been made by then. Not saved: after a load a link is left to VPE, which ends it once nobody
             // linked is near.
             public Def linkWord;
+            public Def linkerDef;
             public AbilityAIExtension linkRule;
             public int linkJobId = -1;
             public Hediff linkHediff;
             public int linkWordJobId = -1;
             public int linkDeadline = -1;
+
+            // A cast job one of the work walks queued (zone, marker, recast). VEF records the ability being cast on the
+            // caster's comp when a job is made, so no cast job may be made while that one waits in the queue: vanilla
+            // asks the constant tree before the queue, and a job made there would cast in place of the queued one.
+            public int queuedCastJobId = -1;
         }
 
         /// <summary>Which workers a player's pawn may use at the moment.</summary>
@@ -1824,6 +1830,11 @@ namespace AbilityAI
                 state.npcIdle = false;
                 if (state.nextEvalTick > tick) state.nextEvalTick = tick;
             }
+            if (state.queuedCastJobId >= 0)
+            {
+                if (pawn.CurJob?.loadID != state.queuedCastJobId && AbilityAIZoneWork.JobPending(pawn, state.queuedCastJobId)) return null;
+                state.queuedCastJobId = -1;
+            }
             // The Word a group link was cast for goes the moment the link is up, whatever the intervals
             bool linkDue = LinkWordDue(pawn, state);
             if (!linkDue)
@@ -1876,11 +1887,9 @@ namespace AbilityAI
                 // Only extensions with an npc or friendlyNpc block care, but the hostility test is once per evaluation
                 var role = player ? AbilityAIRole.Player
                     : pawn.HostileTo(Faction.OfPlayer) ? AbilityAIRole.Npc : AbilityAIRole.FriendlyNpc;
-                if (linkDue)
-                {
-                    Job word = LinkFollowUp(pawn, state, abilities, tick, player);
-                    if (word != null) return word;
-                }
+                // Past the intervals only for the Word: a follow-up that came to nothing leaves the rest to the next
+                // check, so the gap after the link's cast holds
+                if (linkDue) return LinkFollowUp(pawn, state, abilities, tick, player);
 
                 // Ready abilities with a worker, highest priority first (insertion sort: a pawn holds a handful). An
                 // ability with several extensions is a candidate once per extension.
@@ -2242,6 +2251,13 @@ namespace AbilityAI
             ClearBarrier(state);
             if (AbilityAISettings.DebugLog && Prefs.DevMode)
                 Log.Message($"[Ability AI] {pawn.LabelShort} drops {barrier.LabelBase}: {why}");
+        }
+
+        /// <summary>A work walk has queued this cast job: the driver makes no cast job for the pawn until it has started
+        /// (PawnState.queuedCastJobId).</summary>
+        internal static void NoteQueuedCast(Pawn pawn, Job cast)
+        {
+            states.GetValue(pawn, _ => new PawnState()).queuedCastJobId = cast.loadID;
         }
 
         // What a player's pawn does after an autocast. Vanilla starts constant-tree jobs without resuming the current

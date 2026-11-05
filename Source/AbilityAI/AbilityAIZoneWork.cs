@@ -52,6 +52,7 @@ namespace AbilityAI
                 }
                 // The claim follows the cast, so nobody else heads for the target during the warmup
                 pawn.jobs.jobQueue.EnqueueFirst(castJob);
+                AbilityAIDriver.NoteQueuedCast(pawn, castJob);
                 zones.Claim(target, pawn, castJob.loadID);
             };
             cast.defaultCompleteMode = ToilCompleteMode.Instant;
@@ -344,7 +345,7 @@ namespace AbilityAI
                     {
                         Job cast = linker.MakeCastJob(pawn, pawn);
                         if (cast == null) break;
-                        AbilityAIDriver.PlanLink(pawn, word.Def, rule, cast);
+                        AbilityAIDriver.PlanLink(pawn, word.Def, rule, linker.Def, cast);
                         ClaimLinked(zones, pawn, cast.loadID);
                         if (AbilityAISettings.DebugLog && Prefs.DevMode)
                             Log.Message($"[Ability AI] {pawn.LabelShort} casts {linker.Label} first, to reach {linkTargets.Count} targets of {word.Label} (zone work)");
@@ -390,7 +391,7 @@ namespace AbilityAI
                     if (!AbilityAIGroupLink.Worth(pawn, linker, word, nearest, linkTargets.Count, true)) continue;
                     Job cast = linker.MakeCastJob(pawn, pawn);
                     if (cast == null) return null;
-                    AbilityAIDriver.PlanLink(pawn, word.Def, rule, cast);
+                    AbilityAIDriver.PlanLink(pawn, word.Def, rule, linker.Def, cast);
                     ClaimLinked(zones, pawn, cast.loadID);
                     if (AbilityAISettings.DebugLog && Prefs.DevMode)
                         Log.Message($"[Ability AI] {pawn.LabelShort} casts {linker.Label} first, to reach {linkTargets.Count} targets of {word.Label} (zone work)");
@@ -407,26 +408,18 @@ namespace AbilityAI
             }
         }
 
-        // The Word's targets a link at c would reach, into linkTargets, leaving out those another colonist has claimed;
-        // false when that is under GroupLinkMinTargets or someone in reach mustn't take the Word. nearest: the target
-        // nearest c, which the Word is cast at once the link is up.
+        // The Word's targets a link at c would reach, into linkTargets, leaving out those another colonist has claimed and
+        // those a walk-up Word's walk would leave behind (KeepInReach); false when that is under GroupLinkMinTargets or
+        // someone in reach mustn't take the Word. nearest: the target nearest c, which the Word is cast at once the link
+        // is up.
         private static bool LinkTargetsAt(Pawn pawn, AIAbility word, AbilityAIExtension rule, PsycastZones zones, IntVec3 c, float radius, out Pawn nearest)
         {
             nearest = null;
             if (!AbilityAIGroupLink.Survey(null, pawn, c, radius, word, rule, linkTargets, out _)) return false;
-            float best = float.MaxValue;
             for (int i = linkTargets.Count - 1; i >= 0; i--)
-            {
-                Pawn p = linkTargets[i];
-                if (zones.ClaimedByOther(p, pawn))
-                {
-                    linkTargets.RemoveAt(i);
-                    continue;
-                }
-                float d = (p.Position - c).LengthHorizontalSquared;
-                if (d < best) { best = d; nearest = p; }
-            }
-            return linkTargets.Count >= AbilityAIGroupLink.MinTargets;
+                if (zones.ClaimedByOther(linkTargets[i], pawn)) linkTargets.RemoveAt(i);
+            nearest = AbilityAIGroupLink.KeepInReach(linkTargets, c, radius, word);
+            return nearest != null && linkTargets.Count >= AbilityAIGroupLink.MinTargets;
         }
 
         private static void ClaimLinked(PsycastZones zones, Pawn pawn, int jobId)

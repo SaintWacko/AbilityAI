@@ -41,6 +41,7 @@ namespace AbilityAI.Vef
                     AbilityAISpots.Note(defs[i]);
                 }
                 AbilityAIRecast.RegisterLifetime(SpawnedLifetime);
+                AbilityAIZones.RegisterBusy(InRunningCast);
             }
             catch (Exception e) { Log.Error($"[Ability AI] Setting up recasting for VEF abilities failed; they are not recast: {e}"); }
             try
@@ -49,6 +50,28 @@ namespace AbilityAI.Vef
                 for (int i = 0; i < defs.Count; i++) AbilityAINpcGates.Note(defs[i]);
             }
             catch (Exception e) { Log.Error($"[Ability AI] Setting up the NPC gates for VEF abilities failed; their settings may not show: {e}"); }
+        }
+
+        // A colonist's cast of this ability already holds the thing. VEF fixes the targets when the job is made and an
+        // area cast's effect may not check them again (VPE's Consume Bodies destroys each), so a second cast over the
+        // same thing would act on it twice. Covers what the zone claims can't: casts ordered by hand, and casts under
+        // way when the game was loaded (the claims aren't saved, VEF's targets are).
+        private static bool InRunningCast(Thing thing, Def def)
+        {
+            if (!(def is VEF.Abilities.AbilityDef)) return false;
+            Map map = thing.MapHeld;
+            if (map == null) return false;
+            var pawns = map.mapPawns.SpawnedPawnsInFaction(RimWorld.Faction.OfPlayer);
+            for (int i = 0; i < pawns.Count; i++)
+            {
+                if (!(pawns[i].jobs?.curDriver is JobDriver_CastAbilityOnce)) continue;
+                var comp = pawns[i].GetComp<CompAbilities>();
+                if (comp?.currentlyCasting?.def != def || comp.currentlyCastingTargets == null) continue;
+                var targets = comp.currentlyCastingTargets;
+                for (int j = 0; j < targets.Length; j++)
+                    if (targets[j].Thing == thing) return true;
+            }
+            return false;
         }
 
         // When a thing VEF's spawn abilities left runs out, for recasting. Ability_SpawnBuilding sets finalTick after the

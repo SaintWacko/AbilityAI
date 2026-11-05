@@ -105,8 +105,6 @@ namespace AbilityAI
             return rule == null ? null : (string)("AAI_Spot_Hint_" + rule.spotKind).Translate();
         }
 
-        /// <summary>Whether a cast centred on centre is wanted now. clearRadius: no crop and no spawner still landing
-        /// within it. openRadius: the cells counted as open (the caster's own radius when one is about to cast).</summary>
         /// <summary>Tree sprout's reach grows with psychic sensitivity, and spotRadius is its largest, so the ring and the
         /// marker's cell count are for the most sensitive caster.</summary>
         internal static string RingNote(Def castDef)
@@ -116,6 +114,8 @@ namespace AbilityAI
             return "AAI_SpotMarker_RingNote_Trees".Translate(rule.spotRadius.ToString("0.#"));
         }
 
+        /// <summary>Whether a cast centred on centre is wanted now. clearRadius: no crop and no spawner still landing
+        /// within it. openRadius: the cells counted as open (the caster's own radius when one is about to cast).</summary>
         internal static AbilityAISpotState Evaluate(Map map, IntVec3 centre, AbilityAISpotKind kind, float clearRadius, float openRadius,
             int need, out int open) => Evaluate(map, centre, kind, clearRadius, openRadius, need, out open, out _);
 
@@ -415,7 +415,8 @@ namespace AbilityAI
                 default: text = "AAI_SpotMarker_Fogged".Translate(); break;
             }
             if (spot.ClaimHolds()) text += "\n" + "AAI_SpotMarker_Claimed".Translate(spot.claimant.LabelShort);
-            string ringNote = AbilityAISpots.RingNote(spot.CastDef);
+            string ringNote = spot.state == AbilityAISpotState.NoTrees || spot.state == AbilityAISpotState.Fogged
+                ? null : AbilityAISpots.RingNote(spot.CastDef);
             if (ringNote != null) text += "\n" + ringNote;
             return text;
         }

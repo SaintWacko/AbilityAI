@@ -36,10 +36,13 @@ namespace AbilityAI
             {
                 Thing target = job.targetA.Thing;
                 var zones = PsycastZones.Of(pawn.Map);
-                Job castJob = zones == null ? null : AbilityAIZoneWork.MakeCastJob(pawn, target, job.targetC.Thing == pawn);
+                bool heap = job.targetC.Thing == pawn;
+                Job castJob = zones == null ? null : AbilityAIZoneWork.MakeCastJob(pawn, target, heap);
                 if (castJob == null)
                 {
-                    zones?.Wait(pawn, target, Find.TickManager.TicksGame + AbilityAIZoneWork.RetryTicks);
+                    // A heap cast's search is gated per psycast, not per corpse
+                    if (heap) AbilityAIZoneWork.WaitHeap(pawn, zones);
+                    else zones?.Wait(pawn, target, Find.TickManager.TicksGame + AbilityAIZoneWork.RetryTicks);
                     EndJobWith(JobCondition.Incompletable);
                     return;
                 }
@@ -313,6 +316,20 @@ namespace AbilityAI
             return false;
         }
 
+        internal static void WaitHeap(Pawn pawn, PsycastZones zones)
+        {
+            if (zones == null) return;
+            int until = Find.TickManager.TicksGame + RetryTicks;
+            try
+            {
+                AIAbilitySources.Collect(pawn, collected);
+                for (int i = 0; i < collected.Count; i++)
+                    if (AbilityAIZones.RuleOf(collected[i].Def)?.zoneTarget == AbilityAIZoneTarget.ConsumableCorpses)
+                        zones.WaitZone(pawn, collected[i].Def, until);
+            }
+            finally { collected.Clear(); }
+        }
+
         private static bool ConsumeReady(Pawn pawn, AIAbility a) =>
             a.ValidIgnoringRange(pawn) && AbilityAIDriver.PsycastWithinLimits(a, pawn);
 
@@ -341,7 +358,7 @@ namespace AbilityAI
             {
                 if (!(t is Corpse corpse) || corpse.InnerPawn == null || !corpse.InnerPawn.RaceProps.Humanlike || t.Position == c) continue;
                 bool offered = zone[t.Position] && AbilityAIZones.Wants(AbilityAIZoneTarget.ConsumableCorpses, t) && !t.IsForbidden(pawn)
-                    && !zones.ClaimedByOther(t, pawn);
+                    && !zones.ClaimedByOther(t, pawn) && !AbilityAIZones.Busy(t, def);
                 if (!offered)
                 {
                     consumed.Clear();

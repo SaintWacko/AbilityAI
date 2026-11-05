@@ -207,7 +207,15 @@ namespace AbilityAI
                     Thing t = targets[i];
                     if (t.Map != pawn.Map || zones.Waiting(pawn, t, tick) || zones.ClaimedByOther(t, pawn) || !AbilityAIZones.Wants(kind, t)) continue;
                     if (!Free(pawn, a, t, kind)) continue;
-                    return AbilityAIHeat.TryWorkVentJob(pawn, collected, a, "zone work");
+                    bool valid;
+                    AIAbility.IgnoringHeat = true;
+                    try { valid = a.ValidIgnoringRange(t); }
+                    finally { AIAbility.IgnoringHeat = false; }
+                    if (!valid) continue;
+                    // The pawn's vents are the same for every held-back psycast, but how much each must shed isn't
+                    Job vent = AbilityAIHeat.TryWorkVentJob(pawn, collected, a, "zone work");
+                    if (vent != null) return vent;
+                    break;
                 }
             }
             return null;

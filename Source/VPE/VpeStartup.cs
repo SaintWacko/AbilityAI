@@ -133,8 +133,9 @@ namespace AbilityAI.Vpe
             return path == null || path.ignoreLockRestrictionsForNeurotrainers || path.CanPawnUnlock(pawn);
         }
 
-        // The exact type: Word of Serenity's subclass checks the target's break in Valid too, which must still run
-        public bool IsCostExtension(VEF.Abilities.AbilityExtension_AbilityMod extension) => extension.GetType() == typeof(AbilityExtension_Psycast);
+        // Subclasses too: Word of Serenity's inherits the heat check. Its own Valid (the target's break, the exceptions)
+        // is then skipped while the AI only asks whether to vent heat; the cast itself still runs it.
+        public bool IsCostExtension(VEF.Abilities.AbilityExtension_AbilityMod extension) => extension is AbilityExtension_Psycast;
 
         // Word of Serenity charges by the target's break on top of the base cost, unscaled, as its Cast does
         public float PsyfocusCost(VefAbility ability, LocalTargetInfo target)

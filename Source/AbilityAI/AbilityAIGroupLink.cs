@@ -246,8 +246,8 @@ namespace AbilityAI
             return nearest;
         }
 
-        /// <summary>The nearest linked pawn the Word's rule would cast at and the ability accepts (a walk-up Word from
-        /// anywhere, its cast job walks; any other in range), or null.</summary>
+        /// <summary>The nearest linked pawn the Word's rule would cast at and the ability accepts (a walk-up Word wherever
+        /// the caster can walk to it, any other in range), or null.</summary>
         internal static Pawn NearestLinkedTarget(AbilityAIContext ctx, Pawn caster, AIAbility word, AbilityAIExtension rule, List<Pawn> linked)
         {
             Pawn best = null;
@@ -258,7 +258,9 @@ namespace AbilityAI
                 if (p == null || p == caster || p.Dead || !p.Spawned || p.Map != caster.Map) continue;
                 float d = (p.Position - caster.Position).LengthHorizontalSquared;
                 if (d >= bestD || !rule.Worker.IsLinkTarget(ctx, word, p)) continue;
-                if (!(word.IsTouch ? AbilityAIDriver.ValidIgnoringRange(word, p) : AbilityAIDriver.Valid(word, p))) continue;
+                // A walk-up Word's cast job paths to the target: one behind a wall would end it uncast
+                if (word.IsTouch ? !AbilityAIDriver.ValidIgnoringRange(word, p) || !caster.CanReach(p, Verse.AI.PathEndMode.Touch, Danger.Deadly)
+                    : !AbilityAIDriver.Valid(word, p)) continue;
                 best = p;
                 bestD = d;
             }

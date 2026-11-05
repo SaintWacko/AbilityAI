@@ -102,7 +102,8 @@ namespace AbilityAI
 
         // The Word the link was cast for, on the nearest linked target, once everyone linked may take it. Anything
         // else (the link never landed, the Word can't be cast, someone walked in the Word mustn't reach) ends the plan,
-        // and the normal evaluation goes on without the link.
+        // takes the link down and keeps the pawn from linking again for LinkRetryTicks; everything else waits for the
+        // pawn's next check.
         private static Job LinkFollowUp(Pawn pawn, PawnState state, List<AIAbility> abilities, int tick, bool player)
         {
             Hediff link = AbilityAIGroupLink.LinkOf(pawn);

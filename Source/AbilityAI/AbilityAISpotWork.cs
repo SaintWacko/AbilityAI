@@ -168,7 +168,7 @@ namespace AbilityAI
                     if (!s.due || s.Dormant || s.CastDef != def || s.Waiting(pawn, tick) || (s.claimant != null && s.ClaimHolds())) continue;
                     tried++;
                     // A marker these psycasts serve alone never reaches the main loop's waits
-                    if (!pawn.CanReach(s.anchor, PathEndMode.Touch, Danger.Some) || !CastableAt(pawn, heatBlocked[r].ability, heatBlocked[r].rule, s.anchor, true))
+                    if (!CastableAt(pawn, heatBlocked[r].ability, heatBlocked[r].rule, s.anchor, true))
                     {
                         s.Wait(pawn, tick + RetryTicks);
                         continue;

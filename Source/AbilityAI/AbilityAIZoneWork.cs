@@ -73,6 +73,8 @@ namespace AbilityAI
 
         private static readonly List<AIAbility> collected = new List<AIAbility>();
         private static readonly List<Ready> ready = new List<Ready>();
+        // Ready but for neural heat (AbilityAIDriver.HeatBlocked), only filled while some rule is a heat vent
+        private static readonly List<Ready> heatBlocked = new List<Ready>();
         private static readonly List<Thing> candidates = new List<Thing>();
         private static IntVec3 sortFrom;
         private static readonly System.Comparison<Thing> ByDistance =
@@ -176,15 +178,35 @@ namespace AbilityAI
                         zones.Wait(pawn, t, tick + RetryTicks);
                     }
                 }
-                return null;
+                return TryVent(pawn, zones, tick);
             }
             finally
             {
                 // The wrappers hold their pawns
                 collected.Clear();
                 ready.Clear();
+                heatBlocked.Clear();
                 candidates.Clear();
             }
+        }
+
+        // Nothing else to cast, and heat alone holds back a psycast with an unclaimed target waiting in its zone: a heat
+        // vent (AbilityAIHeat), if the pawn has one on autocast
+        private static Job TryVent(Pawn pawn, PsycastZones zones, int tick)
+        {
+            for (int r = 0; r < heatBlocked.Count; r++)
+            {
+                AIAbility a = heatBlocked[r].ability;
+                AbilityAIZoneTarget kind = heatBlocked[r].rule.zoneTarget;
+                var targets = zones.TargetsFor(a.Def, kind, tick);
+                for (int i = 0; i < targets.Count; i++)
+                {
+                    Thing t = targets[i];
+                    if (t.Map != pawn.Map || zones.ClaimedByOther(t, pawn) || !AbilityAIZones.Wants(kind, t)) continue;
+                    return AbilityAIHeat.TryWorkVentJob(pawn, collected, a, "zone work");
+                }
+            }
+            return null;
         }
 
         /// <summary>The cast at the end of a walk, or null when nothing the pawn has can be cast at the target from where
@@ -228,6 +250,7 @@ namespace AbilityAI
             {
                 collected.Clear();
                 ready.Clear();
+                heatBlocked.Clear();
                 consumed.Clear();
                 alsoTaken.Clear();
             }
@@ -409,6 +432,7 @@ namespace AbilityAI
         private static void CollectReady(Pawn pawn, PsycastZones zones)
         {
             ready.Clear();
+            heatBlocked.Clear();
             collected.Clear();
             AIAbilitySources.Collect(pawn, collected);
             for (int i = 0; i < collected.Count; i++)
@@ -418,9 +442,11 @@ namespace AbilityAI
                 if (rule == null || !a.Drivable || a.PlayerAutocastElsewhere) continue;
                 if (AbilityAIAutocast.ModeFor(pawn, a.Def) == AbilityAIAutocastMode.Off) continue;
                 if (AbilityAIZones.NeedsZone(rule.zoneTarget) && !zones.HasCells(a.Def)) continue;
-                if (!AbilityAIHooks.NotVetoed(pawn, a) || !a.CanCastNow || !AbilityAIDriver.PsycastWithinLimits(a, LocalTargetInfo.Invalid)) continue;
+                if (!AbilityAIHooks.NotVetoed(pawn, a)) continue;
+                bool castable = a.CanCastNow && AbilityAIDriver.PsycastWithinLimits(a, LocalTargetInfo.Invalid);
+                if (!castable && !(AbilityAIHeat.Any && AbilityAIDriver.HeatBlocked(a, true))) continue;
                 if (!AbilityAIZones.CasterMay(rule, pawn)) continue;
-                ready.Add(new Ready { ability = a, rule = rule });
+                (castable ? ready : heatBlocked).Add(new Ready { ability = a, rule = rule });
             }
         }
     }

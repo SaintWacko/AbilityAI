@@ -97,7 +97,7 @@ namespace AbilityAI.Vpe
         }
     }
 
-    internal sealed class VpeCosts : Vef.IVefAbilityCosts
+    internal sealed class VpeCosts : Vef.IVefAbilityCosts, Vef.IVefAbilityHeat
     {
         public bool Covers(VefAbilityDef def) => def.GetModExtension<AbilityExtension_Psycast>() != null;
 
@@ -116,6 +116,24 @@ namespace AbilityAI.Vpe
             if (!(pe.CurrentPsyfocus > psycast.GetPsyfocusUsedByPawn(pawn))) return false;
             return !pe.WouldOverflowEntropy(psycast.GetEntropyUsedByPawn(pawn));
         }
+
+        // AbilityExtension_Psycast.IsEnabledForPawn without its heat check, the path lock included, since
+        // CanCastIgnoringHeat skips that extension's own check altogether
+        public bool AffordableIgnoringHeat(VefAbility ability)
+        {
+            var psycast = ability.def.GetModExtension<AbilityExtension_Psycast>();
+            if (psycast == null) return false;
+            Pawn pawn = ability.pawn;
+            var pe = pawn.psychicEntropy;
+            if (pe == null || pe.PsychicSensitivity < float.Epsilon || pawn.Downed) return false;
+            var psycasts = pawn.Psycasts();
+            if (psycasts == null || psycasts.CurrentlyChanneling != null) return false;
+            if (!(pe.CurrentPsyfocus > psycast.GetPsyfocusUsedByPawn(pawn))) return false;
+            var path = psycast.path;
+            return path == null || path.ignoreLockRestrictionsForNeurotrainers || path.CanPawnUnlock(pawn);
+        }
+
+        public bool IsCostExtension(VEF.Abilities.AbilityExtension_AbilityMod extension) => extension is AbilityExtension_Psycast;
 
         // Word of Serenity charges by the target's break on top of the base cost, unscaled, as its Cast does
         public float PsyfocusCost(VefAbility ability, LocalTargetInfo target)

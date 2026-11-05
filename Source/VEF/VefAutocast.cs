@@ -173,6 +173,10 @@ namespace AbilityAI.Vef
             if (zone != null) __result += "\n" + zone.Colorize(ColoredText.SubtleGrayColor);
             string spot = AbilityAISettings.UndraftedAutocast ? AbilityAISpots.Hint(ability.def) : null;
             if (spot != null) __result += "\n" + spot.Colorize(ColoredText.SubtleGrayColor);
+            string vent = AbilityAIHeat.Hint(ability.def);
+            if (vent != null) __result += "\n" + vent.Colorize(ColoredText.SubtleGrayColor);
+            string barrier = AbilityAIBarrier.Hint(ability.def);
+            if (barrier != null) __result += "\n" + barrier.Colorize(ColoredText.SubtleGrayColor);
         }
     }
 }

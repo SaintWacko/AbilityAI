@@ -14,8 +14,9 @@
      Link, Skipdoor, Shrineshield, Cold Zone), map-wide ones (Soothe, Eclipse, Intensify
      Shadows, Raid Pause, Hurricane, Bend Probability, Manhunter Pulse, Animal Allies), the ones that put the caster in a coma (Mass Hallucination, Fire Beam, Blizzard, Time Reversal, Season
      Timeskip, Timeskip Meditation, Skillroll, Resurrect, Reverse Engineer, Summon Pack), Drain Psyessence (a corpse target), Neural Heat Dump (comas a colonist), Paralysis Pulse (always paralyses its own
-     caster), Guardian Skipbarrier (channelled until cancelled), and for now the heat-scaled ones (Aggressive Heat
-     Dump, Neural Heat Detonation, Heat Focus), which need a heat gate.
+     caster).
+     The heat vents (Aggressive Heat Dump, Neural Heat Detonation, Heat Focus) are cast only when heat holds back
+     another psycast (heatVent, AbilityAIHeat); Guardian Skipbarrier is raised and dropped by AbilityAIBarrier.
      Enchant, Mend, Recharge, Power, Craft Timeskip, Enthrall, Consume Bodies and Word of Trust are zone casting
      rules, and Crop Burst and Tree Sprout cast marker rules, in AbilityAI_VPE_Zones.xml.
      <npc> and <friendlyNpc> change a rule for casters that aren't the player's pawns (friendlyNpc: visitors,
@@ -286,6 +287,50 @@
                 <avoidAllies>true</avoidAllies>
                 <avoidSelf>true</avoidSelf>
                 <approachDistance>8</approachDistance>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Aggressive heat dump: all the caster's heat goes off as a flame burst on an enemy within 25 tiles,
+             radius heat / 20 (up to 9), flame damage heat / 10. A heat vent: only when nothing else was cast and heat
+             alone held back another psycast that had a target. Its radius is read from the ability, so it grows with
+             the heat. 40% psyfocus, no heat. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_AggressiveHeatDump"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_AggressiveHeatDump"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
+                <priority>3</priority>
+                <heatVent>true</heatVent>
+                <avoidAllies>true</avoidAllies>
+                <avoidBuildings>true</avoidBuildings>
+                <startsFires>true</startsFires>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Neural heat detonation: after a 5 s warmup, all the caster's heat goes off as a flame burst around
+             it (the caster spared), radius heat / 10. A heat vent, like Aggressive heat dump, tried after it; two or
+             more enemies and none of ours or our buildings inside. Base-wrecking for other factions: at 100 heat it
+             sets 10 tiles on fire. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_NeuralHeatDetonation"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_NeuralHeatDetonation"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEHostileSelf</workerClass>
+                <priority>2</priority>
+                <heatVent>true</heatVent>
+                <minTargets>2</minTargets>
+                <avoidAllies>true</avoidAllies>
+                <avoidBuildings>true</avoidBuildings>
+                <startsFires>true</startsFires>
+                <npcGate>BaseWrecking</npcGate>
               </li>
             </value>
           </match>
@@ -713,6 +758,27 @@
           </match>
         </li>
 
+        <!-- Heat focus: 10 s of focus turns heat above the caster's minimum into psyfocus, 0.002 per point, as much
+             as the psyfocus bar has room for. A heat vent out of combat: only when heat alone holds back another
+             psycast on autocast that has a target, or work waiting in its zone, at its markers or recast spots; and
+             only when it would take at least 10 heat off. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_HeatFocus"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_HeatFocus"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_ShedHeat</workerClass>
+                <priority>2</priority>
+                <heatVent>true</heatVent>
+                <focusPerHeat>0.002</focusPerHeat>
+                <heatFloorStat>VPE_PsychicEntropyMinimum</heatFloorStat>
+                <minHeatShed>10</minHeatShed>
+              </li>
+            </value>
+          </match>
+        </li>
+
         <!-- Necropath -->
 
         <!-- Word of fear: the most dangerous enemy within 14 tiles flees for 5 s or more (the caster walks to within
@@ -1014,6 +1080,25 @@
                 <workerClass>AbilityAI.AbilityAIWorker_Defensive</workerClass>
                 <priority>6</priority>
                 <minThreats>2</minThreats>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Guardian skipbarrier: after a 5 s warmup, a 9-tile barrier around the caster destroys every projectile
+             fired from outside it, while the caster gains 6 heat a second and can cast no other psycast. Raised when
+             at least 3 shooters outside aim at us inside (setting), not where an ally already has one; dropped once
+             fewer than half of them are left for 3 s (settings), or at the player's Max heat. Drafted only for the
+             player's pawns. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_GuardianSkipbarrier"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_GuardianSkipbarrier"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Barrier</workerClass>
+                <priority>6</priority>
+                <hediff>VPE_GuardianSkipBarrier</hediff>
               </li>
             </value>
           </match>

@@ -553,6 +553,18 @@ namespace AbilityAI
         /// <summary>Target friendly: only allies in fire danger (burning, a fire within 2.5 tiles, or an enemy that
         /// can set fires in reach of them, see AbilityAIFire) instead of allies who are fighting (Hydro shield).</summary>
         public bool fireDanger;
+        /// <summary>A heat vent: the driver tries this rule only when, with nothing else cast, another of the caster's
+        /// psycasts had a target and neural heat alone held it back (the player's heat limit, or the game's maximum);
+        /// zone, marker and recast work casts an out-of-combat one when heat holds back a psycast that has work there
+        /// (AbilityAIHeat). VPE's Aggressive Heat Dump, Neural Heat Detonation and Heat Focus.</summary>
+        public bool heatVent;
+        /// <summary>Shed heat: psyfocus the cast gains per point of heat it removes (VPE's Heat Focus: 0.002), so it is
+        /// only cast with room on the psyfocus bar. 0 = every point of heat above the floor goes.</summary>
+        public float focusPerHeat;
+        /// <summary>Shed heat: the stat whose value is heat the cast can't take away (VPE_PsychicEntropyMinimum).</summary>
+        public StatDef heatFloorStat;
+        /// <summary>Shed heat: the least heat the cast must remove to be worth casting.</summary>
+        public float minHeatShed = 10f;
         /// <summary>Changes to this rule for every caster that isn't the player's own pawn.</summary>
         public AbilityAIOverride npc;
         /// <summary>Further changes, over npc, for casters not hostile to the player (visitors, traders, allied
@@ -682,6 +694,15 @@ namespace AbilityAI
                 yield return $"armedOnly is only read by Target hostile, not {workerClass.Name}";
             if (fireDanger && workerClass != null && !typeof(AbilityAIWorker_TargetFriendly).IsAssignableFrom(workerClass))
                 yield return $"fireDanger is only read by Target friendly, not {workerClass.Name}";
+            if (heatVent && Worker != null && !Worker.DriverCasts)
+                yield return $"heatVent does nothing on {workerClass.Name}: the driver never casts from it";
+            bool shedWorker = workerClass != null && typeof(AbilityAIWorker_ShedHeat).IsAssignableFrom(workerClass);
+            if (!shedWorker && workerClass != null && (focusPerHeat != 0f || heatFloorStat != null))
+                yield return $"focusPerHeat and heatFloorStat are only read by Shed heat, not {workerClass.Name}";
+            if (focusPerHeat < 0f) yield return "focusPerHeat can't be negative";
+            if (shedWorker && !heatVent) yield return "a Shed heat rule without heatVent would be cast whenever the caster has heat to shed";
+            if (workerClass != null && typeof(AbilityAIWorker_Barrier).IsAssignableFrom(workerClass) && hediff == null)
+                yield return "a Barrier rule needs the barrier's hediff, to see it is up";
             if (pathClearance < 0f) yield return "pathClearance can't be negative";
             else if (pathClearance > 0f && workerClass != null && !typeof(AbilityAIWorker_Movement).IsAssignableFrom(workerClass))
                 yield return $"pathClearance is only read by Movement, not {workerClass.Name}";
@@ -1189,6 +1210,16 @@ namespace AbilityAI
             public int nextWhyNotTick;
             public string lastWhyNot;
             public int lastWhyNotTick;
+
+            // A barrier this AI raised (AbilityAIBarrier): its hediff, the shooters it was raised against and how far
+            // it reaches, the cast job until the hediff appears, and since when fewer than BarrierDropFraction of them
+            // have stayed. Not saved: after a load the barrier is left to the player, or to VPE's heat limit.
+            public HediffDef barrierHediff;
+            public int barrierStart;
+            public float barrierRadius;
+            public int barrierJobId = -1;
+            public int barrierLowSince = -1;
+            public int barrierNextCheck;
         }
 
         /// <summary>Which workers a player's pawn may use at the moment.</summary>
@@ -1219,6 +1250,9 @@ namespace AbilityAI
         private static readonly ConditionalWeakTable<Pawn, PawnState> states = new ConditionalWeakTable<Pawn, PawnState>();
         private static readonly AbilityAIContext ctx = new AbilityAIContext();
         private static readonly List<Candidate> candidates = new List<Candidate>();
+        // heatVent rules that passed the ready checks, and abilities that didn't, for HeatBlockedWithTarget
+        private static readonly List<Candidate> vents = new List<Candidate>();
+        private static readonly List<AIAbility> notReady = new List<AIAbility>();
         // The pawn's abilities with an extension, from every source; filled and emptied by TryGiveJob
         private static readonly List<AIAbility> collected = new List<AIAbility>();
         private static bool evaluating;
@@ -1262,7 +1296,7 @@ namespace AbilityAI
         /// default hemogen floor. Without a target the cheapest cost the psycast can have is used (asked
         /// while choosing candidates); with one, the cost for that target (Word of Serenity costs more for a worse
         /// break).</summary>
-        internal static bool PsycastWithinLimits(AIAbility a, LocalTargetInfo target)
+        internal static bool PsycastWithinLimits(AIAbility a, LocalTargetInfo target, bool ignoreHeat = false)
         {
             Pawn pawn = a.Pawn;
             bool any = AbilityAIAutocast.TryGetLimits(pawn, out float heatCap, out float focusFloor, out float hemogenFloor);
@@ -1279,7 +1313,7 @@ namespace AbilityAI
             if (!any || !a.IsPsycast) return true;
             var pe = pawn.psychicEntropy;
             if (pe == null) return true;
-            if (heatCap < 1f)
+            if (heatCap < 1f && !ignoreHeat)
             {
                 float gain = a.HeatGain;
                 if (gain > float.Epsilon)
@@ -1298,6 +1332,20 @@ namespace AbilityAI
                 if (cost > float.Epsilon && pe.CurrentPsyfocus - cost - PsycastUtility.TotalPsyfocusCostOfQueuedPsycasts(pawn) < focusFloor - Pawn_PsychicEntropyTracker.PsyfocusCostTolerance) return false;
             }
             return true;
+        }
+
+        /// <summary>Neural heat alone keeps this psycast from being cast now: the player's heat limit (Max heat), or the
+        /// game's own maximum where the ability's system can tell (AIAbility.CanCastIgnoringHeat). Everything else the
+        /// driver's ready check asks still holds: claimed or on autocast, and for the player the other limits.</summary>
+        internal static bool HeatBlocked(AIAbility a, bool player)
+        {
+            if (!a.IsPsycast || a.HeatGain <= float.Epsilon) return false;
+            if (player ? !PlayerAllowed(a.Pawn, a) : !AbilityAIHooks.Allowed(a.Pawn, a)) return false;
+            bool castable = a.CanCastNow;
+            if (!castable && !a.CanCastIgnoringHeat) return false;
+            if (!player) return !castable;
+            if (!PsycastWithinLimits(a, LocalTargetInfo.Invalid, true)) return false;
+            return !castable || !PsycastWithinLimits(a, LocalTargetInfo.Invalid);
         }
 
         /// <summary>Who decides what the AI may cast for a pawn.</summary>
@@ -1742,6 +1790,8 @@ namespace AbilityAI
                 state.nextEvalTick = tick;
             }
             if (state.home.IsValid) CheckHome(pawn, state, player);
+            // Before every interval and ability check: a barrier is dropped while the pawn moves or casts nothing
+            if (state.barrierHediff != null && tick >= state.barrierNextCheck) BarrierUpkeep(pawn, state, tick, player);
             // A Full walk is over and nothing has sent the pawn back yet: unless it casts now, it heads home
             bool returnDue = state.home.IsValid && state.approachJobId < 0 && state.returnJobId < 0;
             // Undrafted player pawns with nothing combat-related going on are checked at the slow interval; the
@@ -1827,7 +1877,8 @@ namespace AbilityAI
                             if (whyNot != null) WhyNot(a, ext, AbilityAINpcGates.Why(ext.npcGate, role));
                             continue;
                         }
-                        if (ext.Worker.Combat != AbilityAICombat.InCombat) outOfFightRule = true;
+                        // A vent only follows another rule that heat held back: that rule's mode decides
+                        if (ext.Worker.Combat != AbilityAICombat.InCombat && !ext.heatVent) outOfFightRule = true;
                         if (huntOnly && !ext.whileHunting)
                         {
                             WhyNot(a, ext, "not used while hunting");
@@ -1853,10 +1904,12 @@ namespace AbilityAI
                         if (!ready)
                         {
                             if (whyNot != null) WhyNot(a, null, NotReadyWhy(pawn, a, state, tick, player));
+                            // Looked at again only if a heat vent is ready once every ability is through
+                            if (AbilityAIHeat.Any) notReady.Add(a);
                             // The ability's later rules are never reached
                             for (int k = j + 1; k < exts.Count && !outOfFightRule; k++)
-                                if (exts[k] is AbilityAIExtension later && later.For(role).Worker is AbilityAIWorker w
-                                    && w.DriverCasts && w.Combat != AbilityAICombat.InCombat)
+                                if (exts[k] is AbilityAIExtension later && later.For(role) is AbilityAIExtension lv && lv.Worker is AbilityAIWorker w
+                                    && w.DriverCasts && w.Combat != AbilityAICombat.InCombat && !lv.heatVent)
                                     outOfFightRule = true;
                             break;
                         }
@@ -1870,72 +1923,30 @@ namespace AbilityAI
                             if (whyNot != null) WhyNot(a, ext, CasterSuitsWhy(ext));
                             continue;
                         }
-                        int at = candidates.Count;
-                        while (at > 0 && candidates[at - 1].ext.priority < ext.priority) at--;
-                        candidates.Insert(at, new Candidate { ability = a, ext = ext });
+                        var into = ext.heatVent ? vents : candidates;
+                        int at = into.Count;
+                        while (at > 0 && into[at - 1].ext.priority < ext.priority) at--;
+                        into.Insert(at, new Candidate { ability = a, ext = ext });
                     }
                 }
-                if (candidates.Count == 0) return returnDue ? ReturnJob(pawn, state) : null;
+                if (candidates.Count == 0 && vents.Count == 0) return returnDue ? ReturnJob(pawn, state) : null;
 
                 // Every candidate refused for want of a fight and none got as far as a target search: an NPC then
                 // waits NpcIdleIntervalTicks. A rule that works outside combat keeps the 30-tick check.
                 bool waitingForFight = !player && !outOfFightRule;
-                for (int i = 0; i < candidates.Count; i++)
+                Job job = TryCandidates(candidates, pawn, state, tick, player, ref waitingForFight, null);
+                if (job != null) return job;
+                // Nothing cast: a vent, if heat is what kept something else from being cast just now
+                if (vents.Count > 0)
                 {
-                    AIAbility a = candidates[i].ability;
-                    var ext = candidates[i].ext;
-                    var worker = ext.Worker;
-                    if (!CombatAllows(worker))
+                    AIAbility blocked = notReady.Count > 0 ? HeatBlockedWithTarget(state, tick, player, role, huntOnly, charging) : null;
+                    if (blocked != null)
                     {
-                        if (worker.Combat != AbilityAICombat.InCombat) waitingForFight = false;
-                        WhyNot(a, ext, worker.Combat == AbilityAICombat.InCombat ? "not in combat" : "in combat");
-                        continue;
+                        bool unused = false;
+                        job = TryCandidates(vents, pawn, state, tick, player, ref unused, blocked);
+                        if (job != null) return job;
                     }
-                    waitingForFight = false;
-                    exclusiveDef = worker.Exclusive ? a.Def : null;
-                    affectedCounted = worker.CountsAffectedAroundCaster;
-                    ctx.CastAtPrey = false;
-                    ctx.NoTargetWhy = null;
-                    if (!worker.TryFindTarget(ctx, a, out LocalTargetInfo target, out LocalTargetInfo dest))
-                    {
-                        WhyNot(a, ext, ctx.NoTargetWhy ?? "no target");
-                        continue;
-                    }
-                    if (!dest.IsValid) dest = target;
-                    if (!Valid(a, target))
-                    {
-                        if (whyNot != null) WhyNot(a, ext, $"the ability refused {TargetLabel(target)}");
-                        continue;
-                    }
-                    if (player && !PsycastWithinLimits(a, target))
-                    {
-                        if (whyNot != null) WhyNot(a, ext, $"over this pawn's autocast limits for {TargetLabel(target)}");
-                        continue;
-                    }
-                    // Made before anything is recorded: another system's ability may still refuse at this point
-                    // (VEF runs its extensions' own Valid and PreCast here)
-                    Job cast = a.MakeCastJob(target, dest);
-                    if (cast == null)
-                    {
-                        if (whyNot != null) WhyNot(a, ext, $"refused when its cast job was made, at {TargetLabel(target)}");
-                        continue;
-                    }
-
-                    state.nextCastTick = tick + Mathf.RoundToInt(AbilityAISettings.MinGapSeconds * GenTicks.TicksPerRealSecond);
-                    if (ext.minGapSeconds > 0f)
-                    {
-                        if (state.abilityNext == null) state.abilityNext = new Dictionary<Def, int>();
-                        state.abilityNext[a.Def] = tick + Mathf.RoundToInt(ext.minGapSeconds * GenTicks.TicksPerRealSecond);
-                    }
-                    if (AbilityAISettings.DebugLog && Prefs.DevMode)
-                        Log.Message($"[Ability AI] {pawn.LabelShort} casts {a.Label} ({worker.GetType().Name}) on {TargetLabel(target)}");
-                    exclusiveDef = null;
-                    affectedCounted = false;
-                    AbilityAIHooks.NotifyCast(pawn, a, target, dest);
-                    AbilityAICombatAI.HoldForCast(pawn, a, target, cast);
-                    if (player) QueueAfterCast(pawn, state);
-                    else if (ctx.CastAtPrey) ResumeHunt(pawn);
-                    return cast;
+                    else if (whyNot != null) WhyNot(null, null, "its heat vents wait for a psycast heat holds back");
                 }
                 affectedCounted = false;
                 if (waitingForFight && AbilityAISettings.NpcIdleIntervalTicks > EvalIntervalTicks)
@@ -1955,6 +1966,8 @@ namespace AbilityAI
             {
                 ctx.End();
                 candidates.Clear();
+                vents.Clear();
+                notReady.Clear();
                 claims.Clear();
                 claimsBuilt = false;
                 exclusiveDef = null;
@@ -1965,6 +1978,161 @@ namespace AbilityAI
                 curPlayer = false;
                 evaluating = false;
             }
+        }
+
+        // Tries each candidate's worker in order and returns the first cast made. ventFor: the psycast heat held back,
+        // when these are heat vents (named in the dev log line).
+        private static Job TryCandidates(List<Candidate> list, Pawn pawn, PawnState state, int tick, bool player,
+            ref bool waitingForFight, AIAbility ventFor)
+        {
+            for (int i = 0; i < list.Count; i++)
+            {
+                AIAbility a = list[i].ability;
+                var ext = list[i].ext;
+                var worker = ext.Worker;
+                if (!CombatAllows(worker))
+                {
+                    if (worker.Combat != AbilityAICombat.InCombat) waitingForFight = false;
+                    WhyNot(a, ext, worker.Combat == AbilityAICombat.InCombat ? "not in combat" : "in combat");
+                    continue;
+                }
+                waitingForFight = false;
+                exclusiveDef = worker.Exclusive ? a.Def : null;
+                affectedCounted = worker.CountsAffectedAroundCaster;
+                ctx.CastAtPrey = false;
+                ctx.NoTargetWhy = null;
+                if (!worker.TryFindTarget(ctx, a, out LocalTargetInfo target, out LocalTargetInfo dest))
+                {
+                    WhyNot(a, ext, ctx.NoTargetWhy ?? "no target");
+                    continue;
+                }
+                if (!dest.IsValid) dest = target;
+                if (!Valid(a, target))
+                {
+                    if (whyNot != null) WhyNot(a, ext, $"the ability refused {TargetLabel(target)}");
+                    continue;
+                }
+                if (player && !PsycastWithinLimits(a, target))
+                {
+                    if (whyNot != null) WhyNot(a, ext, $"over this pawn's autocast limits for {TargetLabel(target)}");
+                    continue;
+                }
+                // Made before anything is recorded: another system's ability may still refuse at this point
+                // (VEF runs its extensions' own Valid and PreCast here)
+                Job cast = a.MakeCastJob(target, dest);
+                if (cast == null)
+                {
+                    if (whyNot != null) WhyNot(a, ext, $"refused when its cast job was made, at {TargetLabel(target)}");
+                    continue;
+                }
+
+                state.nextCastTick = tick + Mathf.RoundToInt(AbilityAISettings.MinGapSeconds * GenTicks.TicksPerRealSecond);
+                if (ext.minGapSeconds > 0f)
+                {
+                    if (state.abilityNext == null) state.abilityNext = new Dictionary<Def, int>();
+                    state.abilityNext[a.Def] = tick + Mathf.RoundToInt(ext.minGapSeconds * GenTicks.TicksPerRealSecond);
+                }
+                if (worker is AbilityAIWorker_Barrier)
+                {
+                    state.barrierHediff = ext.hediff;
+                    state.barrierStart = AbilityAIWorker_Barrier.LastCount;
+                    state.barrierRadius = AbilityAIWorker_Barrier.LastRadius;
+                    state.barrierJobId = cast.loadID;
+                    state.barrierLowSince = -1;
+                    state.barrierNextCheck = tick + EvalIntervalTicks;
+                }
+                if (AbilityAISettings.DebugLog && Prefs.DevMode)
+                    Log.Message($"[Ability AI] {pawn.LabelShort} casts {a.Label} ({worker.GetType().Name}) on {TargetLabel(target)}"
+                        + (ventFor != null ? $" to vent heat: {ventFor.Label} had a target but heat held it back" : ""));
+                exclusiveDef = null;
+                affectedCounted = false;
+                AbilityAIHooks.NotifyCast(pawn, a, target, dest);
+                AbilityAICombatAI.HoldForCast(pawn, a, target, cast);
+                if (player) QueueAfterCast(pawn, state);
+                else if (ctx.CastAtPrey) ResumeHunt(pawn);
+                return cast;
+            }
+            return null;
+        }
+
+        // The first not-ready ability that heat alone holds back (HeatBlocked) and that one of its rules finds a target
+        // for in this situation, by the same rule checks the ready ones went through. Its target search runs with
+        // AIAbility.IgnoringHeat set, since a system's target checks may repeat the cost check. Only reached with a
+        // heat vent ready and nothing else cast, so the extra searches are rare.
+        private static AIAbility HeatBlockedWithTarget(PawnState state, int tick, bool player, AbilityAIRole role, bool huntOnly, bool charging)
+        {
+            for (int i = 0; i < notReady.Count; i++)
+            {
+                AIAbility a = notReady[i];
+                if (state.abilityNext != null && state.abilityNext.TryGetValue(a.Def, out int next) && tick < next) continue;
+                if (!HeatBlocked(a, player)) continue;
+                var exts = a.Def.modExtensions;
+                for (int j = 0; j < exts.Count; j++)
+                {
+                    if (!(exts[j] is AbilityAIExtension rule)) continue;
+                    var ext = rule.For(role);
+                    var worker = ext.Worker;
+                    if (worker == null || !worker.DriverCasts || ext.heatVent) continue;
+                    if (ext.npcGate != AbilityAINpcGate.None && !AbilityAINpcGates.Allows(ext.npcGate, role)) continue;
+                    if ((huntOnly && !ext.whileHunting) || (charging && !ChargeRule(ext)) || !InSet(worker, curSet)) continue;
+                    if (ext.reserveCharges > 0 && a.UsesCharges && a.RemainingCharges <= ext.reserveCharges) continue;
+                    if (!CasterSuits(ext) || !CombatAllows(worker)) continue;
+                    exclusiveDef = worker.Exclusive ? a.Def : null;
+                    affectedCounted = worker.CountsAffectedAroundCaster;
+                    ctx.CastAtPrey = false;
+                    AIAbility.IgnoringHeat = true;
+                    bool found;
+                    try { found = worker.TryFindTarget(ctx, a, out _, out _); }
+                    finally
+                    {
+                        AIAbility.IgnoringHeat = false;
+                        exclusiveDef = null;
+                        affectedCounted = false;
+                        ctx.CastAtPrey = false;
+                    }
+                    if (found) return a;
+                }
+            }
+            return null;
+        }
+
+        // A barrier this AI raised (AbilityAIBarrier) comes down once fewer than BarrierDropFraction of the shooters it
+        // was raised against have stayed for BarrierDropSeconds, or for the player's pawns at their heat limit. The
+        // hediff only appears once the warmup is over, so until then the cast job is what is waited on.
+        private static void BarrierUpkeep(Pawn pawn, PawnState state, int tick, bool player)
+        {
+            state.barrierNextCheck = tick + EvalIntervalTicks;
+            Hediff barrier = pawn.health?.hediffSet?.GetFirstHediffOfDef(state.barrierHediff);
+            if (barrier == null)
+            {
+                if (state.barrierJobId >= 0 && pawn.CurJob != null && pawn.CurJob.loadID == state.barrierJobId) return;
+                state.barrierHediff = null;
+                return;
+            }
+            state.barrierJobId = -1;
+            string why = null;
+            if (player && AbilityAIBarrier.AtHeatLimit(pawn)) why = "it reached its heat limit";
+            else if (pawn.Spawned)
+            {
+                int count;
+                evaluating = true;
+                ctx.Begin(pawn, tick, null, 0, player && pawn.Drafted);
+                try { count = AbilityAIBarrier.Threats(ctx, state.barrierRadius); }
+                finally
+                {
+                    ctx.End();
+                    evaluating = false;
+                }
+                if (count >= state.barrierStart * AbilityAISettings.BarrierDropFraction) state.barrierLowSince = -1;
+                else if (state.barrierLowSince < 0) state.barrierLowSince = tick;
+                else if (tick - state.barrierLowSince >= AbilityAISettings.BarrierDropTicks)
+                    why = $"{count} of the {state.barrierStart} shooters it was raised against are left";
+            }
+            if (why == null) return;
+            pawn.health.RemoveHediff(barrier);
+            state.barrierHediff = null;
+            if (AbilityAISettings.DebugLog && Prefs.DevMode)
+                Log.Message($"[Ability AI] {pawn.LabelShort} drops {barrier.LabelBase}: {why}");
         }
 
         // What a player's pawn does after an autocast. Vanilla starts constant-tree jobs without resuming the current
@@ -2402,6 +2570,15 @@ namespace AbilityAI
         /// ones abilities that wreck buildings over a wide area.</summary>
         public static bool NpcInstantKill;
         public static bool NpcBaseWrecking;
+        /// <summary>Barrier rules (AbilityAIBarrier), every caster: raised once this many shooters outside it aim at pawns
+        /// inside it; dropped once fewer than BarrierDropFraction of the shooters it was raised against have stayed for
+        /// BarrierDropTicks.</summary>
+        public const int DefaultBarrierMinShooters = 3;
+        public static int BarrierMinShooters = DefaultBarrierMinShooters;
+        public const float DefaultBarrierDropFraction = 0.5f;
+        public static float BarrierDropFraction = DefaultBarrierDropFraction;
+        public const int DefaultBarrierDropTicks = 180;
+        public static int BarrierDropTicks = DefaultBarrierDropTicks;
 
         public static bool SkipAllowed(AbilityAISkipMode mode)
         {
@@ -2440,6 +2617,9 @@ namespace AbilityAI
                     SkipRepel = SkipRescue = SkipEscape = true;
                     CaiHoldNpcs = CaiHoldColonists = true;
                     VpeQuietSpawners = true;
+                    BarrierMinShooters = DefaultBarrierMinShooters;
+                    BarrierDropFraction = DefaultBarrierDropFraction;
+                    BarrierDropTicks = DefaultBarrierDropTicks;
                     DebugLog = false;
                     break;
                 case Tab.OtherFactions:
@@ -2531,6 +2711,12 @@ namespace AbilityAI
             Scribe_Values.Look(ref CaiHoldNpcs, "abilityAI_caiHoldNpcs", true);
             Scribe_Values.Look(ref CaiHoldColonists, "abilityAI_caiHoldColonists", true);
             Scribe_Values.Look(ref VpeQuietSpawners, "abilityAI_vpeQuietSpawners", true);
+            Scribe_Values.Look(ref BarrierMinShooters, "abilityAI_barrierMinShooters", DefaultBarrierMinShooters);
+            BarrierMinShooters = Mathf.Clamp(BarrierMinShooters, 1, 10);
+            Scribe_Values.Look(ref BarrierDropFraction, "abilityAI_barrierDropFraction", DefaultBarrierDropFraction);
+            BarrierDropFraction = Mathf.Clamp(BarrierDropFraction, 0.1f, 1f);
+            Scribe_Values.Look(ref BarrierDropTicks, "abilityAI_barrierDropTicks", DefaultBarrierDropTicks);
+            BarrierDropTicks = Mathf.Clamp(BarrierDropTicks, 0, 600);
             Scribe_Values.Look(ref DebugLog, "abilityAI_debugLog", false);
         }
 
@@ -2602,6 +2788,18 @@ namespace AbilityAI
                 if (AbilityAICombatAI.SeesAutoControl)
                     list.CheckboxLabeled("AAI_CaiHoldColonists".Translate(), ref CaiHoldColonists, "AAI_CaiHoldColonists_Tip".Translate());
                 Hint(list, "AAI_Cai_Desc");
+            }
+            // Only with a rule for one, such as VPE's Guardian Skipbarrier
+            if (AbilityAIBarrier.Any)
+            {
+                Section(list, "AAI_Section_Barrier");
+                list.Label("AAI_BarrierMinShooters".Translate(BarrierMinShooters), -1f, "AAI_BarrierMinShooters_Tip".Translate());
+                BarrierMinShooters = Mathf.RoundToInt(list.Slider(BarrierMinShooters, 1f, 10f));
+                list.Label("AAI_BarrierDropFraction".Translate(Mathf.RoundToInt(BarrierDropFraction * 100f)), -1f, "AAI_BarrierDropFraction_Tip".Translate());
+                BarrierDropFraction = Mathf.Round(list.Slider(BarrierDropFraction, 0.1f, 1f) * 20f) / 20f;
+                list.Label("AAI_BarrierDropSeconds".Translate((BarrierDropTicks / 60f).ToString("0.#")), -1f, "AAI_BarrierDropSeconds_Tip".Translate());
+                BarrierDropTicks = Mathf.RoundToInt(list.Slider(BarrierDropTicks, 0f, 600f) / 30f) * 30;
+                Hint(list, "AAI_Barrier_Desc");
             }
             if (VpeSpawnerPatchApplied)
             {

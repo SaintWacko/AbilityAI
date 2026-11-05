@@ -39,6 +39,18 @@ namespace AbilityAI.Vef
         float HeatGain(VefAbility ability);
     }
 
+    /// <summary>Optional, beside IVefAbilityCosts: lets the AI tell a psycast that heat alone holds back (the heat vent
+    /// gate, AbilityAIHeat). A separate interface so a cost system built against the first one keeps loading.</summary>
+    public interface IVefAbilityHeat
+    {
+        /// <summary>Affordable, with the heat check left out.</summary>
+        bool AffordableIgnoringHeat(VefAbility ability);
+
+        /// <summary>The extension whose IsEnabledForPawn and Valid repeat the cost checks (heat among them), so they are
+        /// skipped when heat is to be ignored; AffordableIgnoringHeat stands in for them.</summary>
+        bool IsCostExtension(AbilityExtension_AbilityMod extension);
+    }
+
     public sealed class VefAIAbility : AIAbility
     {
         public readonly VefAbility ability;
@@ -293,10 +305,25 @@ namespace AbilityAI.Vef
             }
         }
 
-        // Ability.IsEnabledForPawn builds a translated reason string on every call, the success path included, and
-        // the driver asks for every ready ability of every pawn it evaluates. For ability types that don't declare
-        // their own, its three checks are made here without the string; a type that overrides it is asked as usual.
-        private bool EnabledForPawn()
+        // Only for a cost system that can leave heat out, and not for an ability type with its own IsEnabledForPawn,
+        // which can't be asked without its heat check
+        public override bool CanCastIgnoringHeat
+        {
+            get
+            {
+                Pawn pawn = ability.pawn;
+                if (pawn?.Map == null || ability.verb == null || !TryGetInfo(ability.def, out _)) return false;
+                if (!(Costs is IVefAbilityHeat heat) || OwnEnabledCheck()) return false;
+                if (ability.def.keepCarryingThing == true && pawn.carryTracker?.CarriedThing != null) return false;
+                if (ability.cooldown > Find.TickManager.TicksGame || !heat.AffordableIgnoringHeat(ability)) return false;
+                var exts = ability.AbilityModExtensions;
+                for (int i = 0; i < exts.Count; i++)
+                    if (!heat.IsCostExtension(exts[i]) && !exts[i].IsEnabledForPawn(ability, out _)) return false;
+                return ability.def.Satisfied(ability.Hediff);
+            }
+        }
+
+        private bool OwnEnabledCheck()
         {
             var type = ability.GetType();
             if (!ownEnabledCheck.TryGetValue(type, out bool own))
@@ -305,6 +332,15 @@ namespace AbilityAI.Vef
                 own = method != null && method.DeclaringType != typeof(VefAbility);
                 ownEnabledCheck[type] = own;
             }
+            return own;
+        }
+
+        // Ability.IsEnabledForPawn builds a translated reason string on every call, the success path included, and
+        // the driver asks for every ready ability of every pawn it evaluates. For ability types that don't declare
+        // their own, its three checks are made here without the string; a type that overrides it is asked as usual.
+        private bool EnabledForPawn()
+        {
+            bool own = OwnEnabledCheck();
             if (ability.cooldown > Find.TickManager.TicksGame) return false;
             var costs = Costs;
             if (costs != null && !costs.Affordable(ability)) return false;
@@ -411,9 +447,20 @@ namespace AbilityAI.Vef
             // targeting, Valid in CreateCastJob
             oneTarget[0] = target.ToGlobalTargetInfo(map);
             var exts = ability.AbilityModExtensions;
+            // VPE's psycast extension repeats its cost checks in Valid, heat among them
+            var heat = IgnoringHeat ? Costs as IVefAbilityHeat : null;
             for (int i = 0; i < exts.Count; i++)
             {
                 var e = exts[i];
+                if (heat != null && heat.IsCostExtension(e))
+                {
+                    if (!e.CanApplyOn(target, ability, false) || !e.ValidateTarget(target, ability, false))
+                    {
+                        oneTarget[0] = GlobalTargetInfo.Invalid;
+                        return false;
+                    }
+                    continue;
+                }
                 // Its Valid posts "is asleep" for a sleeping target whatever throwMessages says (VEF passes true to
                 // ValidateIsAwake), so a sleeping prisoner put a message up at every check
                 if (e is AbilityExtension_SocialInteraction && target.Thing is Pawn sleeper && !sleeper.Awake())

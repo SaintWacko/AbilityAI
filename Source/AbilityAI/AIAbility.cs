@@ -75,6 +75,15 @@ namespace AbilityAI
         /// <summary>Why CanCastNow is false, for the dev log; only asked when it is.</summary>
         public virtual string NotReadyReason => "not castable now";
 
+        /// <summary>CanCastNow with the caster's neural heat left out: true when heat is all that stops it. Only asked
+        /// for a psycast CanCastNow refused, when the pawn holds a heatVent rule (AbilityAIDriver.HeatBlocked). False
+        /// where the system can't tell, which leaves only the player's own heat limit to count.</summary>
+        public virtual bool CanCastIgnoringHeat => false;
+
+        /// <summary>Set while the driver looks for a target for a psycast that heat alone holds back, so a system whose
+        /// target checks repeat the cost check (VPE's psycast extension) can leave that one out.</summary>
+        public static bool IgnoringHeat { get; internal set; }
+
         public virtual bool UsesCharges => false;
         public virtual int RemainingCharges => 0;
 

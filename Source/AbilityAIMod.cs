@@ -113,6 +113,8 @@ namespace AbilityAI
                     AbilityAIGather.Note(abilityDefs[i]);
                     AbilityAIZones.Note(abilityDefs[i]);
                     AbilityAISpots.Note(abilityDefs[i]);
+                    AbilityAIHeat.Note(abilityDefs[i]);
+                    AbilityAIBarrier.Note(abilityDefs[i]);
                 }
             }
             catch (Exception e) { Log.Error($"[Ability AI] Setting up recasting failed; nothing is recast: {e}"); }

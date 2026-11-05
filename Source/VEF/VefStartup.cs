@@ -39,6 +39,8 @@ namespace AbilityAI.Vef
                     AbilityAIGather.Note(defs[i]);
                     AbilityAIZones.Note(defs[i]);
                     AbilityAISpots.Note(defs[i]);
+                    AbilityAIHeat.Note(defs[i]);
+                    AbilityAIBarrier.Note(defs[i]);
                 }
                 AbilityAIRecast.RegisterLifetime(SpawnedLifetime);
                 AbilityAIZones.RegisterBusy(InRunningCast);

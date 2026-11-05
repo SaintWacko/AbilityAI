@@ -165,9 +165,7 @@ namespace AbilityAI
                     var s = list[i];
                     if (!s.due || s.Dormant || s.CastDef != def || s.Waiting(pawn, tick) || (s.claimant != null && s.ClaimHolds())) continue;
                     if (OtherCastingNear(pawn, def, s.anchor, heatBlocked[r].rule.spotRadius)) continue;
-                    Job vent = AbilityAIHeat.TryWorkVentJob(pawn, collected, heatBlocked[r].ability, "marker work");
-                    if (vent != null) return vent;
-                    break;
+                    return AbilityAIHeat.TryWorkVentJob(pawn, collected, heatBlocked[r].ability, "marker work");
                 }
             }
             return null;

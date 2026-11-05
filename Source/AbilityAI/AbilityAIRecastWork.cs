@@ -172,9 +172,7 @@ namespace AbilityAI
                 {
                     var s = list[i];
                     if (!s.due || s.Dormant || s.thingDef != thing || s.Waiting(pawn, tick) || (s.claimant != null && s.ClaimHolds())) continue;
-                    Job vent = AbilityAIHeat.TryWorkVentJob(pawn, collected, heatBlocked[r].ability, "recast work");
-                    if (vent != null) return vent;
-                    break;
+                    return AbilityAIHeat.TryWorkVentJob(pawn, collected, heatBlocked[r].ability, "recast work");
                 }
             }
             return null;

@@ -157,14 +157,22 @@ namespace AbilityAI
         // (AbilityAIHeat), if the pawn has one on autocast
         private static Job TryVent(Pawn pawn, List<CastSpot> list, int tick)
         {
+            if (heatBlocked.Count == 0 || AbilityAIHeat.FindWorkVent(pawn, collected) == null) return null;
             for (int r = 0; r < heatBlocked.Count; r++)
             {
                 Def def = heatBlocked[r].ability.Def;
-                for (int i = 0; i < list.Count; i++)
+                int tried = 0;
+                for (int i = 0; i < list.Count && tried < MaxSpotsTried; i++)
                 {
                     var s = list[i];
                     if (!s.due || s.Dormant || s.CastDef != def || s.Waiting(pawn, tick) || (s.claimant != null && s.ClaimHolds())) continue;
-                    if (!CastableAt(pawn, heatBlocked[r].ability, heatBlocked[r].rule, s.anchor, true)) continue;
+                    tried++;
+                    // A marker these psycasts serve alone never reaches the main loop's waits
+                    if (!CastableAt(pawn, heatBlocked[r].ability, heatBlocked[r].rule, s.anchor, true))
+                    {
+                        s.Wait(pawn, tick + RetryTicks);
+                        continue;
+                    }
                     return AbilityAIHeat.TryWorkVentJob(pawn, collected, heatBlocked[r].ability, "marker work");
                 }
             }

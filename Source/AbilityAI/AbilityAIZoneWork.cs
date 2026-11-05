@@ -194,6 +194,7 @@ namespace AbilityAI
         // vent (AbilityAIHeat), if the pawn has one on autocast
         private static Job TryVent(Pawn pawn, PsycastZones zones, int tick)
         {
+            if (heatBlocked.Count == 0 || AbilityAIHeat.FindWorkVent(pawn, collected) == null) return null;
             for (int r = 0; r < heatBlocked.Count; r++)
             {
                 AIAbility a = heatBlocked[r].ability;

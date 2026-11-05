@@ -75,9 +75,21 @@ namespace AbilityAI
         }
 
         /// <summary>For the work givers: blocked (heat alone holds it back) has work waiting, so cast one of the pawn's
-        /// out-of-combat Shed heat vents instead, if one is on autocast, ready and would shed enough. abilities: the
-        /// pawn's collected abilities. Null when there is none.</summary>
+        /// out-of-combat Shed heat vents instead (FindWorkVent). abilities: the pawn's collected abilities. Null when
+        /// there is none.</summary>
         internal static Job TryWorkVentJob(Pawn pawn, List<AIAbility> abilities, AIAbility blocked, string work)
+        {
+            AIAbility a = FindWorkVent(pawn, abilities);
+            if (a == null) return null;
+            Job job = a.MakeCastJob(pawn, pawn);
+            if (job != null && AbilityAISettings.DebugLog && Prefs.DevMode)
+                Log.Message($"[Ability AI] {pawn.LabelShort} casts {a.Label} to vent heat: {blocked.Label} has work but heat holds it back ({work})");
+            return job;
+        }
+
+        /// <summary>The pawn's out-of-combat Shed heat vent that is on autocast, ready and would shed enough now, or
+        /// null. Depends on the pawn alone, so the work givers ask it before looking for work a held-back psycast has.</summary>
+        internal static AIAbility FindWorkVent(Pawn pawn, List<AIAbility> abilities)
         {
             for (int i = 0; i < abilities.Count; i++)
             {
@@ -91,11 +103,7 @@ namespace AbilityAI
                     if (worker.Combat == AbilityAICombat.InCombat || !Sheds(pawn, rule)) continue;
                     if (!AbilityAIHooks.NotVetoed(pawn, a) || !a.CanCastNow || !AbilityAIDriver.PsycastWithinLimits(a, pawn)) break;
                     if (!a.Valid(pawn)) break;
-                    Job job = a.MakeCastJob(pawn, pawn);
-                    if (job == null) break;
-                    if (AbilityAISettings.DebugLog && Prefs.DevMode)
-                        Log.Message($"[Ability AI] {pawn.LabelShort} casts {a.Label} to vent heat: {blocked.Label} has work but heat holds it back ({work})");
-                    return job;
+                    return a;
                 }
             }
             return null;

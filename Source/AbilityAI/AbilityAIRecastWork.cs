@@ -149,7 +149,7 @@ namespace AbilityAI
                     }
                     s.Wait(pawn, tick + RetryTicks);
                 }
-                return TryVent(pawn, list, tick);
+                return TryVent(pawn, spots, tick);
             }
             finally
             {
@@ -163,16 +163,26 @@ namespace AbilityAI
 
         // Nothing else to cast, and heat alone holds back a psycast with a due, unclaimed spot: a heat vent
         // (AbilityAIHeat), if the pawn has one on autocast
-        private static Job TryVent(Pawn pawn, List<RecastSpot> list, int tick)
+        private static Job TryVent(Pawn pawn, RecastSpots spots, int tick)
         {
+            var list = spots.Spots;
             for (int r = 0; r < heatBlocked.Count; r++)
             {
                 ThingDef thing = heatBlocked[r].thing;
+                AIAbility a = heatBlocked[r].ability;
                 for (int i = 0; i < list.Count; i++)
                 {
                     var s = list[i];
                     if (!s.due || s.Dormant || s.thingDef != thing || s.Waiting(pawn, tick) || (s.claimant != null && s.ClaimHolds())) continue;
-                    return AbilityAIHeat.TryWorkVentJob(pawn, collected, heatBlocked[r].ability, "recast work");
+                    // The checks the main loop makes before casting, short of the limits: a spot only heat-blocked
+                    // psycasts serve never reaches that loop, so it would never be put on a wait
+                    if (!pawn.CanReach(s.anchor, PathEndMode.Touch, Danger.Some)) continue;
+                    bool castable;
+                    AIAbility.IgnoringHeat = true;
+                    try { castable = TryFindCastCell(a, s, spots, out _); }
+                    finally { AIAbility.IgnoringHeat = false; }
+                    if (!castable) continue;
+                    return AbilityAIHeat.TryWorkVentJob(pawn, collected, a, "recast work");
                 }
             }
             return null;

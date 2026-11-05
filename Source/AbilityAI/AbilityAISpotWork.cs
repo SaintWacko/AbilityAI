@@ -164,7 +164,7 @@ namespace AbilityAI
                 {
                     var s = list[i];
                     if (!s.due || s.Dormant || s.CastDef != def || s.Waiting(pawn, tick) || (s.claimant != null && s.ClaimHolds())) continue;
-                    if (OtherCastingNear(pawn, def, s.anchor, heatBlocked[r].rule.spotRadius)) continue;
+                    if (!CastableAt(pawn, heatBlocked[r].ability, heatBlocked[r].rule, s.anchor, true)) continue;
                     return AbilityAIHeat.TryWorkVentJob(pawn, collected, heatBlocked[r].ability, "marker work");
                 }
             }
@@ -198,7 +198,8 @@ namespace AbilityAI
         // The ground looked at again with this caster's own radius (Tree Sprout's grows with sensitivity): the marker's
         // state is up to 250 ticks old, and a cast that landed since leaves spawners. Crops count out to the marker's
         // radius whatever the caster's. Then nobody already casting there, and the ability's own rules and the limits.
-        private static bool CastableAt(Pawn pawn, AIAbility a, AbilityAIExtension rule, IntVec3 cell)
+        // forVent: for a psycast heat holds back (TryVent), so the limits are left out and the rules asked ignoring heat.
+        private static bool CastableAt(Pawn pawn, AIAbility a, AbilityAIExtension rule, IntVec3 cell, bool forVent = false)
         {
             float radius = a.DefaultRadius > 0f ? a.DefaultRadius : rule.spotRadius;
             var state = AbilityAISpots.Evaluate(pawn.Map, cell, rule.spotKind, Mathf.Max(rule.spotRadius, radius), radius,
@@ -210,7 +211,10 @@ namespace AbilityAI
                 return false;
             }
             if (OtherCastingNear(pawn, a.Def, cell, rule.spotRadius)) return false;
-            return a.ValidIgnoringRange(cell) && AbilityAIDriver.PsycastWithinLimits(a, cell);
+            if (!forVent) return a.ValidIgnoringRange(cell) && AbilityAIDriver.PsycastWithinLimits(a, cell);
+            AIAbility.IgnoringHeat = true;
+            try { return a.ValidIgnoringRange(cell); }
+            finally { AIAbility.IgnoringHeat = false; }
         }
 
         // A colonist casting this psycast near the marker by hand, or one whose claim was lost to a load: until it lands

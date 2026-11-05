@@ -199,24 +199,33 @@ namespace AbilityAI
                 AIAbility a = heatBlocked[r].ability;
                 AbilityAIZoneTarget kind = heatBlocked[r].rule.zoneTarget;
                 var targets = zones.TargetsFor(a.Def, kind, tick);
-                // A heap is worth it only with the setting's corpses, and not while this pawn waits out a failed search
-                if (kind == AbilityAIZoneTarget.ConsumableCorpses
-                    && (targets.Count < AbilityAISettings.ZoneConsumeMinCorpses || zones.WaitingZone(pawn, a.Def, tick))) continue;
-                for (int i = 0; i < targets.Count && i < MaxTargetsTried; i++)
+                // Consume Bodies is cast at the caster: worth it with the setting's corpses, and not while this pawn waits
+                // out a failed heap search
+                if (kind == AbilityAIZoneTarget.ConsumableCorpses)
+                {
+                    if (targets.Count < AbilityAISettings.ZoneConsumeMinCorpses || zones.WaitingZone(pawn, a.Def, tick)) continue;
+                    if (!ValidIgnoringHeat(a, pawn)) continue;
+                    return AbilityAIHeat.TryWorkVentJob(pawn, collected, a, "zone work");
+                }
+                int tried = 0;
+                for (int i = 0; i < targets.Count && tried < MaxTargetsTried; i++)
                 {
                     Thing t = targets[i];
                     if (t.Map != pawn.Map || zones.Waiting(pawn, t, tick) || zones.ClaimedByOther(t, pawn) || !AbilityAIZones.Wants(kind, t)) continue;
-                    if (!Free(pawn, a, t, kind)) continue;
-                    bool valid;
-                    AIAbility.IgnoringHeat = true;
-                    try { valid = a.ValidIgnoringRange(t); }
-                    finally { AIAbility.IgnoringHeat = false; }
-                    if (!valid) continue;
+                    tried++;
+                    if (!Free(pawn, a, t, kind) || !ValidIgnoringHeat(a, t)) continue;
                     // Which vent qualifies depends on the pawn alone, so a miss here is a miss for every psycast
                     return AbilityAIHeat.TryWorkVentJob(pawn, collected, a, "zone work");
                 }
             }
             return null;
+        }
+
+        private static bool ValidIgnoringHeat(AIAbility a, LocalTargetInfo target)
+        {
+            AIAbility.IgnoringHeat = true;
+            try { return a.ValidIgnoringRange(target); }
+            finally { AIAbility.IgnoringHeat = false; }
         }
 
         /// <summary>The cast at the end of a walk, or null when nothing the pawn has can be cast at the target from where

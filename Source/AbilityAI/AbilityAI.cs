@@ -2151,7 +2151,9 @@ namespace AbilityAI
         }
 
         // A barrier this AI raised (AbilityAIBarrier) comes down once fewer than BarrierDropFraction of the shooters it
-        // was raised against have stayed for BarrierDropSeconds, or for the player's pawns at their heat limit. The
+        // was raised against, and fewer than BarrierMinShooters, have stayed for BarrierDropSeconds, or for the player's
+        // pawns at their heat limit. The second floor stops a cycle: raised against 10, dropped at 4, and raised again
+        // on the next check because 4 still meets the minimum, each time paying the psyfocus and the heat. The
         // hediff only appears once the warmup is over, so until then the cast job is what is waited on.
         private static void BarrierUpkeep(Pawn pawn, PawnState state, int tick, bool player)
         {
@@ -2179,7 +2181,8 @@ namespace AbilityAI
                     ctx.End();
                     evaluating = false;
                 }
-                if (count >= state.barrierStart * AbilityAISettings.BarrierDropFraction) state.barrierLowSince = -1;
+                if (count >= state.barrierStart * AbilityAISettings.BarrierDropFraction || count >= AbilityAISettings.BarrierMinShooters)
+                    state.barrierLowSince = -1;
                 else if (state.barrierLowSince < 0) state.barrierLowSince = tick;
                 else if (tick - state.barrierLowSince >= AbilityAISettings.BarrierDropTicks)
                     why = $"{count} of the {state.barrierStart} shooters it was raised against are left";
@@ -2627,8 +2630,8 @@ namespace AbilityAI
         public static bool NpcInstantKill;
         public static bool NpcBaseWrecking;
         /// <summary>Barrier rules (AbilityAIBarrier), every caster: raised once this many shooters outside it aim at pawns
-        /// inside it; dropped once fewer than BarrierDropFraction of the shooters it was raised against have stayed for
-        /// BarrierDropTicks.</summary>
+        /// inside it; dropped once fewer than BarrierDropFraction of the shooters it was raised against, and fewer than
+        /// BarrierMinShooters, have stayed for BarrierDropTicks.</summary>
         public const int DefaultBarrierMinShooters = 3;
         public static int BarrierMinShooters = DefaultBarrierMinShooters;
         public const float DefaultBarrierDropFraction = 0.5f;

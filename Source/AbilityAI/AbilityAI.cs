@@ -2150,11 +2150,11 @@ namespace AbilityAI
             BarrierUpkeep(pawn, state, tick, ControlOf(pawn) == Control.Player);
         }
 
-        // A barrier this AI raised (AbilityAIBarrier) comes down once fewer than BarrierDropFraction of the shooters it
-        // was raised against, and fewer than BarrierMinShooters, have stayed for BarrierDropSeconds, or for the player's
-        // pawns at their heat limit. The second floor stops a cycle: raised against 10, dropped at 4, and raised again
-        // on the next check because 4 still meets the minimum, each time paying the psyfocus and the heat. The
-        // hediff only appears once the warmup is over, so until then the cast job is what is waited on.
+        // A barrier this AI raised (AbilityAIBarrier) comes down once fewer than BarrierDropFraction of BarrierMinShooters
+        // (the count that raises one) have stayed for BarrierDropSeconds, or for the player's pawns at their heat limit.
+        // Measured against the raise count rather than the volley it was raised against: a floor at or above the raise
+        // count would let it drop at a count that raises it again on the next check (raised against 10, dropped at 4,
+        // raised again at 4), each time paying the psyfocus and the heat. The hediff only appears once the warmup is over, so until then the cast job is what is waited on.
         private static void BarrierUpkeep(Pawn pawn, PawnState state, int tick, bool player)
         {
             state.barrierNextCheck = tick + EvalIntervalTicks;
@@ -2181,11 +2181,11 @@ namespace AbilityAI
                     ctx.End();
                     evaluating = false;
                 }
-                if (count >= state.barrierStart * AbilityAISettings.BarrierDropFraction || count >= AbilityAISettings.BarrierMinShooters)
-                    state.barrierLowSince = -1;
+                float floor = AbilityAISettings.BarrierMinShooters * AbilityAISettings.BarrierDropFraction;
+                if (count >= floor) state.barrierLowSince = -1;
                 else if (state.barrierLowSince < 0) state.barrierLowSince = tick;
                 else if (tick - state.barrierLowSince >= AbilityAISettings.BarrierDropTicks)
-                    why = $"{count} of the {state.barrierStart} shooters it was raised against are left";
+                    why = $"{count} shooters left (under {floor:0.#}; raised against {state.barrierStart})";
             }
             if (why == null) return;
             pawn.health.RemoveHediff(barrier);
@@ -2630,8 +2630,8 @@ namespace AbilityAI
         public static bool NpcInstantKill;
         public static bool NpcBaseWrecking;
         /// <summary>Barrier rules (AbilityAIBarrier), every caster: raised once this many shooters outside it aim at pawns
-        /// inside it; dropped once fewer than BarrierDropFraction of the shooters it was raised against, and fewer than
-        /// BarrierMinShooters, have stayed for BarrierDropTicks.</summary>
+        /// inside it; dropped once fewer than BarrierDropFraction x BarrierMinShooters have stayed for
+        /// BarrierDropTicks.</summary>
         public const int DefaultBarrierMinShooters = 3;
         public static int BarrierMinShooters = DefaultBarrierMinShooters;
         public const float DefaultBarrierDropFraction = 0.5f;

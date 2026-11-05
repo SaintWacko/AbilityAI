@@ -14,7 +14,7 @@ namespace AbilityAI
     /// Barrier: self-cast when at least BarrierMinShooters ranged enemies (and enemy turrets) outside the radius aim
     /// at pawns or buildings of the caster's side inside it. Not while the caster or an ally within the radius has the
     /// rule's hediff (the barrier) up, nor while a faction-mate within the radius is casting it. The player's pawns
-    /// only while drafted. The driver remembers the count it was raised against and drops it later (BarrierUpkeep).
+    /// only while drafted. The driver drops it later (BarrierUpkeep).
     /// Needs hediff (the barrier's). Cost: k distance checks and aim reads, then one pass over the allies.
     /// </summary>
     public class AbilityAIWorker_Barrier : AbilityAIWorker
@@ -87,7 +87,8 @@ namespace AbilityAI
         /// <summary>The tooltip line for an ability with a Barrier rule, or null.</summary>
         internal static string Hint(Def abilityDef) =>
             abilityDef != null && noted.Contains(abilityDef)
-                ? (string)"AAI_Barrier_Hint".Translate(AbilityAISettings.BarrierMinShooters, (AbilityAISettings.BarrierDropTicks / 60f).ToString("0.#"))
+                ? (string)"AAI_Barrier_Hint".Translate(AbilityAISettings.BarrierMinShooters, (AbilityAISettings.BarrierDropTicks / 60f).ToString("0.#"),
+                    (AbilityAISettings.BarrierMinShooters * AbilityAISettings.BarrierDropFraction).ToString("0.#"))
                 : null;
 
         /// <summary>Ranged enemies and enemy turrets outside radius of the caster aiming at something of its side inside

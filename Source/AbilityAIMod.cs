@@ -125,6 +125,17 @@ namespace AbilityAI
                 for (int i = 0; i < abilityDefs.Count; i++) AbilityAINpcGates.Note(abilityDefs[i]);
             }
             catch (Exception e) { Log.Error($"[Ability AI] Setting up the NPC gates failed; their settings may not show: {e}"); }
+            try
+            {
+                var thingDefs = DefDatabase<ThingDef>.AllDefsListForReading;
+                for (int i = 0; i < thingDefs.Count; i++)
+                {
+                    if (thingDefs[i].modExtensions == null) continue;
+                    ApparelAIAbility.Note(thingDefs[i]);
+                    if (ApparelAIAbility.HasRules(thingDefs[i])) AbilityAINpcGates.Note(thingDefs[i]);
+                }
+            }
+            catch (Exception e) { Log.Error($"[Ability AI] Setting up the gear rules failed; packs and belts are left to their own AI: {e}"); }
         }
     }
 

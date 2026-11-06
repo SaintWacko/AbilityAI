@@ -571,6 +571,9 @@ namespace AbilityAI
         /// <summary>A Word of psycast: the caster's Group link may go first when it would reach GroupLinkMinTargets of
         /// the rule's targets. Off for a Word priced per target (Word of Serenity), where a link saves nothing.</summary>
         public bool linkFirst = true;
+        /// <summary>Gear (ApparelAIAbility): which of the item's verbs its rules are for, by position in its verbs list.
+        /// Read from the def's first rule.</summary>
+        public int verbIndex;
         /// <summary>Changes to this rule for every caster that isn't the player's own pawn.</summary>
         public AbilityAIOverride npc;
         /// <summary>Further changes, over npc, for casters not hostile to the player (visitors, traders, allied
@@ -1590,7 +1593,9 @@ namespace AbilityAI
             switch (ControlOf(pawn))
             {
                 // Only a rule the driver casts from: a Recast rule is the player's alone, so an NPC's own AI keeps it
-                case Control.NPC: return HasDriverWorker(ability.Def) && AbilityAIHooks.Allowed(pawn, ability);
+                // A single-use item the settings keep from NPCs goes back to vanilla's own trigger (the low-shield pack)
+                case Control.NPC: return HasDriverWorker(ability.Def) && (AbilityAISettings.NpcSingleUseItems || !ability.SingleUse)
+                    && AbilityAIHooks.Allowed(pawn, ability);
                 case Control.Player:
                     if (!PlayerAllowed(pawn, ability)) return false;
                     return pawn.Drafted || (AbilityAISettings.UndraftedAutocast && HasWorker(ability.Def, UndraftedReach(pawn)));
@@ -1919,6 +1924,11 @@ namespace AbilityAI
                         {
                             if (whyNot != null) WhyNot(a, ext, AbilityAINpcGates.Why(ext.npcGate, role));
                             continue;
+                        }
+                        if (!player && !AbilityAISettings.NpcSingleUseItems && a.SingleUse)
+                        {
+                            WhyNot(a, ext, "single-use items are off for other factions (NpcSingleUseItems)");
+                            break;
                         }
                         // A vent is only tried after another rule that heat held back found a target, so it never
                         // needs the quick check on its own: the held-back rule's mode decides the NPC idle wait
@@ -2699,6 +2709,8 @@ namespace AbilityAI
         /// ones abilities that wreck buildings over a wide area.</summary>
         public static bool NpcInstantKill;
         public static bool NpcBaseWrecking;
+        /// <summary>Other factions may use gear that is used up (lances, low-shield, turret and deadlife packs).</summary>
+        public static bool NpcSingleUseItems = true;
         /// <summary>Barrier rules (AbilityAIBarrier), every caster: raised once this many shooters outside it aim at pawns
         /// inside it; dropped once fewer than BarrierDropFraction x BarrierMinShooters have stayed for
         /// BarrierDropTicks.</summary>
@@ -2761,6 +2773,7 @@ namespace AbilityAI
                 case Tab.OtherFactions:
                     Hostiles = NonHostiles = Animals = Mechs = Approach = Unclaimed = GatherWaitNpcs = true;
                     NpcInstantKill = NpcBaseWrecking = false;
+                    NpcSingleUseItems = true;
                     NpcIdleIntervalTicks = DefaultNpcIdleIntervalTicks;
                     break;
                 case Tab.YourPawns:
@@ -2816,6 +2829,7 @@ namespace AbilityAI
             Scribe_Values.Look(ref GatherWaitNpcs, "abilityAI_gatherWaitNpcs", true);
             Scribe_Values.Look(ref NpcInstantKill, "abilityAI_npcInstantKill", false);
             Scribe_Values.Look(ref NpcBaseWrecking, "abilityAI_npcBaseWrecking", false);
+            Scribe_Values.Look(ref NpcSingleUseItems, "abilityAI_npcSingleUseItems", true);
             Scribe_Values.Look(ref NpcIdleIntervalTicks, "abilityAI_npcIdleIntervalTicks", DefaultNpcIdleIntervalTicks);
             NpcIdleIntervalTicks = Mathf.Clamp(NpcIdleIntervalTicks, 30, 600);
             RecastAt = Mathf.Clamp(RecastAt, 0f, 0.5f);
@@ -2988,6 +3002,9 @@ namespace AbilityAI
             // Only with a rule that waits, such as the Runesmith Invokes
             if (AbilityAIGather.Any)
                 list.CheckboxLabeled("AAI_GatherWait".Translate(), ref GatherWaitNpcs, "AAI_GatherWaitNpcs_Tip".Translate());
+            // Only with a rule on worn gear
+            if (ApparelAIAbility.Any)
+                list.CheckboxLabeled("AAI_NpcSingleUseItems".Translate(), ref NpcSingleUseItems, "AAI_NpcSingleUseItems_Tip".Translate());
             // Only with a rule that has the gate, such as the VPE addon paths'
             var gates = AbilityAINpcGates.Used;
             if (gates != AbilityAINpcGate.None)

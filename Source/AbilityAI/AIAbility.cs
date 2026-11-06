@@ -87,6 +87,10 @@ namespace AbilityAI
         public virtual bool UsesCharges => false;
         public virtual int RemainingCharges => 0;
 
+        /// <summary>The item is gone once its charges are spent (a lance, a low-shield pack, a turret pack): other
+        /// factions use these only with AbilityAISettings.NpcSingleUseItems.</summary>
+        public virtual bool SingleUse => false;
+
         /// <summary>Paid for with psyfocus and neural heat: the player's psycast limits apply, and a target without
         /// psychic sensitivity is immune.</summary>
         public abstract bool IsPsycast { get; }
@@ -193,7 +197,7 @@ namespace AbilityAI
 
     public static class AIAbilitySources
     {
-        private static readonly List<IAIAbilitySource> sources = new List<IAIAbilitySource> { VanillaAIAbility.Source };
+        private static readonly List<IAIAbilitySource> sources = new List<IAIAbilitySource> { VanillaAIAbility.Source, ApparelAIAbility.Source };
 
         public static void Register(IAIAbilitySource source)
         {

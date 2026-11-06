@@ -50,7 +50,8 @@ namespace AbilityAI
         private static readonly Dictionary<Def, AbilityAIExtension> linkers = new Dictionary<Def, AbilityAIExtension>();
 
         // Someone just outside the radius when the AI decides can walk in during the link's warmup and be linked: the
-        // pawns the Word mustn't reach are looked for this much further out
+        // pawns the Word mustn't reach are looked for this much further out, among those on the move (a pawn standing
+        // there, such as a raider shooting from cover, stays out)
         private const float UnsafeMargin = 1.5f;
 
         /// <summary>Links can be read: the guard applies to every Word.</summary>
@@ -170,8 +171,8 @@ namespace AbilityAI
         }
 
         /// <summary>Who a link cast at c would reach: the Word's targets within radius (the rule's targets the ability
-        /// accepts) go into targets. False, with the pawn, when someone within the
-        /// radius (plus UnsafeMargin, for those walking in during the warmup) is someone the Word mustn't reach.
+        /// accepts) go into targets. False, with the pawn, when someone within the radius (or within UnsafeMargin past it
+        /// and moving, who could walk in during the warmup) is someone the Word mustn't reach.
         /// Cost: one pass over the map's humanlikes, and the ability's own check on each target in reach.</summary>
         internal static bool Survey(AbilityAIContext ctx, Pawn caster, IntVec3 c, float radius, AIAbility word, AbilityAIExtension rule,
             List<Pawn> targets, out Pawn refused)
@@ -193,6 +194,7 @@ namespace AbilityAI
                     targets.Add(p);
                     continue;
                 }
+                if (d > r2 && p.pather?.Moving != true) continue;
                 if (!SafeBeside(caster, rule, p))
                 {
                     refused = p;
@@ -203,28 +205,29 @@ namespace AbilityAI
             return true;
         }
 
-        /// <summary>Whether linking first pays for count targets: the link and one Word cost less than a Word for each,
+        /// <summary>Null when linking first pays for count targets: the link and one Word cost less than a Word for each,
         /// with psyfocus and heat each counted as a share of the caster's own pool; and the caster can pay for both, the
-        /// player's limits included.</summary>
-        internal static bool Worth(Pawn pawn, AIAbility linker, AIAbility word, LocalTargetInfo target, int count, bool player)
+        /// player's limits included. Otherwise why not, for the dev log.</summary>
+        internal static string WhyNotWorth(Pawn pawn, AIAbility linker, AIAbility word, LocalTargetInfo target, int count, bool player)
         {
             float maxHeat = pawn.GetStatValue(StatDefOf.PsychicEntropyMax, true, 250);
             float wordFocus = word.PsyfocusCost(target), linkFocus = linker.PsyfocusCost(pawn);
             float wordCost = wordFocus + (maxHeat > 0f ? word.HeatGain / maxHeat : 0f);
             float linkCost = linkFocus + (maxHeat > 0f ? linker.HeatGain / maxHeat : 0f);
-            if (wordCost <= 0f || linkCost + wordCost >= count * wordCost) return false;
+            if (wordCost <= 0f || linkCost + wordCost >= count * wordCost) return "costs more than a Word each";
             var pe = pawn.psychicEntropy;
-            if (pe == null) return true;
+            if (pe == null) return null;
             float heatCap = 1f, focusFloor = 0f;
             if (player) AbilityAIAutocast.TryGetLimits(pawn, out heatCap, out focusFloor);
-            if (pe.CurrentPsyfocus - linkFocus - wordFocus < focusFloor - Pawn_PsychicEntropyTracker.PsyfocusCostTolerance) return false;
+            if (pe.CurrentPsyfocus - linkFocus - wordFocus < focusFloor - Pawn_PsychicEntropyTracker.PsyfocusCostTolerance)
+                return "psyfocus for one of the two only";
             float heat = linker.HeatGain + word.HeatGain;
             if (heat > float.Epsilon)
             {
                 heat *= pawn.GetStatValue(StatDefOf.PsychicEntropyGain, true, 250);
-                if (pe.EntropyValue + heat > heatCap * maxHeat) return false;
+                if (pe.EntropyValue + heat > heatCap * maxHeat) return "heat room for one of the two only";
             }
-            return true;
+            return null;
         }
 
         /// <summary>Of a link's targets around c, the nearest, which the Word is cast at; for a walk-up Word, whose cast job

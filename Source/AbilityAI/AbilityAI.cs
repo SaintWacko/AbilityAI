@@ -2088,6 +2088,7 @@ namespace AbilityAI
                 Job cast = a.MakeCastJob(target, dest);
                 if (cast == null)
                 {
+                    noLinkWhy = null;
                     if (whyNot != null) WhyNot(a, ext, $"refused when its cast job was made, at {TargetLabel(target)}");
                     continue;
                 }
@@ -2105,7 +2106,9 @@ namespace AbilityAI
                 }
                 if (AbilityAISettings.DebugLog && Prefs.DevMode)
                     Log.Message($"[Ability AI] {pawn.LabelShort} casts {a.Label} ({worker.GetType().Name}) on {TargetLabel(target)}"
-                        + (ventFor != null ? $" to vent heat: {ventFor.Label} had a target but heat held it back" : ""));
+                        + (ventFor != null ? $" to vent heat: {ventFor.Label} had a target but heat held it back" : "")
+                        + (noLinkWhy != null ? $", no group link first: {noLinkWhy}" : ""));
+                noLinkWhy = null;
                 exclusiveDef = null;
                 affectedCounted = false;
                 AbilityAIHooks.NotifyCast(pawn, a, target, dest);

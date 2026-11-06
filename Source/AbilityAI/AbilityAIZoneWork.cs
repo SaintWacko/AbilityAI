@@ -340,7 +340,7 @@ namespace AbilityAI
                     tried++;
                     if (c != pawn.Position && !pawn.CanReach(c, PathEndMode.OnCell, Danger.Some)) continue;
                     if (!LinkTargetsAt(pawn, word, rule, zones, c, radius, out Pawn nearest)) continue;
-                    if (!AbilityAIGroupLink.Worth(pawn, linker, word, nearest, linkTargets.Count, true)) break;
+                    if (AbilityAIGroupLink.WhyNotWorth(pawn, linker, word, nearest, linkTargets.Count, true) != null) break;
                     if (c == pawn.Position)
                     {
                         Job cast = linker.MakeCastJob(pawn, pawn);
@@ -388,7 +388,7 @@ namespace AbilityAI
                     var rule = ready[r].rule;
                     if (!rule.linkFirst || !AbilityAIGroupLink.IsWord(word.Def) || !AbilityAIZones.Wants(rule.zoneTarget, target)) continue;
                     if (!LinkTargetsAt(pawn, word, rule, zones, pawn.Position, radius, out Pawn nearest)) continue;
-                    if (!AbilityAIGroupLink.Worth(pawn, linker, word, nearest, linkTargets.Count, true)) continue;
+                    if (AbilityAIGroupLink.WhyNotWorth(pawn, linker, word, nearest, linkTargets.Count, true) != null) continue;
                     Job cast = linker.MakeCastJob(pawn, pawn);
                     if (cast == null) return null;
                     AbilityAIDriver.PlanLink(pawn, word.Def, rule, linker.Def, cast);

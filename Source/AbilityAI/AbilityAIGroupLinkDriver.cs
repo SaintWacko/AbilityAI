@@ -24,6 +24,10 @@ namespace AbilityAI
 
         private static readonly List<Pawn> linkTargets = new List<Pawn>();
 
+        // Why TryLinkFirst cast no link for the Word about to be cast alone, for its dev log line; set only with the dev
+        // log on, and only when the pawn has a Group link
+        private static string noLinkWhy;
+
         /// <summary>Records that pawn's job linkJob casts a group link for word, by rule (the version for the caster's
         /// role). Zone work calls it for Word of Trust; the driver for every other Word.</summary>
         internal static void PlanLink(Pawn pawn, Def word, AbilityAIExtension rule, Def linker, Job linkJob)
@@ -167,23 +171,48 @@ namespace AbilityAI
         private static Job TryLinkFirst(Pawn pawn, PawnState state, int tick, bool player, AbilityAIRole role, AIAbility word,
             AbilityAIExtension ext, LocalTargetInfo target)
         {
+            noLinkWhy = null;
             if (!ext.linkFirst || !AbilityAIGroupLink.Any) return null;
+            bool log = AbilityAISettings.DebugLog && Prefs.DevMode;
             AIAbility linker = AbilityAIGroupLink.FindLinker(pawn, collected, player, role);
-            if (linker == null || (state.abilityNext != null && state.abilityNext.TryGetValue(linker.Def, out int next) && tick < next)) return null;
+            if (linker == null)
+            {
+                if (log) noLinkWhy = "no Group link it may cast now";
+                return null;
+            }
+            if (state.abilityNext != null && state.abilityNext.TryGetValue(linker.Def, out int next) && tick < next)
+            {
+                if (log) noLinkWhy = $"waiting {(next - tick).ToStringTicksToPeriod()} after a link that came to nothing";
+                return null;
+            }
             try
             {
                 float radius = linker.DefaultRadius;
                 if (radius <= 0f) return null;
                 if (!AbilityAIGroupLink.Survey(ctx, pawn, pawn.Position, radius, word, ext, linkTargets, out Pawn refused))
                 {
-                    if (whyNot != null) WhyNot(word, ext, $"no group link first: {refused.LabelShort} would be linked");
+                    if (log) noLinkWhy = $"{refused.LabelShort} would be linked";
                     return null;
                 }
                 AbilityAIGroupLink.KeepInReach(linkTargets, pawn.Position, radius, word);
                 int count = linkTargets.Count;
-                if (count < AbilityAIGroupLink.MinTargets || !AbilityAIGroupLink.Worth(pawn, linker, word, target, count, player)) return null;
+                if (count < AbilityAIGroupLink.MinTargets)
+                {
+                    if (log) noLinkWhy = $"{count} target{(count == 1 ? "" : "s")} in reach, under {AbilityAIGroupLink.MinTargets}";
+                    return null;
+                }
+                string notWorth = AbilityAIGroupLink.WhyNotWorth(pawn, linker, word, target, count, player);
+                if (notWorth != null)
+                {
+                    if (log) noLinkWhy = $"{count} targets, but {notWorth}";
+                    return null;
+                }
                 Job job = linker.MakeCastJob(pawn, pawn);
-                if (job == null) return null;
+                if (job == null)
+                {
+                    if (log) noLinkWhy = "Group link refused when its job was made";
+                    return null;
+                }
                 PlanLink(pawn, word.Def, ext, linker.Def, job);
                 state.nextCastTick = tick + Mathf.RoundToInt(AbilityAISettings.MinGapSeconds * GenTicks.TicksPerRealSecond);
                 if (AbilityAISettings.DebugLog && Prefs.DevMode)

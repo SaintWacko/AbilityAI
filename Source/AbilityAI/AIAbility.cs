@@ -121,7 +121,7 @@ namespace AbilityAI
             var props = flyer?.pawnFlyer;
             if (props == null) return 0f;
             // As PawnFlyer.SpawnSetup times the flight
-            return Mathf.Max(Mathf.Max(distance, 1f) / props.flightSpeed, props.flightDurationMin);
+            return System.Math.Max(System.Math.Max(distance, 1f) / props.flightSpeed, props.flightDurationMin);
         }
 
         public abstract AIAbilityEffects Effects { get; }

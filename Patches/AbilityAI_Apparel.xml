@@ -1,0 +1,373 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ability AI rules for worn gear with a verb: packs, belts, lances, armour launchers, orbital targeters
+     (ApparelAIAbility). The rules sit on the item's ThingDef; the player's autocast mode is kept under it too.
+     Vanilla only lets other factions use four of these, from their own triggers (smokepop belt, low-shield, tox and
+     firefoam packs), which stand down where this mod decides for the wearer. Single-use items (lances, low-shield,
+     deadlife, hunter and turret packs, orbital targeters) are used by other factions only with the "single-use gear"
+     setting (on by default).
+     Left out on purpose: the tornado generator (it wanders wherever it likes) and the mech cluster targeter (it calls
+     in hostile mechs). The equippable weapon abilities (Hellcat, Incinerator, Odyssey's unique traits) are
+     AbilityDefs and get their rules with the other abilities. -->
+<Patch>
+
+  <!-- Smokepop belt: smoke around the wearer once two shooters are on it, as the Smokepop psycast. Vanilla pops it
+       for raiders only when a turret's bullet lands nearby. -->
+  <Operation Class="PatchOperationConditional">
+    <xpath>Defs/ThingDef[defName="Apparel_SmokepopBelt"]</xpath>
+    <match Class="PatchOperationAddModExtension">
+      <xpath>Defs/ThingDef[defName="Apparel_SmokepopBelt"]</xpath>
+      <value>
+        <li Class="AbilityAI.AbilityAIExtension">
+          <workerClass>AbilityAI.AbilityAIWorker_Cover</workerClass>
+          <priority>4</priority>
+          <minThreats>2</minThreats>
+        </li>
+      </value>
+    </match>
+  </Operation>
+
+  <!-- Firefoam pop pack: foam around the wearer (radius 4.9, one charge) for a fire worth it: a burning pawn of its
+       side, the wearer included, counts 3, a fire next to one 1, and it needs 3 -->
+  <Operation Class="PatchOperationConditional">
+    <xpath>Defs/ThingDef[defName="Apparel_FirefoampopPack"]</xpath>
+    <match Class="PatchOperationAddModExtension">
+      <xpath>Defs/ThingDef[defName="Apparel_FirefoampopPack"]</xpath>
+      <value>
+        <li Class="AbilityAI.AbilityAIExtension">
+          <workerClass>AbilityAI.AbilityAIWorker_Firefighting</workerClass>
+          <priority>6</priority>
+          <minTargets>3</minTargets>
+        </li>
+      </value>
+    </match>
+  </Operation>
+
+  <!-- Psychic shock lance (two charges, then gone): the most dangerous enemy in reach that isn't already stunned.
+       Never anyone not hostile, since a lance costs 200 goodwill. One caster per target. -->
+  <Operation Class="PatchOperationConditional">
+    <xpath>Defs/ThingDef[defName="Apparel_PsychicShockLance"]</xpath>
+    <match Class="PatchOperationAddModExtension">
+      <xpath>Defs/ThingDef[defName="Apparel_PsychicShockLance"]</xpath>
+      <value>
+        <li Class="AbilityAI.AbilityAIExtension">
+          <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
+          <priority>3</priority>
+          <exclusive>true</exclusive>
+        </li>
+      </value>
+    </match>
+  </Operation>
+
+  <!-- Psychic insanity lance: an enemy standing among other enemies, so the berserk one fights its own side -->
+  <Operation Class="PatchOperationConditional">
+    <xpath>Defs/ThingDef[defName="Apparel_PsychicInsanityLance"]</xpath>
+    <match Class="PatchOperationAddModExtension">
+      <xpath>Defs/ThingDef[defName="Apparel_PsychicInsanityLance"]</xpath>
+      <value>
+        <li Class="AbilityAI.AbilityAIExtension">
+          <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
+          <priority>3</priority>
+          <preferGrouped>true</preferGrouped>
+          <exclusive>true</exclusive>
+        </li>
+      </value>
+    </match>
+  </Operation>
+
+  <!-- Orbital targeters, one charge each: at least four enemies inside, the radius being vanilla's own friendly-fire
+       radius for the verb (23 for the bombardment, which scatters over 15; 15 for the beam, which wanders). Nobody
+       of the caster's side and no friendly building inside, never over the caster. Raiders only with the setting
+       for base-wrecking abilities. -->
+  <Operation Class="PatchOperationConditional">
+    <xpath>Defs/ThingDef[defName="OrbitalTargeterBombardment"]</xpath>
+    <match Class="PatchOperationAddModExtension">
+      <xpath>Defs/ThingDef[defName="OrbitalTargeterBombardment"]</xpath>
+      <value>
+        <li Class="AbilityAI.AbilityAIExtension">
+          <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
+          <priority>2</priority>
+          <radius>23</radius>
+          <minTargets>4</minTargets>
+          <avoidAllies>true</avoidAllies>
+          <avoidBuildings>true</avoidBuildings>
+          <avoidSelf>true</avoidSelf>
+          <startsFires>true</startsFires>
+          <npcGate>BaseWrecking</npcGate>
+        </li>
+      </value>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>Defs/ThingDef[defName="OrbitalTargeterPowerBeam"]</xpath>
+    <match Class="PatchOperationAddModExtension">
+      <xpath>Defs/ThingDef[defName="OrbitalTargeterPowerBeam"]</xpath>
+      <value>
+        <li Class="AbilityAI.AbilityAIExtension">
+          <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
+          <priority>2</priority>
+          <radius>15</radius>
+          <minTargets>4</minTargets>
+          <avoidAllies>true</avoidAllies>
+          <avoidBuildings>true</avoidBuildings>
+          <avoidSelf>true</avoidSelf>
+          <startsFires>true</startsFires>
+          <npcGate>BaseWrecking</npcGate>
+        </li>
+      </value>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationFindMod">
+    <mods>
+      <li>Royalty</li>
+    </mods>
+    <match Class="PatchOperationSequence">
+      <operations>
+
+        <!-- Jump pack and locust armour, as Longjump: a melee pawn closes on its target, a hurt one jumps clear -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/ThingDef[defName="Apparel_PackJump"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/ThingDef[defName="Apparel_PackJump"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Movement</workerClass>
+                <priority>4</priority>
+              </li>
+            </value>
+          </match>
+        </li>
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/ThingDef[defName="Apparel_ArmorLocust"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/ThingDef[defName="Apparel_ArmorLocust"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Movement</workerClass>
+                <priority>4</priority>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Grenadier armour's frag launcher: two or more enemies, nobody of the caster's side and no friendly building
+             near. The frag bursts over 1.9 but lands up to 1.9 off the aim, so the radius is 3.5. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/ThingDef[defName="Apparel_ArmorMarineGrenadier"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/ThingDef[defName="Apparel_ArmorMarineGrenadier"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
+                <priority>3</priority>
+                <radius>3.5</radius>
+                <minTargets>2</minTargets>
+                <avoidAllies>true</avoidAllies>
+                <avoidBuildings>true</avoidBuildings>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Phoenix armour's flamebolt: as the grenadier's, with the fire's 2.9 plus the same miss, 4.5 -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/ThingDef[defName="Apparel_ArmorCataphractPhoenix"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/ThingDef[defName="Apparel_ArmorCataphractPhoenix"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
+                <priority>3</priority>
+                <radius>4.5</radius>
+                <minTargets>2</minTargets>
+                <avoidAllies>true</avoidAllies>
+                <avoidBuildings>true</avoidBuildings>
+                <startsFires>true</startsFires>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Low-shield pack (single use): once three shooters are on the wearer, not where a low-shield already stands.
+             Vanilla deploys it for raiders when a bullet it would stop lands nearby. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/ThingDef[defName="Apparel_PackBroadshield"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/ThingDef[defName="Apparel_PackBroadshield"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Cover</workerClass>
+                <priority>5</priority>
+                <minThreats>3</minThreats>
+              </li>
+            </value>
+          </match>
+        </li>
+
+      </operations>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationFindMod">
+    <mods>
+      <li>Biotech</li>
+    </mods>
+    <match Class="PatchOperationConditional">
+      <xpath>Defs/ThingDef[defName="Apparel_PackTox"]</xpath>
+      <!-- Tox pack: gas around the wearer (45 cells, about 3.8 tiles) with two or more enemies inside and nobody of its
+           side. Vanilla releases it for raiders with one enemy's worth of body size within 1.9. -->
+      <match Class="PatchOperationAddModExtension">
+        <xpath>Defs/ThingDef[defName="Apparel_PackTox"]</xpath>
+        <value>
+          <li Class="AbilityAI.AbilityAIExtension">
+            <workerClass>AbilityAI.AbilityAIWorker_AoEHostileSelf</workerClass>
+            <priority>4</priority>
+            <minTargets>2</minTargets>
+            <avoidAllies>true</avoidAllies>
+          </li>
+        </value>
+      </match>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationFindMod">
+    <mods>
+      <li>Anomaly</li>
+    </mods>
+    <match Class="PatchOperationSequence">
+      <operations>
+
+        <!-- Shard lances: as the archotech ones, shorter reach -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/ThingDef[defName="Apparel_ShardPsychicShockLance"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/ThingDef[defName="Apparel_ShardPsychicShockLance"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
+                <priority>3</priority>
+                <exclusive>true</exclusive>
+              </li>
+            </value>
+          </match>
+        </li>
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/ThingDef[defName="Apparel_ShardPsychicInsanityLance"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/ThingDef[defName="Apparel_ShardPsychicInsanityLance"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
+                <priority>3</priority>
+                <preferGrouped>true</preferGrouped>
+                <exclusive>true</exclusive>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Biomutation lance turns a humanlike or animal into a fleshbeast for good, so other factions use it only
+             with the setting for abilities that kill outright -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/ThingDef[defName="Apparel_BiomutationLance"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/ThingDef[defName="Apparel_BiomutationLance"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
+                <priority>3</priority>
+                <targetKinds>Humanlike, Animal</targetKinds>
+                <exclusive>true</exclusive>
+                <npcGate>InstantKill</npcGate>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Disruptor flare: everyone in sight within 7.9 of where it lands is stunned by their psychic sensitivity and
+             slowed (disruptor flash), allies too, so two or more enemies not already flashed, nobody of the caster's
+             side. Mechs feel nothing. Vanilla never fires it for anyone. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/ThingDef[defName="Apparel_DisruptorFlarePack"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/ThingDef[defName="Apparel_DisruptorFlarePack"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
+                <priority>3</priority>
+                <radius>7.9</radius>
+                <minTargets>2</minTargets>
+                <targetKinds>Humanlike, Animal, Other</targetKinds>
+                <hediff>DisruptorFlash</hediff>
+                <avoidAllies>true</avoidAllies>
+                <harmless>true</harmless>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Turret pack (single use): the turret goes where it sees the most enemies, at least two, on the caster's side
+             of the fight and no enemy within 6 of it; not while one of its side's tactical turrets stands within its
+             gun's reach of the caster. Vanilla never deploys it for anyone. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/ThingDef[defName="Apparel_PackTurret"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/ThingDef[defName="Apparel_PackTurret"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Deploy</workerClass>
+                <priority>4</priority>
+                <minTargets>2</minTargets>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Deadlife pack (single use): the dust raises the corpses it reaches as shamblers that fight the caster's
+             enemies, so it goes where two or more human or animal corpses lie within 3.9, during a fight -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/ThingDef[defName="Apparel_DeadlifePack"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/ThingDef[defName="Apparel_DeadlifePack"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
+                <priority>3</priority>
+                <radius>3.9</radius>
+                <minTargets>0</minTargets>
+                <anchorCorpses>Humanlike, Animal</anchorCorpses>
+                <minCorpses>2</minCorpses>
+              </li>
+            </value>
+          </match>
+        </li>
+
+      </operations>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationFindMod">
+    <mods>
+      <li>Odyssey</li>
+    </mods>
+    <match Class="PatchOperationConditional">
+      <xpath>Defs/ThingDef[defName="Apparel_PackHunter"]</xpath>
+      <!-- Hunter drone pack (single use): the drone lands by an enemy, closes and blows up, so an enemy among others,
+           with nobody of the caster's side within 2.9 of it -->
+      <match Class="PatchOperationAddModExtension">
+        <xpath>Defs/ThingDef[defName="Apparel_PackHunter"]</xpath>
+        <value>
+          <li Class="AbilityAI.AbilityAIExtension">
+            <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
+            <priority>3</priority>
+            <preferGrouped>true</preferGrouped>
+            <avoidAllies>true</avoidAllies>
+            <radius>2.9</radius>
+          </li>
+        </value>
+      </match>
+    </match>
+  </Operation>
+
+</Patch>

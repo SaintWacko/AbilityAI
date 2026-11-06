@@ -574,6 +574,10 @@ namespace AbilityAI
         /// <summary>Gear (ApparelAIAbility): which of the item's verbs its rules are for, by position in its verbs list.
         /// Read from the def's first rule.</summary>
         public int verbIndex;
+        /// <summary>AoE hostile anchored on corpses (anchorCorpses): only a centre with at least this many of those corpses
+        /// within the radius, scored by them rather than by enemies (Anomaly's deadlife pack raises every corpse its
+        /// dust reaches). 0 = enemies decide, as usual.</summary>
+        public int minCorpses;
         /// <summary>Changes to this rule for every caster that isn't the player's own pawn.</summary>
         public AbilityAIOverride npc;
         /// <summary>Further changes, over npc, for casters not hostile to the player (visitors, traders, allied
@@ -651,7 +655,8 @@ namespace AbilityAI
             else if (!typeof(AbilityAIWorker).IsAssignableFrom(workerClass)) yield return $"workerClass {workerClass} is not an AbilityAIWorker";
             else if (workerClass.IsAbstract) yield return $"workerClass {workerClass} is abstract";
             if (reserveCharges < 0) yield return "reserveCharges can't be negative";
-            if (minTargets < 1) yield return "minTargets must be at least 1";
+            // A corpse-scored rule may need no enemy near the corpses (its combat mode still wants a fight)
+            if (minTargets < (minCorpses > 0 ? 0 : 1)) yield return minCorpses > 0 ? "minTargets can't be negative" : "minTargets must be at least 1";
             if (approachDistance < 0f) yield return "approachDistance can't be negative";
             if (minBleedRate < 0f) yield return "minBleedRate can't be negative";
             bool anchored = (anchorThings != null && anchorThings.Count > 0) || anchorCorpses != AbilityAITargetKinds.None;
@@ -662,6 +667,8 @@ namespace AbilityAI
             if (anchorThings != null && anchorThings.Count == 0) yield return "anchorThings names no def that exists, so the rule would centre on pawns instead";
             if (waitForGather && (!anchored || workerClass == null || !typeof(AbilityAIWorker_AoEHostile).IsAssignableFrom(workerClass)))
                 yield return "waitForGather is only read by an anchored AoE hostile rule (anchorThings or anchorCorpses)";
+            if (minCorpses > 0 && (anchorCorpses == AbilityAITargetKinds.None || workerClass == null || !typeof(AbilityAIWorker_AoEHostile).IsAssignableFrom(workerClass)))
+                yield return "minCorpses is only read by an AoE hostile rule with anchorCorpses";
             if (coveredBy != null && workerClass != null && !typeof(AbilityAIWorker_AoEHostile).IsAssignableFrom(workerClass))
                 yield return $"coveredBy is only read by AoE hostile, not {workerClass.Name}";
             if (coveredBy != null && coveredBy.Count == 0) yield return "coveredBy names no def that exists, so it checks nothing";

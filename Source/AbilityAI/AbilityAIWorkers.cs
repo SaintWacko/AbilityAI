@@ -578,7 +578,8 @@ namespace AbilityAI
     /// with a friendly building inside. A rule naming Turret in targetKinds also counts and centres on hostile
     /// turrets (Haywire); allyKinds narrows who avoidAllies keeps clear of (AbilityAIUtility.AllyWithin).
     /// Anchored (anchorThings, anchorCorpses): the candidate centres are those things instead of the enemies
-    /// (AbilityAIUtility.CollectAnchors), each scored by the enemies within the radius of it, the rest as above.
+    /// (AbilityAIUtility.CollectAnchors), each scored by the enemies within the radius of it, the rest as above; with
+    /// minCorpses by the corpses within the radius instead, at least that many.
     /// waitForGather (anchored only): enemies counted where their paths put them when the cast lands; a spot more
     /// will reach within 3 s is held for up to 5 s, and one an ally is walking into is skipped (AbilityAIGather;
     /// k × 7 path reads more, only with anchors in range).
@@ -739,6 +740,14 @@ namespace AbilityAI
                     }
                 }
                 if (count < ext.minTargets) continue;
+                int corpses = 0;
+                if (ext.minCorpses > 0)
+                {
+                    // The anchors are those corpses within reach; one just past it but inside the radius isn't counted
+                    for (int k = 0; k < anchors.Count; k++)
+                        if ((anchors[k].Position - c).LengthHorizontalSquared <= r2) corpses++;
+                    if (corpses < ext.minCorpses) continue;
+                }
                 if (ext.avoidAllies && radius > 0f)
                 {
                     if (AbilityAIUtility.AllyWithin(ctx, ext, c, r2, spareBroken, false)) continue;
@@ -754,7 +763,7 @@ namespace AbilityAI
                     if (heldAt == null || later > heldLater) { heldAt = anchors[i]; heldNow = count; heldLater = later; }
                     continue;
                 }
-                centres.Add(new Centre { thing = anchors[i], count = count, distSq = d });
+                centres.Add(new Centre { thing = anchors[i], count = ext.minCorpses > 0 ? corpses : count, distSq = d });
             }
             if (gather) predicted.Clear();
             if (heldAt != null && centres.Count == 0 && AbilityAISettings.DebugLog)

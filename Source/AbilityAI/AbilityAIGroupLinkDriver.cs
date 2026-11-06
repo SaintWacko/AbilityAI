@@ -182,7 +182,7 @@ namespace AbilityAI
             }
             if (state.abilityNext != null && state.abilityNext.TryGetValue(linker.Def, out int next) && tick < next)
             {
-                if (log) noLinkWhy = $"waiting {(next - tick).ToStringTicksToPeriod()} after a link that came to nothing";
+                if (log) noLinkWhy = $"waiting {next - tick} ticks after a link that came to nothing";
                 return null;
             }
             try

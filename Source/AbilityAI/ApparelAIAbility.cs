@@ -42,6 +42,8 @@ namespace AbilityAI
 
         internal static bool HasRules(ThingDef def) => ruleDefs.Contains(def);
 
+        internal static IEnumerable<ThingDef> RuleDefs => ruleDefs;
+
         /// <summary>Called at startup for every ThingDef: an item with a verb owner comp and a rule becomes one the AI
         /// can use.</summary>
         internal static void Note(ThingDef def)

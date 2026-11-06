@@ -54,6 +54,30 @@ namespace AbilityAI
             if (!AbilityAIHooks.NotVetoed(p, a)) return;
             Patch_CommandAbility_Autocast.DrawBadge(button, mode, shrunk, false);
         }
+
+        // One entry per item with a rule, worn by the clicked pawn (whatever it replaces is dropped), with full charges
+        [DebugAction("Ability AI", "Give gear with rules", allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        private static List<DebugActionNode> GiveGear()
+        {
+            var nodes = new List<DebugActionNode>();
+            var defs = new List<ThingDef>(ApparelAIAbility.RuleDefs);
+            defs.SortBy(d => d.label);
+            foreach (ThingDef def in defs)
+            {
+                ThingDef d = def;
+                nodes.Add(new DebugActionNode(d.LabelCap, DebugActionType.ToolMapForPawns, pawnAction: p =>
+                {
+                    if (p.apparel == null || !ApparelUtility.HasPartsToWear(p, d))
+                    {
+                        Messages.Message($"{p.LabelShort} can't wear {d.label}", p, MessageTypeDefOf.RejectInput, false);
+                        return;
+                    }
+                    var apparel = (Apparel)ThingMaker.MakeThing(d, GenStuff.DefaultStuffFor(d));
+                    p.apparel.Wear(apparel, dropReplacedApparel: true);
+                }));
+            }
+            return nodes;
+        }
     }
 
     /// <summary>The smokepop belt pops for a non-colonist when a turret's bullet lands near it. Where this mod decides

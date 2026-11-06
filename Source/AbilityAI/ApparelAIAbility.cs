@@ -209,9 +209,10 @@ namespace AbilityAI
             }
             else if (!TakesCells) return false;
             // Its own check reads Find.CurrentMap, the map the player is looking at, not the wearer's: the same check
-            // here on the wearer's map (what the rest of its chain checks is charges, which CanCastNow passed)
+            // here on the wearer's map (what the rest of its chain checks is charges, which CanCastNow passed). Its job
+            // (UseVerbOnThingStaticReserve) reserves the cell, so a cell another pawn holds would fail at the start.
             if (verb is Verb_LaunchProjectileStaticOneUse)
-                return target.Cell.GetFirstBuilding(pawn.Map) == null && target.Cell.Standable(pawn.Map);
+                return target.Cell.GetFirstBuilding(pawn.Map) == null && target.Cell.Standable(pawn.Map) && pawn.CanReserve(target.Cell);
             return ApparelVerbJobs.SkipsValidate(verb.GetType()) || ValidateOffGui(target);
         }
 

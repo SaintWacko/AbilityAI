@@ -11,7 +11,8 @@ namespace AbilityAI
     /// within 60 degrees either side of the nearest enemy's direction. A cell counts the enemies within reach (radius,
     /// else the deployed turret's gun range, else 20) that it has a line of sight to; it needs minTargets of them, no
     /// enemy within minGapDistance, and no enemy as near the cell as the caster is (the caster's side of the fight).
-    /// Not while one of the deployed things of the caster's faction stands within reach of the caster. Most
+    /// Not while one of the deployed things of the caster's faction stands within reach of the caster, nor while a
+    /// faction-mate is casting it at a cell within reach of the caster. Most
     /// enemies seen first, then the nearest the caster.
     /// Cost: up to 36 cells, each a standability check and k distance checks, line of sight only for enemies in reach;
     /// then up to 5 validations.
@@ -38,6 +39,13 @@ namespace AbilityAI
             if (deployed != null && OwnStandingNear(ctx, deployed, reach))
             {
                 if (AbilityAISettings.DebugLog) ctx.NoTargetWhy = $"a {deployed.label} of its side already stands within {reach:0.#}";
+                return false;
+            }
+            // The cells are picked from the same enemies, so two mates side by side pick the same one (run 12: two
+            // raiders' turret packs at one cell, the second failing its reservation); one thrown nearby does for both
+            if (AbilityAIDriver.MateCastingNear(ability.Def, pawn.Position, reach))
+            {
+                if (AbilityAISettings.DebugLog) ctx.NoTargetWhy = "a mate nearby is already deploying one";
                 return false;
             }
 

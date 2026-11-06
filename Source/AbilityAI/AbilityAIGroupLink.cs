@@ -104,13 +104,20 @@ namespace AbilityAI
 
         /// <summary>The pawn's Group link that it may cast now: on autocast (the player's) or allowed (an NPC's), ready,
         /// and within the player's limits. Null when it has none.</summary>
-        internal static AIAbility FindLinker(Pawn pawn, List<AIAbility> abilities, bool player, AbilityAIRole role)
+        internal static AIAbility FindLinker(Pawn pawn, List<AIAbility> abilities, bool player, AbilityAIRole role) =>
+            FindLinker(pawn, abilities, player, role, out _);
+
+        /// <summary>As FindLinker; held: the pawn has a Group link at all, cast now or not.</summary>
+        internal static AIAbility FindLinker(Pawn pawn, List<AIAbility> abilities, bool player, AbilityAIRole role, out bool held)
         {
+            held = false;
             if (linkers.Count == 0) return null;
             for (int i = 0; i < abilities.Count; i++)
             {
                 AIAbility a = abilities[i];
-                if (!linkers.TryGetValue(a.Def, out var rule) || rule.For(role).Worker == null || !a.Drivable) continue;
+                if (!linkers.TryGetValue(a.Def, out var rule)) continue;
+                held = true;
+                if (rule.For(role).Worker == null || !a.Drivable) continue;
                 if (player)
                 {
                     if (a.PlayerAutocastElsewhere || AbilityAIAutocast.ModeFor(pawn, a.Def) == AbilityAIAutocastMode.Off
@@ -214,7 +221,8 @@ namespace AbilityAI
             float wordFocus = word.PsyfocusCost(target), linkFocus = linker.PsyfocusCost(pawn);
             float wordCost = wordFocus + (maxHeat > 0f ? word.HeatGain / maxHeat : 0f);
             float linkCost = linkFocus + (maxHeat > 0f ? linker.HeatGain / maxHeat : 0f);
-            if (wordCost <= 0f || linkCost + wordCost >= count * wordCost) return "costs more than a Word each";
+            if (wordCost <= 0f) return "the Word costs nothing";
+            if (linkCost + wordCost >= count * wordCost) return "costs more than a Word each";
             var pe = pawn.psychicEntropy;
             if (pe == null) return null;
             float heatCap = 1f, focusFloor = 0f;

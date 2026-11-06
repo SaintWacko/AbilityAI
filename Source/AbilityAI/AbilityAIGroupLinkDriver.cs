@@ -174,10 +174,10 @@ namespace AbilityAI
             noLinkWhy = null;
             if (!ext.linkFirst || !AbilityAIGroupLink.Any) return null;
             bool log = AbilityAISettings.DebugLog && Prefs.DevMode;
-            AIAbility linker = AbilityAIGroupLink.FindLinker(pawn, collected, player, role);
+            AIAbility linker = AbilityAIGroupLink.FindLinker(pawn, collected, player, role, out bool held);
             if (linker == null)
             {
-                if (log) noLinkWhy = "no Group link it may cast now";
+                if (log && held) noLinkWhy = "its Group link can't be cast now";
                 return null;
             }
             if (state.abilityNext != null && state.abilityNext.TryGetValue(linker.Def, out int next) && tick < next)

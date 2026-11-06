@@ -1724,6 +1724,7 @@ namespace AbilityAI
             {
                 // The postfix catches a throw: a buffer left set would be logged under the next pawn's name
                 whyNot = null;
+                noLinkWhy = null;
             }
         }
 

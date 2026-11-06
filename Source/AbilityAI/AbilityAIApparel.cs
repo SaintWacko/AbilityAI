@@ -82,10 +82,6 @@ namespace AbilityAI
         }
     }
 
-    /// <summary>The smokepop belt pops for a non-colonist when a turret's bullet lands near it. Where this mod decides
-    /// for the wearer its Cover rule does instead, so a belt with few charges isn't spent by both. Thing's and
-    /// Apparel's versions of the method are empty, so skipping the override skips nothing else: the skipping bool
-    /// prefix (against the prefix-returns-void lint) is the point here, as for the two patches below.</summary>
     // The attack a jump interrupted runs again on landing (AbilityAIDriver.TakeAfterLanding), for any jump: gear, vanilla
     // abilities and VEF's. The flyer captures the pawn's queue here and restores it when it lands; the taken jobs go in
     // front of anything the player had queued, where QueueAfterCast put them.
@@ -95,12 +91,16 @@ namespace AbilityAI
         private static readonly AccessTools.FieldRef<PawnFlyer, JobQueue> flyerQueue =
             AccessTools.FieldRefAccess<PawnFlyer, JobQueue>("jobQueue");
 
-        private static void Prefix(Pawn pawn, out List<Verse.AI.Job> __state)
+        // A throw here would stop the jump after the jump pack's charge is spent
+        private static void Prefix(ThingDef flyingDef, Pawn pawn, out List<Job> __state)
         {
-            __state = pawn == null ? null : AbilityAIDriver.TakeAfterLanding(pawn);
+            __state = null;
+            if (pawn == null) return;
+            try { __state = AbilityAIDriver.TakeAfterLanding(pawn, flyingDef); }
+            catch (System.Exception e) { Log.ErrorOnce($"[Ability AI] resuming after a jump: {e}", 0x4A41A1); }
         }
 
-        private static void Postfix(PawnFlyer __result, List<Verse.AI.Job> __state)
+        private static void Postfix(PawnFlyer __result, List<Job> __state)
         {
             if (__state == null || __result == null) return;
             JobQueue queue = flyerQueue(__result);
@@ -109,6 +109,10 @@ namespace AbilityAI
         }
     }
 
+    /// <summary>The smokepop belt pops for a non-colonist when a turret's bullet lands near it. Where this mod decides
+    /// for the wearer its Cover rule does instead, so a belt with few charges isn't spent by both. Thing's and
+    /// Apparel's versions of the method are empty, so skipping the override skips nothing else: the skipping bool
+    /// prefix (against the prefix-returns-void lint) is the point here, as for the two patches below.</summary>
     [HarmonyPatch(typeof(SmokepopBelt), nameof(SmokepopBelt.Notify_BulletImpactNearby))]
     internal static class Patch_SmokepopBelt_StandDown
     {

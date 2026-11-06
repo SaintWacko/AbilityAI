@@ -705,7 +705,7 @@ namespace AbilityAI
                 if (!cell.InBounds(ctx.map)) continue;
                 var things = cell.GetThingList(ctx.map);
                 for (int j = 0; j < things.Count; j++)
-                    if (things[j] is Corpse corpse && corpse.InnerPawn?.Faction is Faction f && (f == own || !f.HostileTo(own))) return true;
+                    if (things[j] is Corpse corpse && corpse.InnerPawn?.Faction is Faction f && own != null && (f == own || !f.HostileTo(own))) return true;
             }
             return false;
         }

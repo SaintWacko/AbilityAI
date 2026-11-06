@@ -2320,11 +2320,14 @@ namespace AbilityAI
         /// queue; else null. MakeFlyer ends a CastJump job (vanilla's jump verbs: jump pack, locust armour) and, with
         /// VEF, the cast job of any of its AbilityPawnFlyer jumps, with JobCondition.Succeeded, which starts the first
         /// queued job, and the despawn right after stops it: the attack was lost on landing and needed a new order.
-        /// The flyer restores its captured queue on landing.</summary>
-        internal static List<Job> TakeAfterLanding(Pawn pawn)
+        /// The flyer restores its captured queue on landing. A suspendable cast job MakeFlyer only suspends goes back to
+        /// the front of the queue, where the jobs behind it already survive, so they are left alone.</summary>
+        internal static List<Job> TakeAfterLanding(Pawn pawn, ThingDef flyingDef)
         {
             if (!states.TryGetValue(pawn, out PawnState state) || state.afterCastJobId < 0) return null;
-            bool ours = pawn.CurJob != null && pawn.CurJob.loadID == state.afterCastJobId;
+            Job cur = pawn.CurJob;
+            bool ours = cur != null && cur.loadID == state.afterCastJobId
+                && (cur.def == JobDefOf.CastJump || !cur.def.suspendable || IsVefFlyer(flyingDef?.thingClass));
             state.afterCastJobId = -1;
             List<Job> jobs = null;
             if (ours)
@@ -2340,6 +2343,14 @@ namespace AbilityAI
             }
             state.afterCast.Clear();
             return jobs;
+        }
+
+        // VEF's transpiler on MakeFlyer ends the cast job for its AbilityPawnFlyer flyers as for CastJump
+        private static bool IsVefFlyer(System.Type t)
+        {
+            for (; t != null; t = t.BaseType)
+                if (t.Name == "AbilityPawnFlyer") return true;
+            return false;
         }
 
         // After a cast at the prey (ctx.CastAtPrey). An NPC's fight job givers pick their target again after a cast, but a hunter's food

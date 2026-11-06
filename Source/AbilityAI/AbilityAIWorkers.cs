@@ -1075,13 +1075,15 @@ namespace AbilityAI
                 float range = AbilityAIUtility.Range(ability, ext);
                 // Where a walking target will be when the caster lands: beside where it is now, a jump lands behind
                 // anything running from it. Its own path read for the warmup plus the flight; a target the caster can't
-                // reach there is tried where it stands.
+                // reach there is tried where it stands. One running at the caster may end up next to it: that jump would
+                // be a hop that spends a charge or a cooldown, so the lead must keep minGapDistance as well.
                 if (goal is Pawn walker && walker.pather != null && walker.pather.Moving)
                 {
                     IntVec3 ahead = AbilityAIGather.CellAt(walker, LandingTicks(ability, d));
                     if (ahead != goal.Position)
                         ahead = AbilityAIGather.CellAt(walker, LandingTicks(ability, (ahead - ctx.pawn.Position).LengthHorizontal));
-                    if (ahead != goal.Position && (ahead - ctx.pawn.Position).LengthHorizontal <= range + 1.5f
+                    float aheadDist = (ahead - ctx.pawn.Position).LengthHorizontal;
+                    if (ahead != goal.Position && aheadDist <= range + 1.5f && aheadDist - 1f >= ext.minGapDistance
                         && TryCellNear(ctx, ability, goal, ahead, out IntVec3 lead) && PathClear(ctx, lead))
                     {
                         target = lead;

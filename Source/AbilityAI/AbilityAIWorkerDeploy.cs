@@ -41,10 +41,14 @@ namespace AbilityAI
             float reach = Reach(ability);
             ThingDef deployed = ability.Effects.spawns;
             taken.Clear();
-            int standing = deployed != null ? OwnStandingNear(ctx, deployed, reach) : 0;
+            // Counted within reach of the caster; the cells kept clear go out as far as a candidate can lie
+            float spread = range + Spacing;
+            int standing = deployed != null ? OwnStandingNear(ctx, deployed, reach, spread) : 0;
             // The cells are picked from the same enemies, so two mates side by side pick the same one (run 12: two
             // raiders' turret packs at one cell, the second failing its reservation): casts under way count as standing
-            int incoming = AbilityAIDriver.MateCastCellsNear(ability.Def, pawn.Position, reach, taken);
+            int from = taken.Count;
+            AbilityAIDriver.MateCastCellsNear(ability.Def, pawn.Position, Mathf.Max(reach, spread), taken);
+            int incoming = CountWithin(pawn.Position, reach, from);
             int max = AbilityAISettings.MaxDeployedNear;
             if (standing + incoming >= max)
             {
@@ -109,18 +113,29 @@ namespace AbilityAI
             return FallbackReach;
         }
 
-        // How many of def the caster's faction has within radius; their cells go into taken
-        private static int OwnStandingNear(AbilityAIContext ctx, ThingDef def, float radius)
+        // How many of def the caster's faction has within radius; the cells of those within spread go into taken
+        private static int OwnStandingNear(AbilityAIContext ctx, ThingDef def, float radius, float spread)
         {
             var list = ctx.map.listerThings.ThingsOfDef(def);
             Faction f = ctx.pawn.Faction;
+            IntVec3 at = ctx.pawn.Position;
             int n = 0;
             for (int i = 0; i < list.Count; i++)
             {
-                if (list[i].Faction != f || !list[i].Position.InHorDistOf(ctx.pawn.Position, radius)) continue;
-                taken.Add(list[i].Position);
-                n++;
+                if (list[i].Faction != f) continue;
+                IntVec3 c = list[i].Position;
+                if (c.InHorDistOf(at, spread)) taken.Add(c);
+                if (c.InHorDistOf(at, radius)) n++;
             }
+            return n;
+        }
+
+        // Of the cells of taken from index from on, how many lie within radius of at
+        private static int CountWithin(IntVec3 at, float radius, int from)
+        {
+            int n = 0;
+            for (int i = from; i < taken.Count; i++)
+                if (taken[i].InHorDistOf(at, radius)) n++;
             return n;
         }
 

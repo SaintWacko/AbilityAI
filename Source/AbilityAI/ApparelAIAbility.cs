@@ -266,14 +266,6 @@ namespace AbilityAI
             for (int i = 0; i < def.comps.Count; i++)
             {
                 var c = def.comps[i];
-                var info = AbilityAIInfo.Of(c);
-                if (info != null)
-                {
-                    e.stuns |= info.AIStuns;
-                    if (e.targetHediff == null) e.targetHediff = info.AIHediff;
-                    if (e.anyHediff == null) e.anyHediff = info.AIHediff;
-                    if (!e.hasEffectRadius) { e.hasEffectRadius = true; e.effectRadius = info.AIRadius; }
-                }
                 if (c is CompProperties_Explosive ex && !e.hasEffectRadius) { e.hasEffectRadius = true; e.effectRadius = ex.explosiveRadius; }
                 else if (c is CompProperties_ReleaseGas gas)
                 {

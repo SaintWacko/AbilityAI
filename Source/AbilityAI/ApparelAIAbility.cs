@@ -59,8 +59,14 @@ namespace AbilityAI
                 Log.Warning($"[Ability AI] {def.defName} has an Ability AI rule but no verb owner comp (CompProperties_ApparelVerbOwner or a subclass): the rule is ignored.");
                 return;
             }
+            int index = Mathf.Max(0, first.verbIndex);
+            if (index >= def.Verbs.Count)
+            {
+                Log.Warning($"[Ability AI] {def.defName}'s rule names verb {index}, but it has {def.Verbs.Count}: the rule is ignored.");
+                return;
+            }
             ruleDefs.Add(def);
-            verbIndex[def] = Mathf.Max(0, first.verbIndex);
+            verbIndex[def] = index;
         }
 
         /// <summary>The verb the rules are for on an item with several (DMS's Stugna: missile and launcher drop).</summary>
@@ -200,6 +206,10 @@ namespace AbilityAI
                 if (Props.targetParams != null && !Props.targetParams.CanTarget(target.ToTargetInfo(pawn.Map))) return false;
             }
             else if (!TakesCells) return false;
+            // Its own check reads Find.CurrentMap, the map the player is looking at, not the wearer's: the same check
+            // here on the wearer's map (what the rest of its chain checks is charges, which CanCastNow passed)
+            if (verb is Verb_LaunchProjectileStaticOneUse)
+                return target.Cell.GetFirstBuilding(pawn.Map) == null && target.Cell.Standable(pawn.Map);
             return ApparelVerbJobs.SkipsValidate(verb.GetType()) || ValidateOffGui(target);
         }
 

@@ -667,6 +667,8 @@ namespace AbilityAI
             if (anchorThings != null && anchorThings.Count == 0) yield return "anchorThings names no def that exists, so the rule would centre on pawns instead";
             if (waitForGather && (!anchored || workerClass == null || !typeof(AbilityAIWorker_AoEHostile).IsAssignableFrom(workerClass)))
                 yield return "waitForGather is only read by an anchored AoE hostile rule (anchorThings or anchorCorpses)";
+            if (verbIndex < 0) yield return "verbIndex can't be negative";
+            if (minCorpses < 0) yield return "minCorpses can't be negative";
             if (minCorpses > 0 && (anchorCorpses == AbilityAITargetKinds.None || workerClass == null || !typeof(AbilityAIWorker_AoEHostile).IsAssignableFrom(workerClass)))
                 yield return "minCorpses is only read by an AoE hostile rule with anchorCorpses";
             if (coveredBy != null && workerClass != null && !typeof(AbilityAIWorker_AoEHostile).IsAssignableFrom(workerClass))

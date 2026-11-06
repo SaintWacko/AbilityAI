@@ -86,9 +86,9 @@ namespace AbilityAI
     /// for the wearer its Cover rule does instead, so a belt with few charges isn't spent by both. Thing's and
     /// Apparel's versions of the method are empty, so skipping the override skips nothing else: the skipping bool
     /// prefix (against the prefix-returns-void lint) is the point here, as for the two patches below.</summary>
-    // The attack a jump interrupted runs again on landing (AbilityAIDriver.QueueAfterCast). The flyer captures the
-    // pawn's queue here and restores it when it lands; the held jobs go in front of anything the player had queued, as
-    // they would have without the jump.
+    // The attack a jump interrupted runs again on landing (AbilityAIDriver.TakeAfterLanding), for any jump: gear, vanilla
+    // abilities and VEF's. The flyer captures the pawn's queue here and restores it when it lands; the taken jobs go in
+    // front of anything the player had queued, where QueueAfterCast put them.
     [HarmonyPatch(typeof(PawnFlyer), nameof(PawnFlyer.MakeFlyer))]
     internal static class Patch_PawnFlyer_ResumeAfterJump
     {

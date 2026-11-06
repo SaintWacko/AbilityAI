@@ -270,7 +270,8 @@ namespace AbilityAI
             ext.targetKinds == AbilityAITargetKinds.All || IsOfKind(ext.targetKinds, p);
 
         public static bool IsOfKind(AbilityAITargetKinds kinds, Pawn p) =>
-            (kinds & KindOf(p)) != 0 || ((kinds & AbilityAITargetKinds.Shielded) != 0 && ShieldUp(p));
+            (kinds & KindOf(p)) != 0 || ((kinds & AbilityAITargetKinds.Shielded) != 0 && ShieldUp(p))
+            || ((kinds & AbilityAITargetKinds.Psycaster) != 0 && p.HasPsylink);
 
         /// <summary>A vanilla CompShield that is up now: worn (a shield belt) or the pawn's own (Biotech heavy mechs).</summary>
         public static bool ShieldUp(Pawn p)

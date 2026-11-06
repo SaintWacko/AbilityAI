@@ -13,7 +13,9 @@ namespace AbilityAI
     /// enemy within minGapDistance, and no enemy as near the cell as the caster is (the caster's side of the fight).
     /// Not while AbilityAISettings.MaxDeployedNear of the caster's faction's deployed things stand within reach of the
     /// caster or are being cast there by faction-mates; a cell within Spacing of one of those is left out, so two mates
-    /// never pick one cell. Most enemies seen first, then the nearest the caster.
+    /// never pick one cell. Most enemies seen first, then the nearest the caster. A self-cast deployer (the thing
+    /// appears at the caster) only needs minTargets enemies in sight within reach of the caster, under the same limit.
+    /// What is deployed is the rule's deployedThing, else what the effects reader found.
     /// Cost: up to 36 cells, each a standability check, k distance checks and a check against the few deployed or
     /// incoming cells, line of sight only for enemies in reach; then up to 5 validations.
     /// </summary>
@@ -39,7 +41,7 @@ namespace AbilityAI
             if (enemies.Count < ext.minTargets) return false;
             float range = AbilityAIUtility.Range(ability, ext);
             float reach = Reach(ability);
-            ThingDef deployed = ability.Effects.spawns;
+            ThingDef deployed = ext.deployedThing ?? ability.Effects.spawns;
             taken.Clear();
             // Counted within reach of the caster; the cells kept clear go out as far as a candidate can lie
             float spread = range + Spacing;
@@ -56,6 +58,25 @@ namespace AbilityAI
                     ctx.NoTargetWhy = $"{standing} of its side's {deployed?.label ?? "deployed things"} stand within {reach:0.#} and {incoming} are on the way (at most {max})";
                 taken.Clear();
                 return false;
+            }
+            // Made at the caster's feet (Apex's satellite, VFE Pirates' wardrones, DMS's drone packs): the caster's own
+            // cell is the only candidate, so it needs the enemies in sight from there
+            if (AbilityAIUtility.IsSelfCast(ability))
+            {
+                taken.Clear();
+                int seenHere = 0;
+                float reachSq = reach * reach;
+                for (int i = 0; i < enemies.Count; i++)
+                    if ((enemies[i].Position - pawn.Position).LengthHorizontalSquared <= reachSq
+                        && GenSight.LineOfSight(pawn.Position, enemies[i].Position, map, true)) seenHere++;
+                if (seenHere < ext.minTargets)
+                {
+                    if (AbilityAISettings.DebugLog) ctx.NoTargetWhy = $"{seenHere} enemies in sight within {reach:0.#} (needs {ext.minTargets})";
+                    return false;
+                }
+                if (!AbilityAIDriver.Valid(ability, pawn)) return false;
+                target = pawn;
+                return true;
             }
             float spacing2 = Spacing * Spacing;
 

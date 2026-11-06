@@ -301,7 +301,29 @@ namespace AbilityAI.Vef
                 if (pawn?.Map == null || ability.verb == null || !TryGetInfo(ability.def, out _)) return false;
                 // MakeCastJob would refuse it (see there): don't pay for the target search first
                 if (ability.def.keepCarryingThing == true && pawn.carryTracker?.CarriedThing != null) return false;
-                return EnabledForPawn();
+                return EnabledForPawn() && ReadyByType();
+            }
+        }
+
+        private static readonly Dictionary<Type, Func<VefAbility, bool>> readyChecks = new Dictionary<Type, Func<VefAbility, bool>>();
+
+        /// <summary>A check an ability type leaves to its gizmo, so VEF's IsEnabledForPawn passes and the cast goes
+        /// ahead anyway (VFE Pirates' Power jump disables only its gizmo when the shoulders hold too little fuel, and
+        /// then jumps for free). Exact type only. Answer quietly; a throw counts as not ready and drops the check.</summary>
+        public static void RegisterReady(Type abilityType, Func<VefAbility, bool> ready)
+        {
+            if (abilityType != null && ready != null) readyChecks[abilityType] = ready;
+        }
+
+        private bool ReadyByType()
+        {
+            if (readyChecks.Count == 0 || !readyChecks.TryGetValue(ability.GetType(), out var check)) return true;
+            try { return check(ability); }
+            catch (Exception e)
+            {
+                Log.Error($"[Ability AI] The ready check for {ability.GetType().FullName} threw; it is dropped: {e}");
+                readyChecks.Remove(ability.GetType());
+                return false;
             }
         }
 
@@ -367,6 +389,7 @@ namespace AbilityAI.Vef
                 if (costs != null && !costs.Affordable(ability))
                     return "can't pay its cost" + (enabled || reason.NullOrEmpty() ? "" : $" ({reason})");
                 if (!enabled && !reason.NullOrEmpty()) return reason;
+                if (!ReadyByType()) return "what it needs isn't there (fuel, charges)";
                 return "its own checks refused it";
             }
         }

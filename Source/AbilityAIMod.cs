@@ -136,6 +136,8 @@ namespace AbilityAI
                 }
             }
             catch (Exception e) { Log.Error($"[Ability AI] Setting up the gear rules failed; packs and belts are left to their own AI: {e}"); }
+            try { ApparelGearCompat.Register(); }
+            catch (Exception e) { Log.Error($"[Ability AI] Setting up other mods' gear checks failed; some modded packs may waste a cast: {e}"); }
         }
     }
 

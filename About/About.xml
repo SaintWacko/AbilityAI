@@ -24,6 +24,10 @@
     <li>OskarPotocki.VanillaFactionsExpanded.Core</li>
     <!-- Optional, likewise: the VPE compat assembly (1.6/VPE, 1.7/VPE) references VPE's types -->
     <li>VanillaExpanded.VPsycastsE</li>
+    <!-- Optional, likewise: these add their grenade belts from their own patches, which run in load order, so our
+         gear rules (Patches/AbilityAI_ApparelModded.xml) only find the belts when they load first -->
+    <li>VanillaExpanded.VWEG</li>
+    <li>mosi.FirefoamThings</li>
   </loadAfter>
   <!-- Hosts load after this mod (their own loadAfter), so their compat patches see our types. Nothing here names
        them: the hosts are optional to us and we are optional to them. -->

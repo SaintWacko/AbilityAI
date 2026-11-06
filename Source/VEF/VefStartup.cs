@@ -19,6 +19,12 @@ namespace AbilityAI.Vef
         {
             VefAIAbility.Init();
             AIAbilitySources.Register(VefAIAbility.Source);
+            try
+            {
+                VefApparelAbilities.Init();
+                VefApparelAbilities.RegisterPowerJumpFuel();
+            }
+            catch (Exception e) { Log.Error($"[Ability AI] Setting up VEF abilities on apparel failed; they are left to VEF: {e}"); }
             AbilityAIAutocast.WorldReady += VefAutocast.ConvertAll;
             if (AbilityAISettings.DebugLog) VefCastTimer.Install();
             AbilityAISettings.DebugLogSwitchedOn += VefCastTimer.Install;

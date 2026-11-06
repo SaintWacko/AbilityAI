@@ -153,6 +153,10 @@ namespace AbilityAI
                 if (p == null || !p.Spawned || verb.caster != p || verb.Bursting) return false;
                 // As the gizmo disables it (CompApparelVerbOwner.CreateVerbTargetCommand)
                 if (Props.violent && p.WorkTagIsDisabled(WorkTags.Violent)) return false;
+                // The item's own check and the registered ones first: they answer quietly, while some modded verbs'
+                // Available() post a message on every refusal (More Hunter Drones' Verb_LaunchDrone with no charge,
+                // Anomalies Expected's beam with no beam target)
+                if (!owner.CanBeUsed(out _) || !ApparelVerbJobs.Ready(verb)) return false;
                 return verb.Available();
             }
         }
@@ -166,6 +170,7 @@ namespace AbilityAI
                 if (verb.Bursting) return "still firing";
                 if (Props.violent && p.WorkTagIsDisabled(WorkTags.Violent)) return "incapable of violence";
                 if (!owner.CanBeUsed(out string reason)) return reason.NullOrEmpty() ? "no charges left" : reason;
+                if (!ApparelVerbJobs.Ready(verb)) return "the item's own limit (all it allows are out, or what it needs is missing)";
                 return "the item refused";
             }
         }
@@ -176,7 +181,16 @@ namespace AbilityAI
 
         public override bool IsPsycast => false;
         public override float Range => IsSelfCast ? 0f : verb.EffectiveRange;
-        public override float DefaultRadius => Effects.hasEffectRadius ? Effects.effectRadius : 0f;
+        // Else what the verb's targeter highlights: VGE's bombardment targeter takes it from whichever gravship turret
+        // it is linked to, which no def says
+        public override float DefaultRadius => Effects.hasEffectRadius ? Effects.effectRadius : HighlightRadius();
+
+        private float HighlightRadius()
+        {
+            if (IsSelfCast) return 0f;
+            try { return Mathf.Max(0f, verb.HighlightFieldRadiusAroundTarget(out _)); }
+            catch { return 0f; }
+        }
         public override bool IsSelfCast => !Props.targetable;
         public override bool CanTargetSelf => IsSelfCast || Props.targetParams?.canTargetSelf == true;
         public override float WarmupSeconds => Props.warmupTime * (owner.Wearer?.GetStatValue(StatDefOf.AimingDelayFactor) ?? 1f);
@@ -276,8 +290,10 @@ namespace AbilityAI
                 if (proj.explosionRadius > 0f) { e.hasEffectRadius = true; e.effectRadius = proj.explosionRadius; }
                 if (proj.damageDef == DamageDefOf.Smoke || proj.postExplosionGasType == GasType.BlindSmoke) e.smoke = true;
                 if (proj.damageDef != null && proj.damageDef.causeStun) e.stuns = true;
-                e.spawns = proj.spawnsThingDef ?? proj.postExplosionSpawnThingDef;
+                e.spawns = proj.spawnsThingDef ?? proj.postExplosionSpawnThingDef ?? proj.spawnsPawnKind?.race;
             }
+            // A verb that makes a pawn itself (Fortified's Verb_Deploy, the DMS drone packs) names its kind here
+            if (e.spawns == null && vp.spawnDef != null) e.spawns = vp.spawnDef;
             Type vc = vp.verbClass;
             if (vc != null && typeof(Verb_SmokePop).IsAssignableFrom(vc))
             {
@@ -330,6 +346,46 @@ namespace AbilityAI
 
         private static readonly List<Entry> entries = new List<Entry>();
         private static readonly HashSet<JobDef> jobDefs = new HashSet<JobDef>();
+        private static readonly List<KeyValuePair<Type, Func<Verb, bool>>> readyChecks = new List<KeyValuePair<Type, Func<Verb, bool>>>();
+        private static readonly Dictionary<Type, Func<Verb, bool>> readyByType = new Dictionary<Type, Func<Verb, bool>>();
+
+        /// <summary>A check of the verb's own that its Available() leaves out and its cast would refuse after the
+        /// warmup, with a message (Apex's mechamancer pack: at most two satellites out). Answer quietly; a throw counts
+        /// as not ready and drops the check for the session.</summary>
+        public static void RegisterReady(Type verbType, Func<Verb, bool> ready)
+        {
+            if (verbType == null || ready == null) return;
+            readyChecks.RemoveAll(x => x.Key == verbType);
+            readyChecks.Add(new KeyValuePair<Type, Func<Verb, bool>>(verbType, ready));
+            readyByType.Clear();
+        }
+
+        internal static bool Ready(Verb verb)
+        {
+            if (readyChecks.Count == 0) return true;
+            Type t = verb.GetType();
+            if (!readyByType.TryGetValue(t, out var check))
+            {
+                Type best = null;
+                for (int i = 0; i < readyChecks.Count; i++)
+                    if (readyChecks[i].Key.IsAssignableFrom(t) && (best == null || best.IsAssignableFrom(readyChecks[i].Key)))
+                    {
+                        best = readyChecks[i].Key;
+                        check = readyChecks[i].Value;
+                    }
+                readyByType[t] = check;
+            }
+            if (check == null) return true;
+            try { return check(verb); }
+            catch (Exception e)
+            {
+                Log.Error($"[Ability AI] The ready check for {t.FullName} threw; it is dropped: {e}");
+                readyChecks.RemoveAll(x => x.Value == check);
+                readyByType.Clear();
+                return false;
+            }
+        }
+
 
         public static void Register(Type verbType, Func<Verb, LocalTargetInfo, Job> make, bool skipValidate = false, JobDef castJob = null)
         {

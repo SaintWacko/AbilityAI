@@ -249,6 +249,8 @@ namespace AbilityAI
         /// <summary>A pawn whose worn shield (a shield belt) is up, whatever its race: EMP breaks it. Not in All.
         /// Matching it reads the pawn's apparel, so only rules that name it pay for that.</summary>
         Shielded = 32,
+        /// <summary>A pawn with a psylink, whatever its race (VPE's heat pearls fill only their neural heat). Not in All.</summary>
+        Psycaster = 64,
     }
 
     /// <summary>A kind of ability other factions use only while a setting allows it (AbilityAINpcGates). The
@@ -578,6 +580,9 @@ namespace AbilityAI
         /// within the radius, scored by them rather than by enemies (Anomaly's deadlife pack raises every corpse its
         /// dust reaches). 0 = enemies decide, as usual.</summary>
         public int minCorpses;
+        /// <summary>Deploy: what the cast puts on the map, where the effects reader can't tell (a mod that makes it in its
+        /// own code: VFE Pirates' wardrones and spidermines, Apex's satellite). For pawns, the race's ThingDef.</summary>
+        public ThingDef deployedThing;
         /// <summary>Changes to this rule for every caster that isn't the player's own pawn.</summary>
         public AbilityAIOverride npc;
         /// <summary>Further changes, over npc, for casters not hostile to the player (visitors, traders, allied
@@ -668,6 +673,8 @@ namespace AbilityAI
             if (waitForGather && (!anchored || workerClass == null || !typeof(AbilityAIWorker_AoEHostile).IsAssignableFrom(workerClass)))
                 yield return "waitForGather is only read by an anchored AoE hostile rule (anchorThings or anchorCorpses)";
             if (verbIndex < 0) yield return "verbIndex can't be negative";
+            if (deployedThing != null && workerClass != null && !typeof(AbilityAIWorker_Deploy).IsAssignableFrom(workerClass))
+                yield return $"deployedThing is only read by Deploy, not {workerClass.Name}";
             if (minCorpses < 0) yield return "minCorpses can't be negative";
             if (minCorpses > 0 && (anchorCorpses == AbilityAITargetKinds.None || workerClass == null || !typeof(AbilityAIWorker_AoEHostile).IsAssignableFrom(workerClass)))
                 yield return "minCorpses is only read by an AoE hostile rule with anchorCorpses";

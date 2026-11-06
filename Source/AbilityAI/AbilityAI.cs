@@ -1257,6 +1257,10 @@ namespace AbilityAI
             // caster's comp when a job is made, so no cast job may be made while that one waits in the queue: vanilla
             // asks the constant tree before the queue, and a job made there would cast in place of the queued one.
             public int queuedCastJobId = -1;
+            // What QueueAfterCast would have queued behind a CastJump job (afterLandingJobId), held until the jump
+            // (ApparelJumpLanding)
+            public List<Job> afterLanding;
+            public int afterLandingJobId = -1;
         }
 
         /// <summary>Which workers a player's pawn may use at the moment.</summary>
@@ -2133,7 +2137,7 @@ namespace AbilityAI
                 affectedCounted = false;
                 AbilityAIHooks.NotifyCast(pawn, a, target, dest);
                 AbilityAICombatAI.HoldForCast(pawn, a, target, cast);
-                if (player) QueueAfterCast(pawn, state);
+                if (player) QueueAfterCast(pawn, state, cast);
                 else if (ctx.CastAtPrey) ResumeHunt(pawn);
                 return cast;
             }
@@ -2286,22 +2290,56 @@ namespace AbilityAI
         // What a player's pawn does after an autocast. Vanilla starts constant-tree jobs without resuming the current
         // one, so an attack would be lost: queue a copy to resume. After a Full walk, the walk back goes first and the
         // attack it was on before the walk after that.
-        private static void QueueAfterCast(Pawn pawn, PawnState state)
+        // A jump verb's CastJump job ends with JobCondition.Succeeded inside PawnFlyer.MakeFlyer, which starts the first
+        // queued job, and the despawn right after stops it: the attack was lost on landing and needed a new order. So
+        // behind a CastJump the jobs are held on the state (first to run first) and put into the flyer's own queue,
+        // which it restores on landing. A vanilla jump ability's cast job is only suspended there and keeps the queue.
+        private static void QueueAfterCast(Pawn pawn, PawnState state, Job cast = null)
         {
+            List<Job> held = null;
+            if (cast != null && cast.def == JobDefOf.CastJump)
+            {
+                held = state.afterLanding ?? (state.afterLanding = new List<Job>());
+                held.Clear();
+                state.afterLandingJobId = cast.loadID;
+            }
             var queue = pawn.jobs.jobQueue;
             if (state.home.IsValid && state.returnJobId < 0)
             {
                 Job back = MakeReturnJob(pawn, state);
-                if (state.resume != null) queue.EnqueueFirst(state.resume);
+                if (state.resume != null) HoldFirst(queue, held, state.resume);
                 state.resume = null;
-                if (back != null) queue.EnqueueFirst(back);
+                if (back != null) HoldFirst(queue, held, back);
                 else ClearHome(state);
                 return;
             }
             Job cur = pawn.CurJob;
             // A hunt only after a cast at the prey: not after an escape from the hunt
             if (cur != null && cur.def.suspendable && (IsFightJob(cur.def) || (ctx.CastAtPrey && IsResumable(cur))))
-                queue.EnqueueFirst(Resume(cur));
+                HoldFirst(queue, held, Resume(cur));
+        }
+
+        private static void HoldFirst(JobQueue queue, List<Job> held, Job job)
+        {
+            if (held != null) held.Insert(0, job);
+            else queue.EnqueueFirst(job);
+        }
+
+        /// <summary>PawnFlyer.MakeFlyer is starting this pawn's jump: the jobs QueueAfterCast held for it when its
+        /// current job is the CastJump they were held behind, else null. Taken either way.</summary>
+        internal static List<Job> TakeAfterLanding(Pawn pawn)
+        {
+            if (!states.TryGetValue(pawn, out PawnState state) || state.afterLanding == null || state.afterLanding.Count == 0) return null;
+            bool ours = pawn.CurJob != null && pawn.CurJob.loadID == state.afterLandingJobId;
+            state.afterLandingJobId = -1;
+            if (!ours)
+            {
+                state.afterLanding.Clear();
+                return null;
+            }
+            var jobs = new List<Job>(state.afterLanding);
+            state.afterLanding.Clear();
+            return jobs;
         }
 
         // After a cast at the prey (ctx.CastAtPrey). An NPC's fight job givers pick their target again after a cast, but a hunter's food

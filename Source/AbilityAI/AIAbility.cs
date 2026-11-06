@@ -112,6 +112,18 @@ namespace AbilityAI
         /// <summary>The verb CastPositionFinder looks for a cast position with.</summary>
         public abstract Verb Verb { get; }
 
+        /// <summary>Seconds from the end of the warmup until the caster lands this far away, for a cast that throws the
+        /// caster through the air (vanilla's jump verbs: jump pack, locust armour, Longjump). Zero for everything else,
+        /// a teleport included, which lands as the warmup ends.</summary>
+        public virtual float FlightSeconds(float distance)
+        {
+            ThingDef flyer = Verb is Verb_CastAbilityJump j ? j.JumpFlyerDef : Verb is Verb_Jump ? ThingDefOf.PawnFlyer : null;
+            var props = flyer?.pawnFlyer;
+            if (props == null) return 0f;
+            // As PawnFlyer.SpawnSetup times the flight
+            return Mathf.Max(Mathf.Max(distance, 1f) / props.flightSpeed, props.flightDurationMin);
+        }
+
         public abstract AIAbilityEffects Effects { get; }
 
         /// <summary>Meant for enemies: the Interrupt worker only stuns a caster warming up one of these.</summary>

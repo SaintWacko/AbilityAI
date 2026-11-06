@@ -4,6 +4,7 @@ using RimWorld;
 using UnityEngine;
 using Verse;
 using LudeonTK;
+using Verse.AI;
 
 // Vanilla's own triggers for worn gear stand down where this mod decides for the wearer, and the gear's gizmos get
 // the autocast menu, badge and hint (ApparelAIAbility).
@@ -85,6 +86,29 @@ namespace AbilityAI
     /// for the wearer its Cover rule does instead, so a belt with few charges isn't spent by both. Thing's and
     /// Apparel's versions of the method are empty, so skipping the override skips nothing else: the skipping bool
     /// prefix (against the prefix-returns-void lint) is the point here, as for the two patches below.</summary>
+    // The attack a jump interrupted runs again on landing (AbilityAIDriver.QueueAfterCast). The flyer captures the
+    // pawn's queue here and restores it when it lands; the held jobs go in front of anything the player had queued, as
+    // they would have without the jump.
+    [HarmonyPatch(typeof(PawnFlyer), nameof(PawnFlyer.MakeFlyer))]
+    internal static class Patch_PawnFlyer_ResumeAfterJump
+    {
+        private static readonly AccessTools.FieldRef<PawnFlyer, JobQueue> flyerQueue =
+            AccessTools.FieldRefAccess<PawnFlyer, JobQueue>("jobQueue");
+
+        private static void Prefix(Pawn pawn, out List<Verse.AI.Job> __state)
+        {
+            __state = pawn == null ? null : AbilityAIDriver.TakeAfterLanding(pawn);
+        }
+
+        private static void Postfix(PawnFlyer __result, List<Verse.AI.Job> __state)
+        {
+            if (__state == null || __result == null) return;
+            JobQueue queue = flyerQueue(__result);
+            if (queue == null) flyerQueue(__result) = queue = new JobQueue();
+            for (int i = __state.Count - 1; i >= 0; i--) queue.EnqueueFirst(__state[i]);
+        }
+    }
+
     [HarmonyPatch(typeof(SmokepopBelt), nameof(SmokepopBelt.Notify_BulletImpactNearby))]
     internal static class Patch_SmokepopBelt_StandDown
     {

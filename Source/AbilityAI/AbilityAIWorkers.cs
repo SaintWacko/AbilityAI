@@ -1021,6 +1021,9 @@ namespace AbilityAI
     /// Any rule's gap-close can be limited to a target the caster can't see (gapCloseOutOfSight: one sight line,
     /// O(distance)); an NPC's own target is in sight when it is picked, so that mostly means a player's melee order.
     /// whileHunting: with no enemy target, the prey of the caster's hunt is closed on by the same rules.
+    /// A walking target is led: the landing goes beside the cell its path reaches by the end of the warmup and the
+    /// flight (AIAbility.FlightSeconds), else beside where it stands.
+    /// A drafted pawn's interrupted attack is queued to resume after the cast, for a jump verb on landing.
     /// During a drafted pawn's melee order (ctx.Charging) only gap-close runs, at the ordered target, for a ranged
     /// pawn too. gapCloseJobTarget: with no enemy pawn (or prey), the target of the caster's melee attack job, a
     /// building included, which is landed beside on a cell it can be touched from.
@@ -1069,9 +1072,26 @@ namespace AbilityAI
                 if (ext.gapCloseOutOfSight && GenSight.LineOfSight(ctx.pawn.Position, goal.Position, ctx.map)) return false;
                 bool prey = ext.whileHunting && goal == ctx.Prey;
                 if (self) { target = ctx.pawn; ctx.CastAtPrey = prey; return true; }
+                float range = AbilityAIUtility.Range(ability, ext);
+                // Where a walking target will be when the caster lands: beside where it is now, a jump lands behind
+                // anything running from it. Its own path read for the warmup plus the flight; a target the caster can't
+                // reach there is tried where it stands.
+                if (goal is Pawn walker && walker.pather != null && walker.pather.Moving)
+                {
+                    IntVec3 ahead = AbilityAIGather.CellAt(walker, LandingTicks(ability, d));
+                    if (ahead != goal.Position)
+                        ahead = AbilityAIGather.CellAt(walker, LandingTicks(ability, (ahead - ctx.pawn.Position).LengthHorizontal));
+                    if (ahead != goal.Position && (ahead - ctx.pawn.Position).LengthHorizontal <= range + 1.5f
+                        && TryCellNear(ctx, ability, goal, ahead, out IntVec3 lead) && PathClear(ctx, lead))
+                    {
+                        target = lead;
+                        ctx.CastAtPrey = prey;
+                        return true;
+                    }
+                }
                 // Even the cell beside the target nearest the caster is out of reach: skip the validations
-                if (d > AbilityAIUtility.Range(ability, ext) + 1.5f + half) return false;
-                if (TryCellNear(ctx, ability, goal, out IntVec3 cell) && PathClear(ctx, cell))
+                if (d > range + 1.5f + half) return false;
+                if (TryCellNear(ctx, ability, goal, goal.Position, out IntVec3 cell) && PathClear(ctx, cell))
                 {
                     target = cell;
                     ctx.CastAtPrey = prey;
@@ -1080,6 +1100,10 @@ namespace AbilityAI
             }
             return false;
         }
+
+        // The caster lands about a tile short of the target's cell
+        private static int LandingTicks(AIAbility ability, float distance) =>
+            Mathf.RoundToInt((ability.WarmupSeconds + ability.FlightSeconds(Mathf.Max(1f, distance - 1f))) * GenTicks.TicksPerRealSecond);
 
         // avoidAllies, avoidBuildings: an impact or stun where the caster lands catches whatever stands there; the
         // caster itself has left
@@ -1126,7 +1150,7 @@ namespace AbilityAI
 
         // The standable cell next to the target nearest the caster that the ability accepts; beside a building, only
         // a cell it can be touched from (no corner cut past a wall)
-        private bool TryCellNear(AbilityAIContext ctx, AIAbility ability, Thing goal, out IntVec3 best)
+        private bool TryCellNear(AbilityAIContext ctx, AIAbility ability, Thing goal, IntVec3 centre, out IntVec3 best)
         {
             best = IntVec3.Invalid;
             float maxLight = ext.cellMaxLight;
@@ -1148,7 +1172,7 @@ namespace AbilityAI
             }
             for (int i = 0; i < 8; i++)
             {
-                IntVec3 c = goal.Position + GenAdj.AdjacentCells[i];
+                IntVec3 c = centre + GenAdj.AdjacentCells[i];
                 // Vanilla's jump verbs refuse a cell nobody can stand on; VEF's location targeting doesn't, and VPE's
                 // Power Leap would land the caster inside a wall
                 if (!c.InBounds(ctx.map) || !c.Standable(ctx.map)) continue;

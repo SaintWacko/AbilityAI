@@ -18,9 +18,13 @@ namespace AbilityAI
             return a != null && AbilityAIDriver.Handles(wearer, a);
         }
 
-        internal static ApparelAIAbility Of(Command_VerbOwner command) =>
-            command.verb?.DirectOwner is CompApparelVerbOwner comp && comp.parent is Apparel apparel && ApparelAIAbility.HasRules(apparel.def)
-                ? ApparelAIAbility.Of(command.verb, comp) : null;
+        // Only the verb the rules are for (verbIndex): an item's other verbs keep their plain gizmo
+        internal static ApparelAIAbility Of(Command_VerbOwner command)
+        {
+            if (!(command.verb?.DirectOwner is CompApparelVerbOwner comp) || !(comp.parent is Apparel apparel)) return null;
+            var a = ApparelAIAbility.For(apparel);
+            return a != null && a.verb == command.verb ? a : null;
+        }
 
         private static readonly AccessTools.FieldRef<Command_VerbTarget, List<Verb>> groupedVerbs =
             AccessTools.FieldRefAccess<Command_VerbTarget, List<Verb>>("groupedVerbs");
@@ -54,7 +58,8 @@ namespace AbilityAI
 
     /// <summary>The smokepop belt pops for a non-colonist when a turret's bullet lands near it. Where this mod decides
     /// for the wearer its Cover rule does instead, so a belt with few charges isn't spent by both. Thing's and
-    /// Apparel's versions of the method are empty, so skipping the override skips nothing else.</summary>
+    /// Apparel's versions of the method are empty, so skipping the override skips nothing else: the skipping bool
+    /// prefix (against the prefix-returns-void lint) is the point here, as for the two patches below.</summary>
     [HarmonyPatch(typeof(SmokepopBelt), nameof(SmokepopBelt.Notify_BulletImpactNearby))]
     internal static class Patch_SmokepopBelt_StandDown
     {

@@ -171,7 +171,21 @@ namespace AbilityAI
         public override float WarmupSeconds => Props.warmupTime * (owner.Wearer?.GetStatValue(StatDefOf.AimingDelayFactor) ?? 1f);
         public override Verb Verb => verb;
         public override AIAbilityEffects Effects => EffectsOf(owner.parent.def, Props);
-        public override bool Hostile => Props.violent && Props.targetable;
+        // A non-violent verb aimed at enemies (the disruptor flare) is hostile too, by its rules
+        public override bool Hostile => Props.targetable && (Props.violent || RulesTargetEnemies(owner.parent.def));
+
+        private static readonly Dictionary<ThingDef, bool> rulesTargetEnemies = new Dictionary<ThingDef, bool>();
+
+        private static bool RulesTargetEnemies(ThingDef def)
+        {
+            if (rulesTargetEnemies.TryGetValue(def, out bool hostile)) return hostile;
+            var exts = def.modExtensions;
+            if (exts != null)
+                for (int i = 0; i < exts.Count && !hostile; i++)
+                    hostile = exts[i] is AbilityAIExtension ext && ext.Worker != null && ext.Worker.TargetsEnemies;
+            rulesTargetEnemies[def] = hostile;
+            return hostile;
+        }
 
         public override bool ValidIgnoringRange(LocalTargetInfo target)
         {
@@ -186,7 +200,21 @@ namespace AbilityAI
                 if (Props.targetParams != null && !Props.targetParams.CanTarget(target.ToTargetInfo(pawn.Map))) return false;
             }
             else if (!TakesCells) return false;
-            return !AsksValidateTarget(verb.GetType()) || verb.ValidateTarget(target, false);
+            return ApparelVerbJobs.SkipsValidate(verb.GetType()) || ValidateOffGui(target);
+        }
+
+        // Verb_CastBase (the lances, the orbital targeters), Verb_LaunchProjectileStatic and Verb_Jump check charges
+        // through ReloadableUtility.CanUseConsideringQueuedJobs, which reads Event.current.shift: null outside the GUI,
+        // so asked from a tick it throws. A blank event stands in while the verb is asked (shift up: only the charges
+        // are checked, which CanCastNow already passed, so no message is posted), and is taken away after.
+        private static readonly Event blankEvent = new Event();
+
+        private bool ValidateOffGui(LocalTargetInfo target)
+        {
+            if (Event.current != null) return verb.ValidateTarget(target, false);
+            Event.current = blankEvent;
+            try { return verb.ValidateTarget(target, false); }
+            finally { Event.current = null; }
         }
 
         // A projectile lands on a cell as well as a pawn; a target effect (the lances) needs a pawn
@@ -215,20 +243,6 @@ namespace AbilityAI
             job.verbToUse = verb;
             job.endIfCantShootTargetFromCurPos = !IsSelfCast;
             return job;
-        }
-
-        // Verb_LaunchProjectileStatic and Verb_Jump check charges with ReloadableUtility.CanUseConsideringQueuedJobs,
-        // which reads Event.current.shift: null outside the GUI, so asked from a tick it throws. For those (and their
-        // subclasses) the checks they would make are made here instead. Decided once per verb type.
-        private static readonly Dictionary<Type, bool> asksValidate = new Dictionary<Type, bool>();
-
-        private static bool AsksValidateTarget(Type t)
-        {
-            if (asksValidate.TryGetValue(t, out bool ask)) return ask;
-            ask = !typeof(Verb_LaunchProjectileStatic).IsAssignableFrom(t) && !typeof(Verb_Jump).IsAssignableFrom(t)
-                && !ApparelVerbJobs.SkipsValidate(t);
-            asksValidate[t] = ask;
-            return ask;
         }
 
         private static readonly Dictionary<ThingDef, AIAbilityEffects> effects = new Dictionary<ThingDef, AIAbilityEffects>();
@@ -285,7 +299,8 @@ namespace AbilityAI
     /// <summary>
     /// How another mod's apparel verb is cast, for one whose own order makes a job of its own (a drone or mech
     /// deployment): register the verb type and the job it needs. A type registered here, and its subclasses, are cast
-    /// with that job; skipValidate for a verb whose ValidateTarget can't be asked from a tick (it reads Event.current).
+    /// with that job; skipValidate for a verb whose ValidateTarget can't be asked off the GUI even with a blank
+    /// Event.current standing in (it posts messages, or reads the targeter's selection).
     /// Register before play. Types are matched most derived first.
     /// </summary>
     public static class ApparelVerbJobs

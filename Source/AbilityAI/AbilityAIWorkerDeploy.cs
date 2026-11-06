@@ -10,8 +10,8 @@ namespace AbilityAI
     /// from which it sees the most enemies. Candidate cells lie on rings around the caster out to the ability's range,
     /// within 60 degrees either side of the nearest enemy's direction. A cell counts the enemies within reach (radius,
     /// else the deployed turret's gun range, else 20) that it has a line of sight to; it needs minTargets of them, no
-    /// enemy within minGapDistance, and must be nearer the caster than the nearest enemy (the caster's side of the
-    /// fight). Not while one of the deployed things of the caster's faction stands within reach of the caster. Most
+    /// enemy within minGapDistance, and no enemy as near the cell as the caster is (the caster's side of the fight).
+    /// Not while one of the deployed things of the caster's faction stands within reach of the caster. Most
     /// enemies seen first, then the nearest the caster.
     /// Cost: up to 36 cells, each a standability check and k distance checks, line of sight only for enemies in reach;
     /// then up to 5 validations.
@@ -37,7 +37,7 @@ namespace AbilityAI
             ThingDef deployed = ability.Effects.spawns;
             if (deployed != null && OwnStandingNear(ctx, deployed, reach))
             {
-                ctx.NoTargetWhy = $"a {deployed.label} of its side already stands within {reach:0.#}";
+                if (AbilityAISettings.DebugLog) ctx.NoTargetWhy = $"a {deployed.label} of its side already stands within {reach:0.#}";
                 return false;
             }
 
@@ -60,7 +60,8 @@ namespace AbilityAI
                 for (int s = 0; s < PerRing; s++)
                 {
                     float angle = facing + Mathf.Lerp(-60f, 60f, s / (float)(PerRing - 1));
-                    IntVec3 c = pawn.Position + (Vector3Utility.FromAngleFlat(angle) * dist).ToIntVec3();
+                    // HorizontalVectorFromAngle shares AngleFlat's convention (clockwise from north); FromAngleFlat doesn't
+                    IntVec3 c = pawn.Position + (Vector3Utility.HorizontalVectorFromAngle(angle) * dist).ToIntVec3();
                     if (!c.InBounds(map) || c.Fogged(map) || !c.Standable(map)) continue;
                     float own = (c - pawn.Position).LengthHorizontalSquared;
                     int seen = 0;

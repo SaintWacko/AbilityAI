@@ -695,6 +695,21 @@ namespace AbilityAI
             return centres.Count > 0;
         }
 
+        private static bool FriendlyCorpseWithin(AbilityAIContext ctx, IntVec3 c, float radius)
+        {
+            Faction own = ctx.pawn.Faction;
+            int n = GenRadial.NumCellsInRadius(radius);
+            for (int i = 0; i < n; i++)
+            {
+                IntVec3 cell = c + GenRadial.RadialPattern[i];
+                if (!cell.InBounds(ctx.map)) continue;
+                var things = cell.GetThingList(ctx.map);
+                for (int j = 0; j < things.Count; j++)
+                    if (things[j] is Corpse corpse && corpse.InnerPawn?.Faction is Faction f && (f == own || !f.HostileTo(own))) return true;
+            }
+            return false;
+        }
+
         // Fills centres from the anchors (unsorted), with targets and affected already filled in. With waitForGather
         // the enemies are counted where they will be when the cast lands, and a spot more enemies will reach within
         // the look-ahead is held (AbilityAIGather)
@@ -747,6 +762,8 @@ namespace AbilityAI
                     for (int k = 0; k < anchors.Count; k++)
                         if ((anchors[k].Position - c).LengthHorizontalSquared <= r2) corpses++;
                     if (corpses < ext.minCorpses) continue;
+                    // The dust raises every corpse it reaches: not over one of the caster's own dead or a friend's
+                    if (FriendlyCorpseWithin(ctx, c, radius)) continue;
                 }
                 if (ext.avoidAllies && radius > 0f)
                 {

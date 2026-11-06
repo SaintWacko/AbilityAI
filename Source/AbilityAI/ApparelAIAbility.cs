@@ -69,6 +69,9 @@ namespace AbilityAI
             }
             ruleDefs.Add(def);
             verbIndex[def] = index;
+            for (int i = 0; i < exts.Count; i++)
+                if (exts[i] is AbilityAIExtension e && e.workerClass != null && typeof(AbilityAIWorker_Deploy).IsAssignableFrom(e.workerClass))
+                    AbilityAIWorker_Deploy.Used = true;
         }
 
         /// <summary>The verb the rules are for on an item with several (DMS's Stugna: missile and launcher drop).</summary>

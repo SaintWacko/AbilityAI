@@ -133,6 +133,9 @@
   <AAI_BarrierDropSeconds>...for {0} seconds in a row</AAI_BarrierDropSeconds>
   <AAI_BarrierDropSeconds_Tip>How long the shooters must stay below that share before the barrier comes down, so a pause in the shooting doesn't drop it.</AAI_BarrierDropSeconds_Tip>
   <AAI_Barrier_Desc>For every pawn that raises barriers on its own: yours set to autocast one (drafted only), and other factions' psycasters. While a Guardian Skipbarrier is up the caster can't use other psycasts and gains heat every second. Your pawns also drop it at their Max heat limit.</AAI_Barrier_Desc>
+  <AAI_Section_Deploy>Turret packs</AAI_Section_Deploy>
+  <AAI_MaxDeployedNear>At most {0} deployed turrets per side within a turret's range</AAI_MaxDeployedNear>
+  <AAI_MaxDeployedNear_Tip>A pawn with a turret pack (or another pack that throws something that fights on its own) holds it while this many of its side's turrets already stand within the turret's gun range of it, or are being thrown there by its mates. 1: one turret draws fire while the pawns fight. More: several turrets add firepower. Each turret lands at least 4 tiles from the others. Applies to every pawn, yours and other factions'.</AAI_MaxDeployedNear_Tip>
   <AAI_Section_GroupLink>Group link</AAI_Section_GroupLink>
   <AAI_GroupLinkMinTargets>Link first when it reaches {0} or more targets of the Word</AAI_GroupLinkMinTargets>
   <AAI_GroupLinkMinTargets_Tip>A pawn with Group Link on autocast casts it just before a Word of psycast on autocast when the link would take in at least this many of that Word's targets, so one Word reaches them all. It also needs the link and one Word to cost less than a Word for each target (psyfocus and heat), and both casts to fit the pawn's limits.</AAI_GroupLinkMinTargets_Tip>

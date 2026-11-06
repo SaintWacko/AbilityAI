@@ -11,11 +11,11 @@ namespace AbilityAI
     /// within 60 degrees either side of the nearest enemy's direction. A cell counts the enemies within reach (radius,
     /// else the deployed turret's gun range, else 20) that it has a line of sight to; it needs minTargets of them, no
     /// enemy within minGapDistance, and no enemy as near the cell as the caster is (the caster's side of the fight).
-    /// Not while one of the deployed things of the caster's faction stands within reach of the caster, nor while a
-    /// faction-mate is casting it at a cell within reach of the caster. Most
-    /// enemies seen first, then the nearest the caster.
-    /// Cost: up to 36 cells, each a standability check and k distance checks, line of sight only for enemies in reach;
-    /// then up to 5 validations.
+    /// Not while AbilityAISettings.MaxDeployedNear of the caster's faction's deployed things stand within reach of the
+    /// caster or are being cast there by faction-mates; a cell within Spacing of one of those is left out, so two mates
+    /// never pick one cell. Most enemies seen first, then the nearest the caster.
+    /// Cost: up to 36 cells, each a standability check, k distance checks and a check against the few deployed or
+    /// incoming cells, line of sight only for enemies in reach; then up to 5 validations.
     /// </summary>
     public class AbilityAIWorker_Deploy : AbilityAIWorker
     {
@@ -24,7 +24,11 @@ namespace AbilityAI
         private struct Spot { public IntVec3 cell; public int count; public float distSq; }
         private static readonly List<Spot> spots = new List<Spot>();
         private const int Rings = 4, PerRing = 9, MaxTries = 5;
-        private const float FallbackReach = 20f;
+        private const float FallbackReach = 20f, Spacing = 4f;
+        private static readonly List<IntVec3> taken = new List<IntVec3>();
+
+        /// <summary>Some def's rule uses this worker (ApparelAIAbility.Note): shows the setting.</summary>
+        internal static bool Used;
 
         public override bool TryFindTarget(AbilityAIContext ctx, AIAbility ability, out LocalTargetInfo target, out LocalTargetInfo dest)
         {
@@ -36,18 +40,20 @@ namespace AbilityAI
             float range = AbilityAIUtility.Range(ability, ext);
             float reach = Reach(ability);
             ThingDef deployed = ability.Effects.spawns;
-            if (deployed != null && OwnStandingNear(ctx, deployed, reach))
-            {
-                if (AbilityAISettings.DebugLog) ctx.NoTargetWhy = $"a {deployed.label} of its side already stands within {reach:0.#}";
-                return false;
-            }
+            taken.Clear();
+            int standing = deployed != null ? OwnStandingNear(ctx, deployed, reach) : 0;
             // The cells are picked from the same enemies, so two mates side by side pick the same one (run 12: two
-            // raiders' turret packs at one cell, the second failing its reservation); one thrown nearby does for both
-            if (AbilityAIDriver.MateCastingNear(ability.Def, pawn.Position, reach))
+            // raiders' turret packs at one cell, the second failing its reservation): casts under way count as standing
+            int incoming = AbilityAIDriver.MateCastCellsNear(ability.Def, pawn.Position, reach, taken);
+            int max = AbilityAISettings.MaxDeployedNear;
+            if (standing + incoming >= max)
             {
-                if (AbilityAISettings.DebugLog) ctx.NoTargetWhy = "a mate nearby is already deploying one";
+                if (AbilityAISettings.DebugLog)
+                    ctx.NoTargetWhy = $"{standing} of its side's {deployed?.label ?? "deployed things"} stand within {reach:0.#} and {incoming} are on the way (at most {max})";
+                taken.Clear();
                 return false;
             }
+            float spacing2 = Spacing * Spacing;
 
             Pawn nearest = null;
             float nearestSq = float.MaxValue;
@@ -70,7 +76,7 @@ namespace AbilityAI
                     float angle = facing + Mathf.Lerp(-60f, 60f, s / (float)(PerRing - 1));
                     // HorizontalVectorFromAngle shares AngleFlat's convention (clockwise from north); FromAngleFlat doesn't
                     IntVec3 c = pawn.Position + (Vector3Utility.HorizontalVectorFromAngle(angle) * dist).ToIntVec3();
-                    if (!c.InBounds(map) || c.Fogged(map) || !c.Standable(map)) continue;
+                    if (!c.InBounds(map) || c.Fogged(map) || !c.Standable(map) || NearTaken(c, spacing2)) continue;
                     float own = (c - pawn.Position).LengthHorizontalSquared;
                     int seen = 0;
                     bool tooClose = false;
@@ -90,6 +96,7 @@ namespace AbilityAI
             if (!target.IsValid && spots.Count == 0 && AbilityAISettings.DebugLog)
                 ctx.NoTargetWhy = $"no cell on its side of the fight sees {ext.minTargets} enemies";
             spots.Clear();
+            taken.Clear();
             return target.IsValid;
         }
 
@@ -102,12 +109,25 @@ namespace AbilityAI
             return FallbackReach;
         }
 
-        private static bool OwnStandingNear(AbilityAIContext ctx, ThingDef def, float radius)
+        // How many of def the caster's faction has within radius; their cells go into taken
+        private static int OwnStandingNear(AbilityAIContext ctx, ThingDef def, float radius)
         {
             var list = ctx.map.listerThings.ThingsOfDef(def);
             Faction f = ctx.pawn.Faction;
+            int n = 0;
             for (int i = 0; i < list.Count; i++)
-                if (list[i].Faction == f && list[i].Position.InHorDistOf(ctx.pawn.Position, radius)) return true;
+            {
+                if (list[i].Faction != f || !list[i].Position.InHorDistOf(ctx.pawn.Position, radius)) continue;
+                taken.Add(list[i].Position);
+                n++;
+            }
+            return n;
+        }
+
+        private static bool NearTaken(IntVec3 c, float spacing2)
+        {
+            for (int i = 0; i < taken.Count; i++)
+                if ((taken[i] - c).LengthHorizontalSquared < spacing2) return true;
             return false;
         }
     }

@@ -1706,6 +1706,25 @@ namespace AbilityAI
             return false;
         }
 
+        /// <summary>The cells of every faction-mate's cast of def under way (as MateCastingNear) within distance of centre,
+        /// added to into; how many. For Deploy, which counts them against AbilityAISettings.MaxDeployedNear and keeps
+        /// its own cell clear of them.</summary>
+        internal static int MateCastCellsNear(Def def, IntVec3 centre, float distance, List<IntVec3> into)
+        {
+            if (!evaluating) return 0;
+            if (!claimsBuilt) BuildClaims(ctx.pawn);
+            float r2 = distance * distance;
+            int n = 0;
+            for (int i = 0; i < claims.Count; i++)
+            {
+                IntVec3 c = claims[i].target.Cell;
+                if (claims[i].def != def || (c - centre).LengthHorizontalSquared > r2) continue;
+                into.Add(c);
+                n++;
+            }
+            return n;
+        }
+
         // Cost: one pass over the faction's spawned pawns, a job def test each (the sources answer from it first)
         private static void BuildClaims(Pawn pawn)
         {
@@ -2769,6 +2788,10 @@ namespace AbilityAI
         public static bool NpcBaseWrecking;
         /// <summary>Other factions may use gear that is used up (lances, low-shield, turret and deadlife packs).</summary>
         public static bool NpcSingleUseItems = true;
+        /// <summary>Deploy rules (turret packs), every caster: how many of a deployed thing one faction may have standing
+        /// or on the way within its reach of the caster. 1 sends one turret out as a distraction; more add firepower.</summary>
+        public const int DefaultMaxDeployedNear = 1;
+        public static int MaxDeployedNear = DefaultMaxDeployedNear;
         /// <summary>Barrier rules (AbilityAIBarrier), every caster: raised once this many shooters outside it aim at pawns
         /// inside it; dropped once fewer than BarrierDropFraction x BarrierMinShooters have stayed for
         /// BarrierDropTicks.</summary>
@@ -2826,6 +2849,7 @@ namespace AbilityAI
                     BarrierDropTicks = DefaultBarrierDropTicks;
                     GroupLinkMinTargets = DefaultGroupLinkMinTargets;
                     GroupLinkKeep = false;
+                    MaxDeployedNear = DefaultMaxDeployedNear;
                     DebugLog = false;
                     break;
                 case Tab.OtherFactions:
@@ -2928,6 +2952,8 @@ namespace AbilityAI
             Scribe_Values.Look(ref GroupLinkMinTargets, "abilityAI_groupLinkMinTargets", DefaultGroupLinkMinTargets);
             GroupLinkMinTargets = Mathf.Clamp(GroupLinkMinTargets, 2, 10);
             Scribe_Values.Look(ref GroupLinkKeep, "abilityAI_groupLinkKeep", false);
+            Scribe_Values.Look(ref MaxDeployedNear, "abilityAI_maxDeployedNear", DefaultMaxDeployedNear);
+            MaxDeployedNear = Mathf.Clamp(MaxDeployedNear, 1, 6);
             Scribe_Values.Look(ref DebugLog, "abilityAI_debugLog", false);
         }
 
@@ -3020,6 +3046,13 @@ namespace AbilityAI
                 GroupLinkMinTargets = Mathf.RoundToInt(list.Slider(GroupLinkMinTargets, 2f, 10f));
                 list.CheckboxLabeled("AAI_GroupLinkKeep".Translate(), ref GroupLinkKeep, "AAI_GroupLinkKeep_Tip".Translate());
                 Hint(list, "AAI_GroupLink_Desc");
+            }
+            // Only with a Deploy rule (Anomaly's turret pack, modded drone packs)
+            if (AbilityAIWorker_Deploy.Used)
+            {
+                Section(list, "AAI_Section_Deploy");
+                list.Label("AAI_MaxDeployedNear".Translate(MaxDeployedNear), -1f, "AAI_MaxDeployedNear_Tip".Translate());
+                MaxDeployedNear = Mathf.RoundToInt(list.Slider(MaxDeployedNear, 1f, 6f));
             }
             if (VpeSpawnerPatchApplied)
             {

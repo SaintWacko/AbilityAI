@@ -38,6 +38,11 @@ namespace AbilityAI
             if (mind.enemyTarget != null) return true;
             var job = p.CurJob;
             if (job != null && (job.def == JobDefOf.AttackMelee || job.def == JobDefOf.AttackStatic)) return true;
+            // A drafted colonist firing on its own (JobDriver_Wait's auto-attack) sets neither of those: it counted only
+            // once hit, so Word of Protection saw two of five colonists on a firing line (build 0216 test). Its last shot
+            // and its aim say it is fighting.
+            if (mind.lastAttackTargetTick > 0 && ctx.tick - mind.lastAttackTargetTick < AbilityAIContext.RecentTicks) return true;
+            if (p.TargetCurrentlyAimingAt.IsValid) return true;
             return ctx.tick - mind.lastHarmTick < AbilityAIContext.RecentTicks
                 || (mind.lastRangedHarmTick > 0 && ctx.tick - mind.lastRangedHarmTick < AbilityAIContext.RecentTicks);
         }

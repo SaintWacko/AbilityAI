@@ -40,9 +40,11 @@ namespace AbilityAI
             if (job != null && (job.def == JobDefOf.AttackMelee || job.def == JobDefOf.AttackStatic)) return true;
             // A drafted colonist firing on its own (JobDriver_Wait's auto-attack) sets neither of those: it counted only
             // once hit, so Word of Protection saw two of five colonists on a firing line (build 0216 test). Its last shot
-            // and its aim say it is fighting.
-            if (mind.lastAttackTargetTick > 0 && ctx.tick - mind.lastAttackTargetTick < AbilityAIContext.RecentTicks) return true;
-            if (p.TargetCurrentlyAimingAt.IsValid) return true;
+            // and its aim say it is fighting. Only at a hostile pawn: the same tick and stance come from a hunter's shot at
+            // a deer and an ally's warmup on a friendly cast (review 232).
+            if (mind.lastAttackTargetTick > 0 && ctx.tick - mind.lastAttackTargetTick < AbilityAIContext.RecentTicks
+                && mind.lastAttackedTarget.Thing is Pawn shot && shot.HostileTo(p)) return true;
+            if (p.TargetCurrentlyAimingAt.Thing is Pawn aimed && aimed.HostileTo(p)) return true;
             return ctx.tick - mind.lastHarmTick < AbilityAIContext.RecentTicks
                 || (mind.lastRangedHarmTick > 0 && ctx.tick - mind.lastRangedHarmTick < AbilityAIContext.RecentTicks);
         }

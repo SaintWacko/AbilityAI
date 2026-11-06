@@ -417,7 +417,13 @@ namespace AbilityAI
             if (entries.Count == 0) return false;
             int i = Find(verb.GetType());
             if (i < 0) return false;
-            job = entries[i].make(verb, target);
+            try { job = entries[i].make(verb, target); }
+            catch (Exception e)
+            {
+                Log.Error($"[Ability AI] The cast job for {entries[i].verbType.FullName} threw; it is dropped and the verb is cast as vanilla's: {e}");
+                entries.RemoveAt(i);
+                return false;
+            }
             return true;
         }
     }

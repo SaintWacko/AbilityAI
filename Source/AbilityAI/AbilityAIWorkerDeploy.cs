@@ -40,8 +40,8 @@ namespace AbilityAI
             var enemies = ctx.Enemies;
             if (enemies.Count < ext.minTargets) return false;
             float range = AbilityAIUtility.Range(ability, ext);
-            float reach = Reach(ability);
             ThingDef deployed = ext.deployedThing ?? ability.Effects.spawns;
+            float reach = Reach(deployed);
             taken.Clear();
             // Counted within reach of the caster; the cells kept clear go out as far as a candidate can lie
             float spread = range + Spacing;
@@ -126,10 +126,10 @@ namespace AbilityAI
         }
 
         // The rule's radius, else the deployed turret's gun range
-        private float Reach(AIAbility ability)
+        private float Reach(ThingDef deployed)
         {
             if (ext.radius > 0f) return ext.radius;
-            var verbs = ability.Effects.spawns?.building?.turretGunDef?.Verbs;
+            var verbs = deployed?.building?.turretGunDef?.Verbs;
             if (verbs != null && verbs.Count > 0 && verbs[0].range > 0f) return verbs[0].range;
             return FallbackReach;
         }

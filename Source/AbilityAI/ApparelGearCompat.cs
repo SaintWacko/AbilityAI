@@ -75,7 +75,8 @@ namespace AbilityAI
             {
                 object settings = settingsGetter.Invoke(null, null);
                 if (settings == null || !(bool)requires.GetValue(settings)) return true;
-                return targetGetter.Invoke(verb, null) != null;
+                // Its BeamTarget reads Find.AnyPlayerHomeMap unguarded; with no home map there is no beam target
+                return Find.AnyPlayerHomeMap != null && targetGetter.Invoke(verb, null) != null;
             });
         }
     }

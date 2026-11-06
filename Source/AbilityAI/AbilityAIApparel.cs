@@ -3,6 +3,7 @@ using HarmonyLib;
 using RimWorld;
 using UnityEngine;
 using Verse;
+using LudeonTK;
 
 // Vanilla's own triggers for worn gear stand down where this mod decides for the wearer, and the gear's gizmos get
 // the autocast menu, badge and hint (ApparelAIAbility).

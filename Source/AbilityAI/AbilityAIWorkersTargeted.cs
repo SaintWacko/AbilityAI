@@ -29,7 +29,8 @@ namespace AbilityAI
             return false;
         }
 
-        /// <summary>Fighting right now: has an enemy target, an attack job, or was hurt or attacked recently.</summary>
+        /// <summary>Fighting right now: has an enemy target, an attack job, shot at or is aiming at an enemy pawn or
+        /// active turret, or was hurt or attacked recently.</summary>
         public static bool Fighting(AbilityAIContext ctx, Pawn p)
         {
             if (p == ctx.pawn) return ctx.InCombat;
@@ -50,7 +51,9 @@ namespace AbilityAI
                 || (mind.lastRangedHarmTick > 0 && ctx.tick - mind.lastRangedHarmTick < AbilityAIContext.RecentTicks);
         }
 
-        private static bool IsFoe(Thing t, Pawn p) => (t is Pawn || t is Building_Turret) && t.HostileTo(p);
+        // The same turrets Target hostile picks from (ctx.EnemyTurrets): an unpowered or dormant one is no fight
+        private static bool IsFoe(Thing t, Pawn p) =>
+            (t is Pawn || (t is Building_Turret turret && !turret.ThreatDisabled(p))) && t.HostileTo(p);
 
         public struct Cand { public Pawn pawn; public float score; }
 

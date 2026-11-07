@@ -117,6 +117,7 @@ button.icon:hover { color: var(--ink); }
 
 const ENUMS = {
   combat: ["InCombat", "OutOfCombat", "Any"],
+  category: ["Interrupt", "Rescue", "Recovery", "Offensive", "Defensive", "Buff", "Movement", "Utility"],
   requires: ["None", "Melee", "Ranged"],
   modes: ["GapClose", "Escape"],
   skipMode: ["Repel", "Rescue", "Escape"],
@@ -225,6 +226,8 @@ const FIELDS = [
     doc: "Higher is tried first. Every ready ability's rules are tried together in priority order, so this also ranks the ability against the pawn's others. The shipped rules use 1 to 9." },
   { n: "combat", t: "enum:combat", d: null, w: "*", g: "Any rule",
     doc: "When the rule applies. Unset uses the worker's default (shown on the rule). A rule that isn't InCombat can also run for the player's undrafted pawns." },
+  { n: "category", t: "enum:category", d: null, w: DRIVER, g: "Any rule",
+    doc: "What the rule does in a fight, for a mod that decides its pawns' jobs itself and scores Ability AI's suggestions (a job owner). Unset uses the worker's default. Ability AI's own casting ignores it." },
   { n: "reserveCharges", t: "int", d: "0", w: DRIVER, g: "Any rule",
     doc: "Charges the AI never spends, for abilities with charges." },
   { n: "minGapSeconds", t: "float", d: "0", w: DRIVER, g: "Any rule",

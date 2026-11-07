@@ -155,6 +155,7 @@ namespace AbilityAI
             catch (Exception e)
             {
                 into.Clear();
+                state.offer = previous;
                 Log.ErrorOnce($"[Ability AI] GetCandidates threw for {pawn.def.defName}: {e}", pawn.def.shortHash ^ 0x7A13);
             }
             finally

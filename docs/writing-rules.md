@@ -552,7 +552,7 @@ The settings page shows each gate only when some rule uses it.
 
 Gear that casts through a verb (`CompApparelVerbOwner` or a subclass: packs, belts, launchers, lances) takes rules on its ThingDef. The worker and fields are the same as for an ability. Ability AI reads the radius, smoke, stun and spawned thing from the verb's projectile and the vanilla pack comps.
 
-- With several verbs on one item, `verbIndex` on the first rule picks the one the rules are for (by position in its `verbs` list, from 0).
+- With several verbs on one item, `verbIndex` says which verb a rule is for (by position in its `verbs` list, from 0). A rule without one is for the verb of the rule before it, and the first rule for verb 0, so an item whose first rule names its verb keeps every rule on that verb. Each ruled verb has its own autocast setting and its own gizmo menu; verbs with no rules keep their plain gizmo.
 - Single-use gear (a charged comp that destroys the item when empty) is used by other factions only while the player's "single-use gear" setting is on (on by default).
 - Vanilla's own triggers for the smokepop belt, the low-shield pack and the tox, firefoam and disruptor packs stand down where Ability AI handles the wearer.
 - Gear with its own job (a drone launcher that makes a job of its own) may need C# (`ApparelVerbJobs.Register`, see csharp-api.md).

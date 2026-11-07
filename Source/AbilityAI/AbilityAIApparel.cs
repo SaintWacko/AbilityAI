@@ -34,8 +34,8 @@ namespace AbilityAI
             var grouped = groupedVerbs(command);
             if (grouped != null)
                 for (int i = 0; i < grouped.Count; i++)
-                    if (ApparelAIAbility.For(grouped[i]) is ApparelAIAbility other && other.Pawn is Pawn p && !pawns.Contains(p)
-                        && AbilityAIAutocast.Offers(other)) pawns.Add(p);
+                    if (ApparelAIAbility.For(grouped[i]) is ApparelAIAbility other && other.Def == clicked.Def && other.Pawn is Pawn p
+                        && !pawns.Contains(p) && AbilityAIAutocast.Offers(other)) pawns.Add(p);
             AbilityAIAutocast.OpenMenu(clicked.Pawn, clicked.Def, false, pawns, command.LabelCap);
         }
 
@@ -62,6 +62,7 @@ namespace AbilityAI
             defs.SortBy(d => d.label);
             foreach (ThingDef def in defs)
             {
+                if (def.apparel == null) continue;
                 ThingDef d = def;
                 nodes.Add(new DebugActionNode(d.LabelCap, DebugActionType.ToolMapForPawns, pawnAction: p =>
                 {

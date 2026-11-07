@@ -377,8 +377,8 @@ const FIELDS = [
     doc: "A Word of psycast: who besides the rule's own targets may take it through the caster's group link. Targets, Enemies or NonHostile." },
   { n: "linkFirst", t: "bool", d: "true", w: WORDS, g: "Words of psycasts",
     doc: "A Word of psycast: the caster's group link may be cast first when it would reach enough of the rule's targets. Off for a Word priced per target." },
-  { n: "verbIndex", t: "int", d: "0", w: "*", gear: true, g: "Gear",
-    doc: "Worn gear: which of the item's verbs the rules are for, by position in its verbs list. Only the first rule's value is read." },
+  { n: "verbIndex", t: "int", d: null, w: "*", gear: true, g: "Gear",
+    doc: "Worn gear: which of the item's verbs this rule is for, by position in its verbs list. Left out: the verb of the rule before it (verb 0 for the first rule). Each ruled verb has its own autocast setting." },
   { n: "deployedThing", t: "def", d: null, w: ["Deploy"], defType: "ThingDef",
     doc: "What the cast puts on the map, where Ability AI can't read it from the verb or projectile. For a pawn, its race's ThingDef." },
 ];
@@ -530,7 +530,7 @@ function renderTarget() {
       el("input", { type: "text", class: "wide", value: state.defClass, placeholder: "e.g. VFEPirates.WarcasketDef",
         oninput: e => { state.defClass = e.target.value.trim(); changed(); } })));
   if (state.defType === "ThingDef")
-    p.append(el("p", { class: "hint" }, "Gear rules go on the item's ThingDef. The item needs a verb owner comp (CompApparelVerbOwner or a subclass). With several verbs, verbIndex on the first rule picks one."));
+    p.append(el("p", { class: "hint" }, "Gear rules go on the item's ThingDef. The item needs a verb owner comp (CompApparelVerbOwner or a subclass). With several verbs, verbIndex picks the verb each rule is for."));
 
   if (state.mode === "patch") {
     p.append(el("div", { class: "row" }, el("label", { class: "k" }, "defName"),
@@ -833,7 +833,6 @@ function checks() {
       ruleChecks(rule, merged).filter(t => !own.includes(t)).forEach(t => out.push({ bad: true, text: `${tag}<${key}>: ${t}` }));
       if (!Object.keys(rule[key]).length) out.push({ text: `${tag}the ${key} block is empty, so it is left out` });
     }
-    if (i > 0 && "verbIndex" in rule.fields) out.push({ text: tag + "verbIndex is only read from the first rule" });
     if (rule.worker === "Skip" && rule.fields.skipMode && state.rules.slice(0, i).some(r => r.worker === "Skip" && r.fields.skipMode === rule.fields.skipMode))
       out.push({ text: `${tag}another Skip rule already has skipMode ${rule.fields.skipMode}` });
     if (rule.worker === "Bloodfeed" && state.rules.slice(0, i).some(r => r.worker === "Bloodfeed" && r.fields.feedOn === rule.fields.feedOn))

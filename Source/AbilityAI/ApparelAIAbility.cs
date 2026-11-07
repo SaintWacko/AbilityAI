@@ -29,10 +29,12 @@ namespace AbilityAI
         {
             this.verb = verb;
             this.owner = owner;
-            key = KeyOf(owner.parent.def, owner.AllVerbs?.IndexOf(verb) ?? -1);
+            // By its properties' place in the def, which Note grouped by: AllVerbs leaves out a verb that failed to
+            // instantiate (VerbTracker.InitVerbs), which would shift every later one
+            key = KeyOf(owner.parent.def, owner.parent.def.Verbs.IndexOf(verb.verbProps));
         }
 
-        public static ApparelAIAbility Of(Verb verb, CompApparelVerbOwner owner)
+        internal static ApparelAIAbility Of(Verb verb, CompApparelVerbOwner owner)
         {
             if (wrappers.TryGetValue(verb, out var w)) return w;
             w = new ApparelAIAbility(verb, owner);
@@ -103,12 +105,16 @@ namespace AbilityAI
                 var key = new GearVerbDef
                 {
                     defName = $"{def.defName}_AAIVerb{g.Key}",
+                    modContentPack = def.modContentPack,
                     label = verbs[g.Key].label.NullOrEmpty() ? $"{def.label} ({g.Key + 1})" : (string)"AAI_GearVerbLabel".Translate(def.label, verbs[g.Key].label),
                     item = def,
                     verbIndex = g.Key,
                     modExtensions = new List<DefModExtension>(g.Value),
                 };
                 for (int i = 0; i < g.Value.Count; i++) exts.Remove(g.Value[i]);
+                // Only the XML loader sets the hash, and Def's Equals and GetHashCode use it: unset, every GearVerbDef
+                // is one key in every Dictionary<Def, ...> (review 251)
+                key.ResolveDefNameHash();
                 DefDatabase<GearVerbDef>.Add(key);
                 AbilityAINpcGates.Note(key);
                 keys.Add(new RuledVerb { index = g.Key, key = key });
@@ -132,8 +138,11 @@ namespace AbilityAI
             if (apparel == null || !ruled.TryGetValue(apparel.def, out var keys) || k >= keys.Length) return null;
             var comp = apparel.GetComp<CompApparelVerbOwner>();
             var verbs = comp?.AllVerbs;
-            int i = keys[k].index;
-            return verbs != null && i < verbs.Count ? Of(verbs[i], comp) : null;
+            if (verbs == null) return null;
+            VerbProperties props = apparel.def.Verbs[keys[k].index];
+            for (int i = 0; i < verbs.Count; i++)
+                if (verbs[i].verbProps == props) return Of(verbs[i], comp);
+            return null;
         }
 
         /// <summary>The wrapper for one of a worn item's verbs, or null when that verb has no rules.</summary>

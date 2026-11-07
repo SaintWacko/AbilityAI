@@ -322,7 +322,8 @@ namespace AbilityAI
                 // An unknown name has already been reported by the loader
                 var field = typeof(AbilityAIExtension).GetField(child.Name, BindingFlags.Public | BindingFlags.Instance);
                 if (field == null) continue;
-                if (field.FieldType == typeof(AbilityAIOverride))
+                // verbIndex is read off the main rule only (ApparelAIAbility.Note): a role can't move a rule to another verb
+                if (field.FieldType == typeof(AbilityAIOverride) || field.Name == nameof(AbilityAIExtension.verbIndex))
                 {
                     errors.Add($"<{xmlRoot.Name}> can't hold <{child.Name}>");
                     continue;
@@ -692,7 +693,7 @@ namespace AbilityAI
             if (anchorThings != null && anchorThings.Count == 0) yield return "anchorThings names no def that exists, so the rule would centre on pawns instead";
             if (waitForGather && (!anchored || workerClass == null || !typeof(AbilityAIWorker_AoEHostile).IsAssignableFrom(workerClass)))
                 yield return "waitForGather is only read by an anchored AoE hostile rule (anchorThings or anchorCorpses)";
-            if (verbIndex < -1) yield return "verbIndex can't be negative";
+            if (verbIndex < -1) yield return "verbIndex can't be negative (leave it out for the verb of the rule before)";
             if (deployedThing != null && workerClass != null && !typeof(AbilityAIWorker_Deploy).IsAssignableFrom(workerClass))
                 yield return $"deployedThing is only read by Deploy, not {workerClass.Name}";
             if (minCorpses < 0) yield return "minCorpses can't be negative";

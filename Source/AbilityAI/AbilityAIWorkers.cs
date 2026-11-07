@@ -620,6 +620,8 @@ namespace AbilityAI
                 target = AbilityAIUtility.PawnOrCell(ability, centre);
                 if (target.IsValid) { ctx.NoTargetWhy = null; break; }
             }
+            if (!target.IsValid && ctx.NoTargetWhy == null && centres.Count > 0 && AbilityAISettings.DebugLog)
+                ctx.NoTargetWhy = $"{Mathf.Min(centres.Count, tries)} spots refused (sight, range or the verb's own check)";
             centres.Clear();
             return target.IsValid;
         }
@@ -732,7 +734,7 @@ namespace AbilityAI
                 }
             }
             Thing heldAt = null;
-            int heldNow = 0, heldLater = 0;
+            int heldNow = 0, heldLater = 0, fewCorpses = 0, friendlyCorpse = 0;
             for (int i = 0; i < anchors.Count; i++)
             {
                 IntVec3 c = anchors[i].Position;
@@ -762,9 +764,9 @@ namespace AbilityAI
                     // The anchors are those corpses within reach; one just past it but inside the radius isn't counted
                     for (int k = 0; k < anchors.Count; k++)
                         if ((anchors[k].Position - c).LengthHorizontalSquared <= r2) corpses++;
-                    if (corpses < ext.minCorpses) continue;
+                    if (corpses < ext.minCorpses) { fewCorpses++; continue; }
                     // The dust raises every corpse it reaches: not over one of the caster's own dead or a friend's
-                    if (FriendlyCorpseWithin(ctx, c, radius)) continue;
+                    if (FriendlyCorpseWithin(ctx, c, radius)) { friendlyCorpse++; continue; }
                 }
                 if (ext.avoidAllies && radius > 0f)
                 {
@@ -786,6 +788,9 @@ namespace AbilityAI
             if (gather) predicted.Clear();
             if (heldAt != null && centres.Count == 0 && AbilityAISettings.DebugLog)
                 ctx.NoTargetWhy = $"waiting for enemies to gather at {heldAt.LabelShort} ({heldNow} when it would land, {heldLater} soon)";
+            else if (ext.minCorpses > 0 && centres.Count == 0 && AbilityAISettings.DebugLog)
+                ctx.NoTargetWhy = anchors.Count == 0 ? "no enemy corpse in range"
+                    : $"{anchors.Count} corpses in range: {fewCorpses} with under {ext.minCorpses} near, {friendlyCorpse} beside a friendly corpse";
             anchors.Clear();
         }
     }

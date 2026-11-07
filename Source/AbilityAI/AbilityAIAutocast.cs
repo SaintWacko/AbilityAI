@@ -366,7 +366,9 @@ namespace AbilityAI
             switch (mode)
             {
                 case AbilityAIAutocastMode.Stationary:
-                    return touch || MovesCaster(def) ? "AAI_Mode_Touch".Translate() : "AAI_Mode_Stationary".Translate();
+                    // "Stationary" only means something beside a Full mode; with no rule that walks into range (most
+                    // worn gear: self-cast packs, belts) the menu offers no Full, and the word read as a restriction
+                    return touch || MovesCaster(def) || !CanApproach(def) ? "AAI_Mode_Touch".Translate() : "AAI_Mode_Stationary".Translate();
                 case AbilityAIAutocastMode.Full: return "AAI_Mode_Full".Translate();
                 default: return "AAI_Mode_Off".Translate();
             }

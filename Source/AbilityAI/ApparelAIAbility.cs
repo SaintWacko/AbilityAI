@@ -157,6 +157,10 @@ namespace AbilityAI
                 // Available() post a message on every refusal (More Hunter Drones' Verb_LaunchDrone with no charge,
                 // Anomalies Expected's beam with no beam target)
                 if (!owner.CanBeUsed(out _) || !ApparelVerbJobs.Ready(verb)) return false;
+                // Only the reloadable subclass counts charges in CanBeUsed; a plain charged owner kept after its last
+                // charge (More Hunter Drones' packs, destroyOnEmpty false) passed it and reached the messaging
+                // Available() on every check (test run of build 0234)
+                if (owner is CompApparelVerbOwner_Charged charged && charged.RemainingCharges <= 0) return false;
                 return verb.Available();
             }
         }
@@ -170,6 +174,7 @@ namespace AbilityAI
                 if (verb.Bursting) return "still firing";
                 if (Props.violent && p.WorkTagIsDisabled(WorkTags.Violent)) return "incapable of violence";
                 if (!owner.CanBeUsed(out string reason)) return reason.NullOrEmpty() ? "no charges left" : reason;
+                if (owner is CompApparelVerbOwner_Charged charged && charged.RemainingCharges <= 0) return "no charges left";
                 if (!ApparelVerbJobs.Ready(verb)) return "the item's own limit (all it allows are out, or what it needs is missing)";
                 return "the item refused";
             }

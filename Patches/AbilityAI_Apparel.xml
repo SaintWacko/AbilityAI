@@ -189,7 +189,8 @@
           </match>
         </li>
 
-        <!-- Low-shield pack (single use): once three shooters are on the wearer, not where a low-shield already stands.
+        <!-- Low-shield pack (single use): once two shooters are on the wearer (three was rarely met in
+             the test of build 0234), not where a low-shield already stands.
              Vanilla deploys it for raiders when a bullet it would stop lands nearby. -->
         <li Class="PatchOperationConditional">
           <xpath>Defs/ThingDef[defName="Apparel_PackBroadshield"]</xpath>
@@ -199,7 +200,7 @@
               <li Class="AbilityAI.AbilityAIExtension">
                 <workerClass>AbilityAI.AbilityAIWorker_Cover</workerClass>
                 <priority>5</priority>
-                <minThreats>3</minThreats>
+                <minThreats>2</minThreats>
               </li>
             </value>
           </match>

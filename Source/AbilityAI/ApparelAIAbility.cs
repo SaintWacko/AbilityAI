@@ -85,16 +85,19 @@ namespace AbilityAI
                 if (rule.verbIndex >= 0) current = rule.verbIndex;
                 if (!groups.TryGetValue(current, out var list)) groups[current] = list = new List<AbilityAIExtension>();
                 list.Add(rule);
-                if (rule.workerClass != null && typeof(AbilityAIWorker_Deploy).IsAssignableFrom(rule.workerClass)) AbilityAIWorker_Deploy.UsedByGear = true;
             }
+            // Everything that can throw (a label's Translate, say) is worked out before anything shared changes, so an
+            // item that fails here (AbilityAIMod catches it per item) leaves no GearVerbDef or gate behind
             var verbs = def.Verbs;
             var keys = new List<RuledVerb>();
+            var dropped = new List<AbilityAIExtension>();
+            var moved = new List<GearVerbDef>();
             foreach (var g in groups)
             {
                 if (g.Key >= verbs.Count)
                 {
                     Log.Warning($"[Ability AI] {def.defName} has rules for verb {g.Key}, but it has {verbs.Count}: those rules are ignored.");
-                    for (int i = 0; i < g.Value.Count; i++) exts.Remove(g.Value[i]);
+                    dropped.AddRange(g.Value);
                     continue;
                 }
                 if (keys.Count == 0)
@@ -111,17 +114,32 @@ namespace AbilityAI
                     verbIndex = g.Key,
                     modExtensions = new List<DefModExtension>(g.Value),
                 };
-                for (int i = 0; i < g.Value.Count; i++) exts.Remove(g.Value[i]);
                 // Only the XML loader sets the hash, and Def's Equals and GetHashCode use it: unset, every GearVerbDef
                 // is one key in every Dictionary<Def, ...> (review 251)
                 key.ResolveDefNameHash();
-                DefDatabase<GearVerbDef>.Add(key);
-                AbilityAINpcGates.Note(key);
+                moved.Add(key);
                 keys.Add(new RuledVerb { index = g.Key, key = key });
             }
+            for (int i = 0; i < dropped.Count; i++) exts.Remove(dropped[i]);
+            for (int k = 0; k < moved.Count; k++)
+            {
+                var key = moved[k];
+                for (int i = 0; i < key.modExtensions.Count; i++) exts.Remove(key.modExtensions[i]);
+                DefDatabase<GearVerbDef>.Add(key);
+                AbilityAINpcGates.Note(key);
+            }
             if (keys.Count == 0) return;
+            NoteDeploy(exts);
+            for (int k = 0; k < moved.Count; k++) NoteDeploy(moved[k].modExtensions);
             ruleDefs.Add(def);
             ruled[def] = keys.ToArray();
+        }
+
+        private static void NoteDeploy(List<DefModExtension> exts)
+        {
+            for (int i = 0; i < exts.Count; i++)
+                if (exts[i] is AbilityAIExtension rule && rule.workerClass != null && typeof(AbilityAIWorker_Deploy).IsAssignableFrom(rule.workerClass))
+                    AbilityAIWorker_Deploy.UsedByGear = true;
         }
 
         private static Def KeyOf(ThingDef item, int index)

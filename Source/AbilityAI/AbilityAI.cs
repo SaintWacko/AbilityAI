@@ -3534,7 +3534,11 @@ namespace AbilityAI
             }
             if (___pawn == null || !AIAbilitySources.HasAny(___pawn)) return;
             // A job owner decides this pawn's jobs and asks for casts itself (GetCandidates), hostility included
-            if (AbilityAIHooks.Owned(___pawn)) return;
+            if (AbilityAIHooks.Owned(___pawn))
+            {
+                if (DevJobOwner.mode != DevJobOwner.Mode.Off) DevJobOwner.Give(___pawn, ref __result);
+                return;
+            }
             // The player's pawns with nothing set to autocast stop at one dictionary lookup here
             var control = AbilityAIDriver.ControlOf(___pawn);
             if (control == AbilityAIDriver.Control.None || !AIAbilitySources.AnyWithExtension(___pawn)) return;

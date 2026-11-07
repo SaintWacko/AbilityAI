@@ -525,6 +525,9 @@ namespace AbilityAI
         /// <summary>AoE hostile: never centre the area within its radius of the caster, for areas that hit the caster
         /// too (berserk pulse). Unlike a fixed minRange it follows the radius when a stat or another mod scales it.</summary>
         public bool avoidSelf;
+        /// <summary>Target hostile: the caster has left its cell when the area lands (a leap onto the target), so
+        /// avoidAllies doesn't count the caster itself; without it a melee caster refuses every enemy beside it.</summary>
+        public bool casterLeaves;
         /// <summary>Hostile area and cone workers: not when a building of the caster's side, or of a faction not
         /// hostile to it, is inside (incendiaries cast by visitors near the player's base). Target hostile: within the
         /// radius (default 5) of the target. Movement, targeted: within the radius of the landing cell.</summary>
@@ -760,6 +763,9 @@ namespace AbilityAI
                 yield return $"fireDanger is only read by Target friendly, not {workerClass.Name}";
             if (avoidFireDanger && workerClass != null && !typeof(AbilityAIWorker_TargetFriendly).IsAssignableFrom(workerClass))
                 yield return $"avoidFireDanger is only read by Target friendly, not {workerClass.Name}";
+            if (casterLeaves && workerClass != null && !typeof(AbilityAIWorker_TargetHostile).IsAssignableFrom(workerClass))
+                yield return $"casterLeaves is only read by Target hostile, not {workerClass.Name}";
+            if (casterLeaves && !avoidAllies) yield return "casterLeaves does nothing without avoidAllies";
             if (avoidFireDanger && fireDanger) yield return "fireDanger and avoidFireDanger together leave no ally to target";
             if (targetPart != null && Worker != null && !Worker.TargetsEnemies)
                 yield return $"targetPart is only read by hostile workers, not {workerClass.Name}";

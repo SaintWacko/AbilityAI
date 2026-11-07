@@ -367,6 +367,8 @@ const FIELDS = [
     doc: "The ability sets fires, so an enemy holding it is a fire threat to fireDanger rules. One rule of the ability is enough; its radius is how far the fire spreads past the aim." },
   { n: "fireDanger", t: "bool", d: "false", w: ["TargetFriendly"],
     doc: "Only allies in fire danger (burning, a fire within 2.5 tiles, an enemy that can set fires in reach) instead of allies who are fighting." },
+  { n: "casterLeaves", t: "bool", d: "false", w: ["TargetHostile"],
+    doc: "With avoidAllies: the caster itself doesn't count, for an ability that leaps the caster onto the target before the area lands (Alpha Animals' Spin cut). Without it a melee caster refuses every enemy beside it." },
   { n: "avoidFireDanger", t: "bool", d: "false", w: ["TargetFriendly"],
     doc: "Never an ally in fire danger (as for fireDanger), for a buff that makes its bearer burn worse (Alpha Animals' Fungal skin)." },
   { n: "heatVent", t: "bool", d: "false", w: DRIVER, g: "Any rule",
@@ -814,6 +816,7 @@ function ruleChecks(rule, fields) {
     if (num(fields, "auraMin") < 1) out.push("auraMin must be at least 1");
     if (!(num(fields, "radius") >= 0)) out.push("auraKinds needs a radius: the aura's reach is rarely the ability's own");
   }
+  if (bool(fields, "casterLeaves") && !bool(fields, "avoidAllies")) out.push("casterLeaves does nothing without avoidAllies");
   if (bool(fields, "fireDanger") && bool(fields, "avoidFireDanger")) out.push("fireDanger and avoidFireDanger together leave no ally to target");
   if (w === "ShedHeat" && !bool(fields, "heatVent")) out.push("a Shed heat rule without heatVent would be cast whenever the caster has heat to shed");
   if (w === "Zone" && ["LowMood", "ColonistsWithout", "LeechHosts"].includes(fields.zoneTarget) && !has(fields, "hediff"))

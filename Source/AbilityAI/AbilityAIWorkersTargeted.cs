@@ -77,7 +77,8 @@ namespace AbilityAI
     /// kind's combat power (0.5-3 x of 100), divided by distance over range. meleeOnly keeps only enemies next to
     /// the caster or an ally (one in a hostile break included: AbilityAIUtility.InMeleeWithSide). With minTargets above 1 the enemy needs that many of its side (itself included) within
     /// radius (default 5); preferGrouped multiplies the score by them, and avoidAllies skips enemies with anyone on
-    /// the caster's side (Friendlies, of allyKinds) within that radius (a berserk enemy attacks whoever is nearest). An ally in a
+    /// the caster's side (Friendlies, of allyKinds) within that radius (a berserk enemy attacks whoever is nearest),
+    /// the caster too unless casterLeaves. An ally in a
     /// hostile break is skipped, and avoided like a friendly, unless MayHitBrokenAllies. The best five are validated.
     /// Approach: the same out to range + approachDistance. whileHunting: the prey of the caster's hunt is a candidate
     /// too, scored as its current target. armedOnly: only enemies holding a weapon. avoidBuildings: not at an enemy with a
@@ -187,7 +188,7 @@ namespace AbilityAI
                 if (group < ext.minTargets) return;
                 if (ext.preferGrouped) score *= group;
             }
-            if (ext.avoidAllies && AbilityAIUtility.AllyWithin(ctx, ext, t.Position, near2, spareBroken, false)) return;
+            if (ext.avoidAllies && AbilityAIUtility.AllyWithin(ctx, ext, t.Position, near2, spareBroken, ext.casterLeaves)) return;
             if (ext.avoidBuildings && AbilityAIUtility.FriendlyBuildingWithin(ctx, t.Position, Near)) return;
             score /= 1f + Mathf.Sqrt(d) / Mathf.Max(range, 1f);
             cands.Add(new Cand { thing = t, score = score });
@@ -238,7 +239,7 @@ namespace AbilityAI
                 if (group < ext.minTargets) return;
                 if (ext.preferGrouped) score *= group;
             }
-            if (ext.avoidAllies && AbilityAIUtility.AllyWithin(ctx, ext, e.Position, near2, spareBroken, false)) return;
+            if (ext.avoidAllies && AbilityAIUtility.AllyWithin(ctx, ext, e.Position, near2, spareBroken, ext.casterLeaves)) return;
             // Here rather than on the best few: when those all stand by a wall, a clear enemy further down still counts
             if (ext.avoidBuildings && AbilityAIUtility.FriendlyBuildingWithin(ctx, e.Position, Near)) return;
             score /= 1f + Mathf.Sqrt(d) / Mathf.Max(range, 1f);

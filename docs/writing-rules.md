@@ -255,6 +255,7 @@ One enemy (Stun, Burden, Berserk). Enemies in range that the ability would affec
 | `radius` | 5 | How near the target counts for `minTargets`, `preferGrouped`, `avoidAllies` and `avoidBuildings`. |
 | `preferGrouped` | false | Multiply the score by the enemies around the target. |
 | `avoidAllies` | false | Skip enemies with anyone of the caster's side within `radius` (a berserk enemy attacks whoever is nearest). |
+| `casterLeaves` | false | With `avoidAllies`: the caster itself doesn't count, for an ability that leaps the caster onto the target before the area lands (Alpha Animals' Spin cut). Without it a melee caster refuses every enemy beside it. |
 | `avoidBuildings` | false | Skip enemies with a friendly building within `radius`, for a fire or blast that spreads. |
 | `meleeOnly` | false | Only enemies in melee with the caster or an ally. |
 | `armedOnly` | false | Only enemies holding a weapon. |

@@ -130,8 +130,8 @@
 
         <!-- Spin cut: 25 cut on a pawn within 8 and on every pawn within 1.9 tiles of it, the caster's own side
              included. The caster is already in the air on its leap onto the target when the cut lands (MakeFlyer
-             despawns it first), so it never cuts itself. So two enemies or more within 1.9 of each other and nobody of
-             the caster's side within 1.9 of the target (anyone fighting it in melee is). -->
+             despawns it first), so it never cuts itself (casterLeaves: it may stand beside the target). So two enemies
+             or more within 1.9 of each other and nobody else of the caster's side within 1.9 of the target. -->
         <li Class="PatchOperationConditional">
           <xpath>Defs/VEF.Abilities.AbilityDef[defName="AAVPE_SpinCut"]</xpath>
           <match Class="PatchOperationAddModExtension">
@@ -144,6 +144,7 @@
                 <radius>1.9</radius>
                 <preferGrouped>true</preferGrouped>
                 <avoidAllies>true</avoidAllies>
+                <casterLeaves>true</casterLeaves>
               </li>
             </value>
           </match>

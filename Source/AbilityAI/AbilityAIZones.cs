@@ -238,7 +238,10 @@ namespace AbilityAI
                 }
                 case AbilityAIZoneTarget.Inspirable:
                 {
-                    if (!(t is Pawn p) || !OfColony(p) || p.Downed || p.InMentalState || !p.Awake() || p.mindState?.inspirationHandler == null) return false;
+                    // Vanilla's Word of Inspiration refuses babies (canTargetBaby) and anyone not IsColonist (a slave who is
+                    // released, escaping or rebelling, a ghoul); kept, they stay wanted and every pass refuses them again
+                    if (!(t is Pawn p) || !OfColony(p) || !p.IsColonist || p.DevelopmentalStage.Baby() || p.Downed || p.InMentalState
+                        || !p.Awake() || p.mindState?.inspirationHandler == null) return false;
                     return AbilityUtility.ValidateNoInspiration(p, false, null) && AbilityUtility.ValidateCanGetInspiration(p, false, null);
                 }
                 case AbilityAIZoneTarget.ColonistsWithout:

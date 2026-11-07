@@ -60,7 +60,47 @@ namespace AbilityAI.Vpe
             return nodes;
         }
 
-        private static void Give(Pawn pawn, IEnumerable<VefAbilityDef> defs)
+        private static readonly int[] SummonerSquadSizes = { 3, 5, 7 };
+
+        // Drafted colonists holding Alpha Animals' Herald of the Black Hive path, every psycast set to autocast, for
+        // measuring the Deploy worker (36 cells, each counting enemies in sight) beside a "Perf: gear raid". Colonists,
+        // because the summons are off for NPCs: Ability_Summon always makes player-faction creatures.
+        [DebugAction("Ability AI", "Perf: Black Hive summoners", allowedGameStates = AllowedGameStates.PlayingOnMap, requiresRoyalty = true)]
+        private static List<DebugActionNode> BlackHiveSummoners()
+        {
+            var nodes = new List<DebugActionNode>();
+            foreach (int size in SummonerSquadSizes)
+            {
+                int count = size;
+                nodes.Add(new DebugActionNode($"{count} summoners", DebugActionType.ToolMap, () =>
+                {
+                    var path = DefDatabase<VefAbilityDef>.GetNamedSilentFail("AAVPE_SummonBlackScarab")
+                        ?.GetModExtension<AbilityExtension_Psycast>()?.path;
+                    Faction enemy = Find.FactionManager.RandomEnemyFaction(allowNonHumanlike: false);
+                    if (path == null || enemy == null)
+                    {
+                        Messages.Message(path == null ? "Perf: Black Hive summoners need Alpha Animals" : "Perf: no humanlike enemy faction on this world",
+                            MessageTypeDefOf.RejectInput, false);
+                        return;
+                    }
+                    var defs = DefDatabase<VefAbilityDef>.AllDefsListForReading
+                        .Where(d => d.HasModExtension<AbilityAIExtension>() && d.GetModExtension<AbilityExtension_Psycast>()?.path == path)
+                        .ToList();
+                    var pawns = AbilityAIPerfDebug.SpawnFighters(Find.CurrentMap, UI.MouseCell(), Faction.OfPlayer, enemy, count);
+                    int modes = 0;
+                    foreach (Pawn p in pawns)
+                    {
+                        Give(p, defs, quiet: true);
+                        modes += AbilityAIPerfDebug.AutocastAll(p);
+                    }
+                    Messages.Message($"Perf: {pawns.Count} drafted Black Hive summoners, {defs.Count} psycasts each, {modes} set to autocast",
+                        pawns.FirstOrDefault(), MessageTypeDefOf.TaskCompletion, false);
+                }));
+            }
+            return nodes;
+        }
+
+        private static void Give(Pawn pawn, IEnumerable<VefAbilityDef> defs, bool quiet = false)
         {
             var comp = pawn.GetComp<CompAbilities>();
             if (comp == null || !pawn.RaceProps.Humanlike)
@@ -83,6 +123,7 @@ namespace AbilityAI.Vpe
             foreach (var def in given) comp.GiveAbility(def);
             pawn.psychicEntropy?.OffsetPsyfocusDirectly(1f);
 
+            if (quiet) return;
             Messages.Message($"{pawn.LabelShort}: psylink {psycasts.level}, {given.Count} psycasts, full psyfocus",
                 pawn, MessageTypeDefOf.TaskCompletion, false);
             // GiveAbility adds a psycast whose path the pawn can't unlock (backstory, meme, gene) all the same

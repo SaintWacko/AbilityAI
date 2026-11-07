@@ -242,7 +242,9 @@ namespace AbilityAI
                     return AbilityUtility.ValidateNoInspiration(p, false, null) && AbilityUtility.ValidateCanGetInspiration(p, false, null);
                 }
                 case AbilityAIZoneTarget.ColonistsWithout:
+                {
                     return t is Pawn p && OfColony(p) && !p.Downed && !p.InMentalState && !AbilityAIUtility.Has(p, hediff);
+                }
                 case AbilityAIZoneTarget.Visitors:
                 {
                     if (!(t is Pawn p) || !p.RaceProps.Humanlike || p.Downed || p.InMentalState || p.IsPrisoner || p.IsSlave) return false;

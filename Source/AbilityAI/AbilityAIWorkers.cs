@@ -702,7 +702,7 @@ namespace AbilityAI
             return centres.Count > 0;
         }
 
-        private static bool FriendlyCorpseWithin(AbilityAIContext ctx, IntVec3 c, float radius)
+        internal static bool FriendlyCorpseWithin(AbilityAIContext ctx, IntVec3 c, float radius)
         {
             // NumCellsInRadius logs an error past the pattern; a rule that big can't be checked, so it is taken as blocked
             // rather than risk raising the caster's own dead
@@ -1508,6 +1508,7 @@ namespace AbilityAI
             int count = near.Count;
             near.Clear();
             if (count < ext.minTargets) return false;
+            if (ext.minCorpses > 0 && !CorpsesHere(ctx, c, radius, r2)) return false;
             // Walking to a better spot: not on the way unless this cell is already as good
             if (ctx.ApproachExpected(ability) > count) return false;
             if (ext.avoidAllies && AbilityAIUtility.AllyWithin(ctx, ext, c, r2, spareBroken, true)) return false;
@@ -1520,7 +1521,8 @@ namespace AbilityAI
         {
             cell = IntVec3.Invalid;
             expected = 0;
-            if (!AbilityAIUtility.IsSelfCast(ability)) return false;
+            // The approach scores spots by enemies; a corpse-scored rule casts only where it already stands
+            if (!AbilityAIUtility.IsSelfCast(ability) || ext.minCorpses > 0) return false;
             float radius = AbilityAIUtility.Radius(ability, ext);
             if (radius <= 0f || AuraRunning(ability, ctx.pawn)) return false;
             float r2 = radius * radius;
@@ -1563,6 +1565,32 @@ namespace AbilityAI
             }
             spots.Clear();
             return cell.IsValid;
+        }
+
+        // minCorpses (Release deadlife dust): that many corpses of anchorCorpses' kinds, of pawns with no faction or one
+        // hostile to the caster, within the radius, and none of the caster's own dead or a friend's, which the dust
+        // would raise too
+        private bool CorpsesHere(AbilityAIContext ctx, IntVec3 c, float radius, float r2)
+        {
+            Faction own = ctx.pawn.Faction;
+            var corpses = ctx.map.listerThings.ThingsInGroup(ThingRequestGroup.Corpse);
+            int n = 0;
+            for (int i = 0; i < corpses.Count && n < ext.minCorpses; i++)
+            {
+                if (!(corpses[i] is Corpse corpse) || corpse.InnerPawn == null) continue;
+                if ((corpse.Position - c).LengthHorizontalSquared > r2 || !AbilityAIUtility.IsOfKind(ext.anchorCorpses, corpse.InnerPawn)) continue;
+                Faction f = corpse.InnerPawn.Faction;
+                if (f != null && (own == null || !f.HostileTo(own))) continue;
+                n++;
+            }
+            if (n < ext.minCorpses)
+            {
+                if (AbilityAISettings.DebugLog) ctx.NoTargetWhy = $"{n} enemy corpses within {radius:0.#}, under {ext.minCorpses}";
+                return false;
+            }
+            if (!AbilityAIWorker_AoEHostile.FriendlyCorpseWithin(ctx, c, radius)) return true;
+            if (AbilityAISettings.DebugLog) ctx.NoTargetWhy = "a friendly corpse is within reach of the dust";
+            return false;
         }
 
         // A lasting aura on the caster (psychic drone) isn't cast again while it runs

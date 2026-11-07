@@ -135,6 +135,9 @@
   <AAI_Barrier_Desc>For every pawn that raises barriers on its own: yours set to autocast one (drafted only), and other factions' psycasters. While a Guardian Skipbarrier is up the caster can't use other psycasts and gains heat every second. Your pawns also drop it at their Max heat limit.</AAI_Barrier_Desc>
   <AAI_Section_Deploy>Turret packs</AAI_Section_Deploy>
   <AAI_MaxDeployedNear>At most {0} deployed turrets per side within a turret's range</AAI_MaxDeployedNear>
+  <AAI_Section_Mechanitor>Mechanitors</AAI_Section_Mechanitor>
+  <AAI_RemoteShieldEnemies>Remote shield on enemy mechs</AAI_RemoteShieldEnemies>
+  <AAI_RemoteShieldEnemies_Tip>A mechanitor may put its remote shield on an enemy mech that is shooting. The shield also stops that mech shooting out for up to 30 seconds, but the mechanitor has to stand within the shield's range of it (about 8 tiles) for the whole time. Off: the shield only goes on your side's mechs when they are badly hurt or under heavy fire. Applies to every mechanitor, yours and other factions'.</AAI_RemoteShieldEnemies_Tip>
   <AAI_MaxDeployedNear_Tip>A pawn with a turret pack (or another pack that throws something that fights on its own) holds it while this many of its side's turrets already stand within the turret's gun range of it, or are being thrown there by its mates. 1: one turret draws fire while the pawns fight. More: several turrets add firepower. Each turret lands at least 4 tiles from the others. Applies to every pawn, yours and other factions'.</AAI_MaxDeployedNear_Tip>
   <AAI_Section_GroupLink>Group link</AAI_Section_GroupLink>
   <AAI_GroupLinkMinTargets>Link first when it reaches {0} or more targets of the Word</AAI_GroupLinkMinTargets>

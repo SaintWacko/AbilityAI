@@ -638,6 +638,24 @@ namespace AbilityAI
                         // Psycast.CanApplyPsycastTo: once any comp is psychic, any comp not for mechs rules them out
                         if (!ae.applicableToMechs) e.notOnMechs = true;
                     }
+                    // Odyssey's unique-weapon launchers: the shell's blast, widened by how far off the aimed cell it may
+                    // land, as the gear rules state it by hand
+                    if (c is CompProperties_AbilityLaunchProjectile launch && launch.projectileDef?.projectile is ProjectileProperties proj)
+                    {
+                        if (proj.explosionRadius > 0f && !e.hasEffectRadius)
+                        {
+                            e.hasEffectRadius = true;
+                            e.effectRadius = proj.explosionRadius + (def.verbProperties?.forcedMissRadius ?? 0f);
+                        }
+                        if (proj.damageDef == DamageDefOf.Smoke || proj.postExplosionGasType == GasType.BlindSmoke) e.smoke = true;
+                        if (proj.damageDef != null && proj.damageDef.causeStun) e.stuns = true;
+                    }
+                    if (c is CompProperties_AbilityExplosion boom && boom.explosionRadius > 0f && !e.hasEffectRadius)
+                    {
+                        e.hasEffectRadius = true;
+                        e.effectRadius = boom.explosionRadius;
+                        if (boom.damageDef != null && boom.damageDef.causeStun) e.stuns = true;
+                    }
                     if (c is CompProperties_AbilityFireBurst burst && !e.hasEffectRadius) { e.hasEffectRadius = true; e.effectRadius = burst.radius; }
                     if (c is CompProperties_AbilityFirefoampop foam && !e.hasEffectRadius) { e.hasEffectRadius = true; e.effectRadius = foam.firefoamRadius; }
                     if (c is CompProperties_AbilitySmokepop smoke)

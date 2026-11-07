@@ -543,8 +543,14 @@ namespace AbilityAI
         /// <summary>Other factions use the rule only while the matching setting allows it (AbilityAINpcGate). While
         /// it doesn't, the ability is still this mod's to decide, so VEF's and vanilla's own AI stay off it too.</summary>
         public AbilityAINpcGate npcGate;
+        /// <summary>Every caster uses the rule only while this setting is on (AbilityAISwitches): a use some players want
+        /// and others don't, such as Remote shield on an enemy mech. The setting is shown once a rule names it.</summary>
+        public AbilityAISwitch setting;
         /// <summary>Target hostile: only enemies holding a weapon (Disarming Gale).</summary>
         public bool armedOnly;
+        /// <summary>Target hostile: only enemies in a mental state, for an ability that ends one or only works on one
+        /// (Animal calm on a manhunter).</summary>
+        public bool inMentalState;
         /// <summary>Movement, targeted: nobody of the caster's side, and no building of its side or a friendly faction's,
         /// within this many tiles of the straight line from the caster to where it lands, for a dash that burns and
         /// smashes what it passes (Pyromancer's Blazing dash). 0 = no check.</summary>
@@ -669,9 +675,12 @@ namespace AbilityAI
             if (approachDistance < 0f) yield return "approachDistance can't be negative";
             if (minBleedRate < 0f) yield return "minBleedRate can't be negative";
             bool anchored = (anchorThings != null && anchorThings.Count > 0) || anchorCorpses != AbilityAITargetKinds.None;
+            // AoE hostile around the caster reads anchorCorpses only as the kinds its minCorpses counts
+            bool selfCorpses = workerClass != null && typeof(AbilityAIWorker_AoEHostileSelf).IsAssignableFrom(workerClass)
+                && (anchorThings == null || anchorThings.Count == 0) && minCorpses > 0;
             if (anchored && workerClass != null && !typeof(AbilityAIWorker_AoEHostile).IsAssignableFrom(workerClass)
-                && !typeof(AbilityAIWorker_AoEFriendly).IsAssignableFrom(workerClass))
-                yield return $"anchorThings and anchorCorpses are only read by AoE hostile and AoE friendly, not {workerClass.Name}";
+                && !typeof(AbilityAIWorker_AoEFriendly).IsAssignableFrom(workerClass) && !selfCorpses)
+                yield return $"anchorThings and anchorCorpses are only read by AoE hostile and AoE friendly (and anchorCorpses with minCorpses by AoE hostile around the caster), not {workerClass.Name}";
             // Unresolved names are dropped from the list, so a list of only missing defs is empty, not full of nulls
             if (anchorThings != null && anchorThings.Count == 0) yield return "anchorThings names no def that exists, so the rule would centre on pawns instead";
             if (waitForGather && (!anchored || workerClass == null || !typeof(AbilityAIWorker_AoEHostile).IsAssignableFrom(workerClass)))
@@ -680,8 +689,11 @@ namespace AbilityAI
             if (deployedThing != null && workerClass != null && !typeof(AbilityAIWorker_Deploy).IsAssignableFrom(workerClass))
                 yield return $"deployedThing is only read by Deploy, not {workerClass.Name}";
             if (minCorpses < 0) yield return "minCorpses can't be negative";
-            if (minCorpses > 0 && (anchorCorpses == AbilityAITargetKinds.None || workerClass == null || !typeof(AbilityAIWorker_AoEHostile).IsAssignableFrom(workerClass)))
-                yield return "minCorpses is only read by an AoE hostile rule with anchorCorpses";
+            if (minCorpses > 0 && (anchorCorpses == AbilityAITargetKinds.None || workerClass == null
+                || (!typeof(AbilityAIWorker_AoEHostile).IsAssignableFrom(workerClass) && !typeof(AbilityAIWorker_AoEHostileSelf).IsAssignableFrom(workerClass))))
+                yield return "minCorpses is only read by an AoE hostile or AoE hostile around the caster rule with anchorCorpses";
+            if (inMentalState && workerClass != null && !typeof(AbilityAIWorker_TargetHostile).IsAssignableFrom(workerClass))
+                yield return $"inMentalState is only read by Target hostile, not {workerClass.Name}";
             if (coveredBy != null && workerClass != null && !typeof(AbilityAIWorker_AoEHostile).IsAssignableFrom(workerClass))
                 yield return $"coveredBy is only read by AoE hostile, not {workerClass.Name}";
             if (coveredBy != null && coveredBy.Count == 0) yield return "coveredBy names no def that exists, so it checks nothing";
@@ -1973,6 +1985,11 @@ namespace AbilityAI
                             if (whyNot != null) WhyNot(a, ext, AbilityAINpcGates.Why(ext.npcGate, role));
                             continue;
                         }
+                        if (ext.setting != AbilityAISwitch.None && !AbilityAISwitches.On(ext.setting))
+                        {
+                            if (whyNot != null) WhyNot(a, ext, AbilityAISwitches.Why(ext.setting));
+                            continue;
+                        }
                         if (!player && !AbilityAISettings.NpcSingleUseItems && a.SingleUse)
                         {
                             WhyNot(a, ext, "single-use items are off for other factions (NpcSingleUseItems)");
@@ -2198,6 +2215,7 @@ namespace AbilityAI
                     var worker = ext.Worker;
                     if (worker == null || !worker.DriverCasts || ext.heatVent) continue;
                     if (ext.npcGate != AbilityAINpcGate.None && !AbilityAINpcGates.Allows(ext.npcGate, role)) continue;
+                    if (ext.setting != AbilityAISwitch.None && !AbilityAISwitches.On(ext.setting)) continue;
                     if ((huntOnly && !ext.whileHunting) || (charging && !ChargeRule(ext)) || !InSet(worker, curSet)) continue;
                     if (ext.reserveCharges > 0 && a.UsesCharges && a.RemainingCharges <= ext.reserveCharges) continue;
                     if (!CasterSuits(ext) || !CombatAllows(worker)) continue;
@@ -2673,13 +2691,39 @@ namespace AbilityAI
         Any,
     }
 
+    /// <summary>A setting some rules run only while it is on (AbilityAIExtension.setting), for every caster.</summary>
+    [Flags]
+    public enum AbilityAISwitch
+    {
+        None = 0,
+        /// <summary>Remote shield on an enemy mech: the shield also stops the mech shooting out, but the mechanitor
+        /// stands within its range for the whole channel.</summary>
+        RemoteShieldEnemies = 1,
+    }
+
+    /// <summary>setting: which switched rules may run now, and which switches any rule uses (only those are shown).</summary>
+    public static class AbilityAISwitches
+    {
+        public static AbilityAISwitch Used { get; internal set; }
+
+        internal static bool On(AbilityAISwitch s)
+        {
+            if ((s & AbilityAISwitch.RemoteShieldEnemies) != 0 && !AbilityAISettings.RemoteShieldEnemies) return false;
+            return true;
+        }
+
+        // For the dev log
+        internal static string Why(AbilityAISwitch s) => $"its setting ({s}) is off";
+    }
+
     /// <summary>npcGate: which gated rules other factions may use now, and which gates any rule uses (the settings for
     /// the others aren't shown).</summary>
     public static class AbilityAINpcGates
     {
         public static AbilityAINpcGate Used { get; private set; }
 
-        /// <summary>Called at startup for every ability def of every system, beside AbilityAIGather.Note.</summary>
+        /// <summary>Called at startup for every ability def of every system, beside AbilityAIGather.Note. Also notes
+        /// the switches (AbilityAISwitches), since every system already calls this for every def.</summary>
         public static void Note(Def abilityDef)
         {
             var exts = abilityDef?.modExtensions;
@@ -2690,8 +2734,12 @@ namespace AbilityAI
                 {
                     var npc = rule.For(AbilityAIRole.Npc);
                     var friendly = rule.For(AbilityAIRole.FriendlyNpc);
+                    var own = rule.For(AbilityAIRole.Player);
                     if (npc.enabled) Used |= npc.npcGate;
                     if (friendly.enabled) Used |= friendly.npcGate;
+                    if (npc.enabled) AbilityAISwitches.Used |= npc.setting;
+                    if (friendly.enabled) AbilityAISwitches.Used |= friendly.setting;
+                    if (own.enabled) AbilityAISwitches.Used |= own.setting;
                 }
         }
 
@@ -2835,6 +2883,9 @@ namespace AbilityAI
         public const int DefaultGroupLinkMinTargets = 2;
         public static int GroupLinkMinTargets = DefaultGroupLinkMinTargets;
         public static bool GroupLinkKeep;
+        /// <summary>Remote shield may go on an enemy mech (AbilityAISwitch.RemoteShieldEnemies), every caster. Off by
+        /// default: the mechanitor stands within the shield's short range of that mech for the whole channel.</summary>
+        public static bool RemoteShieldEnemies;
 
         public static bool SkipAllowed(AbilityAISkipMode mode)
         {
@@ -2879,6 +2930,7 @@ namespace AbilityAI
                     GroupLinkMinTargets = DefaultGroupLinkMinTargets;
                     GroupLinkKeep = false;
                     MaxDeployedNear = DefaultMaxDeployedNear;
+                    RemoteShieldEnemies = false;
                     DebugLog = false;
                     break;
                 case Tab.OtherFactions:
@@ -2992,6 +3044,7 @@ namespace AbilityAI
             Scribe_Values.Look(ref GroupLinkMinTargets, "abilityAI_groupLinkMinTargets", DefaultGroupLinkMinTargets);
             GroupLinkMinTargets = Mathf.Clamp(GroupLinkMinTargets, 2, 10);
             Scribe_Values.Look(ref GroupLinkKeep, "abilityAI_groupLinkKeep", false);
+            Scribe_Values.Look(ref RemoteShieldEnemies, "abilityAI_remoteShieldEnemies", false);
             Scribe_Values.Look(ref MaxDeployedNear, "abilityAI_maxDeployedNear", DefaultMaxDeployedNear);
             MaxDeployedNear = Mathf.Clamp(MaxDeployedNear, 1, 6);
             Scribe_Values.Look(ref DebugLog, "abilityAI_debugLog", false);
@@ -3093,6 +3146,12 @@ namespace AbilityAI
                 Section(list, "AAI_Section_Deploy");
                 list.Label("AAI_MaxDeployedNear".Translate(MaxDeployedNear), -1f, "AAI_MaxDeployedNear_Tip".Translate());
                 MaxDeployedNear = Mathf.RoundToInt(list.Slider(MaxDeployedNear, 1f, 6f));
+            }
+            // Only with a rule that names it (Biotech's Remote shield)
+            if ((AbilityAISwitches.Used & AbilityAISwitch.RemoteShieldEnemies) != 0)
+            {
+                Section(list, "AAI_Section_Mechanitor");
+                list.CheckboxLabeled("AAI_RemoteShieldEnemies".Translate(), ref RemoteShieldEnemies, "AAI_RemoteShieldEnemies_Tip".Translate());
             }
             if (VpeSpawnerPatchApplied)
             {

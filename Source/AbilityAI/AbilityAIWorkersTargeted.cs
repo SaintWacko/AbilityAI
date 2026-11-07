@@ -78,23 +78,29 @@ namespace AbilityAI
     /// friendly building within the radius (default 5), for a fire or blast that spreads past the target (Ignite).
     /// Cost: k WouldAffect checks, k² distance checks only with grouping, k×a with meleeOnly or avoidAllies; with
     /// avoidBuildings a pass over the cells in the radius for each enemy that passes the rest (about 30 at radius 3).
+    /// Turrets: with Turret in targetKinds the enemy turrets that are a threat now are candidates too, scored as a
+    /// pawn of combat power 100 (+1 when it aims at the caster), grouped and avoided the same way; meleeOnly and
+    /// inMentalState leave them out. inMentalState: only enemies in a mental state (Animal calm's manhunters).
     /// </summary>
     public class AbilityAIWorker_TargetHostile : AbilityAIWorker
     {
         public override bool TargetsEnemies => true;
-        private static readonly List<TargetingUtil.Cand> cands = new List<TargetingUtil.Cand>();
+        private struct Cand { public Thing thing; public float score; }
+        private static readonly List<Cand> cands = new List<Cand>();
+
+        private static void SortBest() => cands.Sort((a, b) => b.score.CompareTo(a.score));
 
         public override bool TryFindTarget(AbilityAIContext ctx, AIAbility ability, out LocalTargetInfo target, out LocalTargetInfo dest)
         {
             target = dest = LocalTargetInfo.Invalid;
             Score(ctx, ability, TargetingUtil.Reach(ability, ext));
-            TargetingUtil.SortBest(cands);
+            SortBest();
             // An ability that only takes a location (VPE's Frost Ray) is aimed at the enemy's cell
             for (int i = 0; i < cands.Count && i < TargetingUtil.MaxTries; i++)
             {
-                target = AbilityAIUtility.PawnOrCell(ability, cands[i].pawn);
+                target = AbilityAIUtility.PawnOrCell(ability, cands[i].thing);
                 if (!target.IsValid) continue;
-                ctx.CastAtPrey = ext.whileHunting && cands[i].pawn == ctx.Prey;
+                ctx.CastAtPrey = ext.whileHunting && cands[i].thing == ctx.Prey;
                 break;
             }
             cands.Clear();
@@ -105,11 +111,11 @@ namespace AbilityAI
         {
             goal = null;
             Score(ctx, ability, reach);
-            TargetingUtil.SortBest(cands);
+            SortBest();
             for (int i = 0; i < cands.Count && i < TargetingUtil.MaxTries; i++)
             {
-                Pawn p = cands[i].pawn;
-                if (AbilityAIDriver.ValidIgnoringRange(ability, p) || AbilityAIDriver.ValidIgnoringRange(ability, p.Position)) { goal = p; break; }
+                Thing t = cands[i].thing;
+                if (AbilityAIDriver.ValidIgnoringRange(ability, t) || AbilityAIDriver.ValidIgnoringRange(ability, t.Position)) { goal = t; break; }
             }
             cands.Clear();
             return goal != null;
@@ -125,6 +131,7 @@ namespace AbilityAI
             if (p.Downed || !p.HostileTo(ctx.pawn) || !AbilityAIUtility.WouldAffect(ability, ext, p)) return false;
             if (ctx.IsBrokenAlly(p) && !AbilityAIUtility.MayHitBrokenAllies(ext)) return false;
             if (ext.armedOnly && p.equipment?.Primary == null) return false;
+            if (ext.inMentalState && !p.InMentalState) return false;
             return !ext.meleeOnly || AbilityAIUtility.InMeleeWithSide(ctx, p);
         }
 
@@ -150,6 +157,50 @@ namespace AbilityAI
             }
             if (prey != null && !preySeen)
                 Consider(ctx, ability, prey, true, range, maxSq, minSq, near2, grouping, spareBroken);
+            if (AbilityAIUtility.WantsTurrets(ext) && !ext.meleeOnly && !ext.inMentalState)
+            {
+                var turrets = ctx.EnemyTurrets;
+                for (int i = 0; i < turrets.Count; i++)
+                    ConsiderTurret(ctx, ability, turrets[i], turrets[i] == current, range, maxSq, minSq, near2, grouping, spareBroken);
+            }
+        }
+
+        private void ConsiderTurret(AbilityAIContext ctx, AIAbility ability, Thing t, bool isCurrent, float range, float maxSq, float minSq,
+            float near2, bool grouping, bool spareBroken)
+        {
+            float d = (t.Position - ctx.pawn.Position).LengthHorizontalSquared;
+            if (d > maxSq || d < minSq) return;
+            if (!AbilityAIUtility.WouldAffect(ability, ext, t)) return;
+            float score = 1f;
+            if (isCurrent) score += 1f;
+            if (t is Building_Turret turret && turret.CurrentTarget.Thing == ctx.pawn) score += 1f;
+            if (grouping)
+            {
+                int group = 1 + CountNear(ctx, t, near2, spareBroken);
+                if (group < ext.minTargets) return;
+                if (ext.preferGrouped) score *= group;
+            }
+            if (ext.avoidAllies && AbilityAIUtility.AllyWithin(ctx, ext, t.Position, near2, spareBroken, false)) return;
+            if (ext.avoidBuildings && AbilityAIUtility.FriendlyBuildingWithin(ctx, t.Position, Near)) return;
+            score /= 1f + Mathf.Sqrt(d) / Mathf.Max(range, 1f);
+            cands.Add(new Cand { thing = t, score = score });
+        }
+
+        // The rest of the target's side within near2 of it: enemy pawns, and enemy turrets when the rule names them
+        private int CountNear(AbilityAIContext ctx, Thing t, float near2, bool spareBroken)
+        {
+            int n = 0;
+            var enemies = ctx.Enemies;
+            for (int j = 0; j < enemies.Count; j++)
+                if (enemies[j] != t && (enemies[j].Position - t.Position).LengthHorizontalSquared <= near2
+                    && (!spareBroken || !ctx.IsBrokenAlly(enemies[j]))) n++;
+            if (AbilityAIUtility.WantsTurrets(ext))
+            {
+                var turrets = ctx.EnemyTurrets;
+                for (int j = 0; j < turrets.Count; j++)
+                    if (turrets[j] != t && (turrets[j].Position - t.Position).LengthHorizontalSquared <= near2) n++;
+            }
+            return n;
         }
 
         private void Consider(AbilityAIContext ctx, AIAbility ability, Pawn e, bool isCurrent, float range, float maxSq, float minSq,
@@ -159,6 +210,7 @@ namespace AbilityAI
             if (d > maxSq || d < minSq) return;
             if (!AbilityAIUtility.WouldAffect(ability, ext, e)) return;
             if (ext.armedOnly && e.equipment?.Primary == null) return;
+            if (ext.inMentalState && !e.InMentalState) return;
             if (ext.meleeOnly && !AbilityAIUtility.InMeleeWithSide(ctx, e)) return;
             float score = 1f;
             if (isCurrent) score += 1f;
@@ -166,11 +218,7 @@ namespace AbilityAI
             score *= Mathf.Clamp(e.kindDef.combatPower / 100f, 0.5f, 3f);
             if (grouping)
             {
-                var enemies = ctx.Enemies;
-                int group = 1;
-                for (int j = 0; j < enemies.Count; j++)
-                    if (enemies[j] != e && (enemies[j].Position - e.Position).LengthHorizontalSquared <= near2
-                        && (!spareBroken || !ctx.IsBrokenAlly(enemies[j]))) group++;
+                int group = 1 + CountNear(ctx, e, near2, spareBroken);
                 if (group < ext.minTargets) return;
                 if (ext.preferGrouped) score *= group;
             }
@@ -178,7 +226,7 @@ namespace AbilityAI
             // Here rather than on the best few: when those all stand by a wall, a clear enemy further down still counts
             if (ext.avoidBuildings && AbilityAIUtility.FriendlyBuildingWithin(ctx, e.Position, Near)) return;
             score /= 1f + Mathf.Sqrt(d) / Mathf.Max(range, 1f);
-            cands.Add(new TargetingUtil.Cand { pawn = e, score = score });
+            cands.Add(new Cand { thing = e, score = score });
         }
     }
 

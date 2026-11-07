@@ -359,7 +359,7 @@
           </match>
         </li>
 
-        <!-- Controller shoulders: the spidermine lands, walks to an enemy and blows up, as the hunter drone pack -->
+        <!-- Controller shoulders: the spidermine lands, walks to the best attack target near it and dies there in a 4.9 flame blast that starts fires (DeathActionWorker_SpidermineExplosion) -->
         <li Class="PatchOperationConditional">
           <xpath>Defs/VFEPirates.WarcasketDef[defName="VFEP_WarcasketShoulders_Controller"]</xpath>
           <match Class="PatchOperationAddModExtension">
@@ -368,9 +368,11 @@
               <li Class="AbilityAI.AbilityAIExtension">
                 <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
                 <priority>3</priority>
-                <radius>2.9</radius>
+                <radius>4.9</radius>
                 <preferGrouped>true</preferGrouped>
                 <avoidAllies>true</avoidAllies>
+                <avoidBuildings>true</avoidBuildings>
+                <startsFires>true</startsFires>
               </li>
             </value>
           </match>
@@ -648,7 +650,7 @@
           </match>
         </li>
 
-        <!-- Disposable launcher (single use): a shaped charge (76, 1.6 plus a 1.5 miss) for a mech -->
+        <!-- Disposable launcher (single use): a shaped charge (76, 1.6 plus a 1.5 miss) for a mech or a turret (DMS marks it a building destroyer) -->
         <li Class="PatchOperationConditional">
           <xpath>Defs/ThingDef[defName="DMS_DeposableRocketLauncher"]</xpath>
           <match Class="PatchOperationAddModExtension">
@@ -658,7 +660,7 @@
                 <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
                 <priority>3</priority>
                 <radius>3.1</radius>
-                <targetKinds>Mechanoid</targetKinds>
+                <targetKinds>Mechanoid, Turret</targetKinds>
                 <avoidAllies>true</avoidAllies>
               </li>
             </value>
@@ -743,7 +745,7 @@
           </match>
         </li>
 
-        <!-- Stugna module: a 160 shaped-charge missile (1.95 plus the 1.9 miss) for a mech -->
+        <!-- Stugna module: a 160 shaped-charge missile (1.95 plus the 1.9 miss) for a mech or a turret -->
         <li Class="PatchOperationConditional">
           <xpath>Defs/ThingDef[defName="DMS_Apparel_StugnaLauncher"]</xpath>
           <match Class="PatchOperationAddModExtension">
@@ -753,7 +755,7 @@
                 <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
                 <priority>3</priority>
                 <radius>3.9</radius>
-                <targetKinds>Mechanoid</targetKinds>
+                <targetKinds>Mechanoid, Turret</targetKinds>
                 <avoidAllies>true</avoidAllies>
               </li>
             </value>

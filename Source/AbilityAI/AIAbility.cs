@@ -38,6 +38,18 @@ namespace AbilityAI
         /// <summary>For a thing that isn't a pawn (a turret): whether the ability's effect is already on it, which
         /// skipAffected then leaves alone. Pawns go by targetHediff. Null = never.</summary>
         public Func<Thing, bool> thingAffected;
+
+        // Building_Turret.ThreatDisabled ignores a stun, so an EMP-stunned turret stays in EnemyTurrets and a second
+        // caster would bolt it again
+        public static readonly Func<Thing, bool> TurretStunned = t => t.TryGetComp<CompStunnable>()?.StunHandler?.Stunned == true;
+
+        /// <summary>A projectile whose hit stuns a turret (EMP, or a damage that stuns): skipAffected then leaves a
+        /// stunned turret alone.</summary>
+        public void NoteProjectile(ProjectileProperties proj)
+        {
+            var d = proj?.damageDef;
+            if (thingAffected == null && d != null && (d == DamageDefOf.EMP || d.causeStun)) thingAffected = TurretStunned;
+        }
     }
 
     public abstract class AIAbility
@@ -652,6 +664,7 @@ namespace AbilityAI
                         }
                         if (proj.damageDef == DamageDefOf.Smoke || proj.postExplosionGasType == GasType.BlindSmoke) e.smoke = true;
                         if (proj.damageDef != null && proj.damageDef.causeStun) e.stuns = true;
+                        e.NoteProjectile(proj);
                     }
                     if (c is CompProperties_AbilityExplosion boom)
                     {

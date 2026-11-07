@@ -296,6 +296,7 @@ namespace AbilityAI
                 if (proj.explosionRadius > 0f) { e.hasEffectRadius = true; e.effectRadius = proj.explosionRadius; }
                 if (proj.damageDef == DamageDefOf.Smoke || proj.postExplosionGasType == GasType.BlindSmoke) e.smoke = true;
                 if (proj.damageDef != null && proj.damageDef.causeStun) e.stuns = true;
+                e.NoteProjectile(proj);
                 e.spawns = proj.spawnsThingDef ?? proj.postExplosionSpawnThingDef ?? proj.spawnsPawnKind?.race;
             }
             // A verb that makes a pawn itself (Fortified's Verb_Deploy, the DMS drone packs) names its kind here

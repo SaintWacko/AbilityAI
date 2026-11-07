@@ -45,9 +45,10 @@ namespace AbilityAI
 
         /// <summary>A projectile whose hit stuns a turret (EMP, or a damage that stuns): skipAffected then leaves a
         /// stunned turret alone.</summary>
-        public void NoteProjectile(ProjectileProperties proj)
+        public void NoteProjectile(ProjectileProperties proj) => NoteDamage(proj?.damageDef);
+
+        public void NoteDamage(DamageDef d)
         {
-            var d = proj?.damageDef;
             if (thingAffected == null && d != null && (d == DamageDefOf.EMP || d.causeStun)) thingAffected = TurretStunned;
         }
     }
@@ -670,6 +671,7 @@ namespace AbilityAI
                     {
                         if (boom.explosionRadius > 0f && !e.hasEffectRadius) { e.hasEffectRadius = true; e.effectRadius = boom.explosionRadius; }
                         if (boom.damageDef != null && boom.damageDef.causeStun) e.stuns = true;
+                        e.NoteDamage(boom.damageDef);
                     }
                     if (c is CompProperties_AbilityFireBurst burst && !e.hasEffectRadius) { e.hasEffectRadius = true; e.effectRadius = burst.radius; }
                     if (c is CompProperties_AbilityFirefoampop foam && !e.hasEffectRadius) { e.hasEffectRadius = true; e.effectRadius = foam.firefoamRadius; }

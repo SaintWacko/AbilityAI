@@ -153,7 +153,7 @@ namespace AbilityAI
                 if (state.abilityNext == null) state.abilityNext = new Dictionary<Def, int>();
                 state.abilityNext[word.Def] = tick + Mathf.RoundToInt(rule.minGapSeconds * GenTicks.TicksPerRealSecond);
             }
-            // A Word of Trust from zone work: no other colonist heads for a prisoner this cast reaches
+            // A Word from zone work: no other colonist heads for a pawn this cast reaches that its zone work wants
             if (rule.Worker is AbilityAIWorker_Zone && PsycastZones.Of(pawn.Map) is PsycastZones zones)
                 for (int i = 0; i < linked.Count; i++)
                     if (linked[i] != null && AbilityAIZones.Wants(rule, linked[i])) zones.Claim(linked[i], pawn, cast.loadID);

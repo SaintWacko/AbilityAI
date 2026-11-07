@@ -743,6 +743,10 @@ namespace AbilityAI
                 yield return $"recastThing is only read by Recast, not {workerClass.Name}";
             bool zoneWorker = workerClass != null && typeof(AbilityAIWorker_Zone).IsAssignableFrom(workerClass);
             if (zoneWorker && zoneTarget == AbilityAIZoneTarget.None) yield return "a Zone rule needs a zoneTarget";
+            // Without it every pawn already under the effect stays wanted and is cast at again (a leech taken off its caster)
+            if (zoneWorker && hediff == null && (zoneTarget == AbilityAIZoneTarget.LowMood || zoneTarget == AbilityAIZoneTarget.ColonistsWithout
+                || zoneTarget == AbilityAIZoneTarget.LeechHosts))
+                yield return $"a {zoneTarget} Zone rule needs the hediff its cast gives the target";
             else if (!zoneWorker && workerClass != null && zoneTarget != AbilityAIZoneTarget.None)
                 yield return $"zoneTarget is only read by Zone, not {workerClass.Name}";
             if (!zoneWorker && workerClass != null && sensitivityAbove >= 0f)

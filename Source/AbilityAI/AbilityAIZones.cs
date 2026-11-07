@@ -249,7 +249,9 @@ namespace AbilityAI
                 {
                     if (!(t is Pawn p) || !p.RaceProps.Humanlike || p.Downed || p.InMentalState || p.IsPrisoner || p.IsSlave) return false;
                     Faction f = p.Faction;
-                    if (f == null || f.IsPlayer || !f.HasGoodwill || f.def.permanentEnemy || p.HostileTo(Faction.OfPlayer)) return false;
+                    // CanChangeGoodwillFor: a defeated faction, or goodwill a quest has locked, takes VPE's cast and
+                    // nothing changes, so it would be wanted forever
+                    if (f == null || f.IsPlayer || p.HostileTo(Faction.OfPlayer) || !f.CanChangeGoodwillFor(Faction.OfPlayer, 1)) return false;
                     return f.PlayerGoodwill < AbilityAISettings.ZoneAllianceBelowGoodwill;
                 }
                 case AbilityAIZoneTarget.LeechHosts:

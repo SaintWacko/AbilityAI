@@ -117,6 +117,13 @@ namespace AbilityAI
                 // Only the XML loader sets the hash, and Def's Equals and GetHashCode use it: unset, every GearVerbDef
                 // is one key in every Dictionary<Def, ...> (review 251)
                 key.ResolveDefNameHash();
+                // The role versions AbilityAINpcGates.Note reads below are built here (and cached), where a throw still
+                // leaves nothing behind
+                for (int i = 0; i < g.Value.Count; i++)
+                {
+                    g.Value[i].For(AbilityAIRole.Npc);
+                    g.Value[i].For(AbilityAIRole.FriendlyNpc);
+                }
                 moved.Add(key);
                 keys.Add(new RuledVerb { index = g.Key, key = key });
             }

@@ -359,16 +359,17 @@ namespace AbilityAI
             return false;
         }
 
-        internal static string Label(AbilityAIAutocastMode mode, AbilityDef def) => Label(mode, def, IsTouch(def));
+        internal static string Label(AbilityAIAutocastMode mode, AbilityDef def, Pawn pawn) => Label(mode, def, IsTouch(def), pawn);
 
-        internal static string Label(AbilityAIAutocastMode mode, Def def, bool touch)
+        /// <summary>pawn: the caster, when known; one that can't be drafted is never offered Full (OpenMenu).</summary>
+        internal static string Label(AbilityAIAutocastMode mode, Def def, bool touch, Pawn pawn)
         {
             switch (mode)
             {
                 case AbilityAIAutocastMode.Stationary:
                     // "Stationary" only means something beside a Full mode; with no rule that walks into range (most
                     // worn gear: self-cast packs, belts) the menu offers no Full, and the word read as a restriction
-                    return touch || MovesCaster(def) || !CanApproach(def) ? "AAI_Mode_Touch".Translate() : "AAI_Mode_Stationary".Translate();
+                    return touch || MovesCaster(def) || !CanApproach(def) || (pawn != null && pawn.drafter == null) ? "AAI_Mode_Touch".Translate() : "AAI_Mode_Stationary".Translate();
                 case AbilityAIAutocastMode.Full: return "AAI_Mode_Full".Translate();
                 default: return "AAI_Mode_Off".Translate();
             }
@@ -425,7 +426,7 @@ namespace AbilityAI
             foreach (AbilityAIAutocastMode mode in Modes)
             {
                 if (mode == AbilityAIAutocastMode.Full && !full && current != AbilityAIAutocastMode.Full) continue;
-                string label = Label(mode, def, touch);
+                string label = Label(mode, def, touch, clicked);
                 if (mode == current) label = "AAI_Mode_Current".Translate(label);
                 AbilityAIAutocastMode m = mode;
                 options.Add(new FloatMenuOption(label, () =>

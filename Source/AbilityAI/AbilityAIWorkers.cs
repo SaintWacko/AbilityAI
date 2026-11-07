@@ -704,8 +704,9 @@ namespace AbilityAI
 
         private static bool FriendlyCorpseWithin(AbilityAIContext ctx, IntVec3 c, float radius)
         {
-            // NumCellsInRadius logs an error past the pattern; a rule that big can't be checked, so it is taken as clear
-            if (radius >= GenRadial.MaxRadialPatternRadius) return false;
+            // NumCellsInRadius logs an error past the pattern; a rule that big can't be checked, so it is taken as blocked
+            // rather than risk raising the caster's own dead
+            if (radius >= GenRadial.MaxRadialPatternRadius) return true;
             Faction own = ctx.pawn.Faction;
             int n = GenRadial.NumCellsInRadius(radius);
             for (int i = 0; i < n; i++)

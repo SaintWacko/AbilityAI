@@ -68,6 +68,9 @@
           <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
           <priority>3</priority>
           <preferGrouped>true</preferGrouped>
+          <!-- a berserk enemy attacks whoever is nearest, an ally in melee with it included -->
+          <radius>6</radius>
+          <avoidAllies>true</avoidAllies>
           <exclusive>true</exclusive>
         </li>
       </value>
@@ -263,6 +266,9 @@
                 <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
                 <priority>3</priority>
                 <preferGrouped>true</preferGrouped>
+                <!-- a berserk enemy attacks whoever is nearest, an ally in melee with it included -->
+                <radius>6</radius>
+                <avoidAllies>true</avoidAllies>
                 <exclusive>true</exclusive>
               </li>
             </value>

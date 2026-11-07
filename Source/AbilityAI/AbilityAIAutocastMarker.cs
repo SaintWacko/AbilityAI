@@ -120,20 +120,20 @@ namespace AbilityAI
             if (!(__instance is Command_Ability command)) return;
             Ability ability = command.Ability;
             if (ability?.pawn == null || !AutocastMarker.Offers(ability)) return;
-            string mode = AbilityAIAutocast.Label(AbilityAIAutocast.ModeFor(ability.pawn, ability.def), ability.def);
+            string mode = AbilityAIAutocast.Label(AbilityAIAutocast.ModeFor(ability.pawn, ability.def), ability.def, ability.pawn);
             __result += "\n\n" + "AAI_Autocast_Hint".Translate(mode).Colorize(ColoredText.SubtleGrayColor);
-            string recast = AbilityAIRecast.Hint(ability.def);
+            string recast = AbilityAIRecast.Hint(ability.def, ability.pawn);
             if (recast != null) __result += "\n" + recast.Colorize(ColoredText.SubtleGrayColor);
             // Zone casting is undrafted work: without undrafted autocast it never runs
             string zone = AbilityAISettings.UndraftedAutocast ? AbilityAIZones.Hint(ability.def, ability.pawn) : null;
             if (zone != null) __result += "\n" + zone.Colorize(ColoredText.SubtleGrayColor);
             string spot = AbilityAISettings.UndraftedAutocast ? AbilityAISpots.Hint(ability.def) : null;
             if (spot != null) __result += "\n" + spot.Colorize(ColoredText.SubtleGrayColor);
-            string vent = AbilityAIHeat.Hint(ability.def);
+            string vent = AbilityAIHeat.Hint(ability.def, ability.pawn);
             if (vent != null) __result += "\n" + vent.Colorize(ColoredText.SubtleGrayColor);
-            string barrier = AbilityAIBarrier.Hint(ability.def);
+            string barrier = AbilityAIBarrier.Hint(ability.def, ability.pawn);
             if (barrier != null) __result += "\n" + barrier.Colorize(ColoredText.SubtleGrayColor);
-            string link = AbilityAIGroupLink.Hint(ability.def);
+            string link = AbilityAIGroupLink.Hint(ability.def, ability.pawn);
             if (link != null) __result += "\n" + link.Colorize(ColoredText.SubtleGrayColor);
         }
     }

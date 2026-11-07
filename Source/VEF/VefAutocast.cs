@@ -164,7 +164,7 @@ namespace AbilityAI.Vef
             if (ability?.pawn == null || !VefAIAbility.Supported(ability.def)) return;
             var a = VefAIAbility.Of(ability);
             if (!AutocastMarker.Offers(a)) return;
-            string mode = AbilityAIAutocast.Label(AbilityAIAutocast.ModeFor(ability.pawn, ability.def), ability.def, a.IsTouch);
+            string mode = AbilityAIAutocast.Label(AbilityAIAutocast.ModeFor(ability.pawn, ability.def), ability.def, a.IsTouch, ability.pawn);
             __result += "\n\n" + "AAI_Autocast_Hint".Translate(mode).Colorize(ColoredText.SubtleGrayColor);
             string recast = AbilityAIRecast.Hint(ability.def);
             if (recast != null) __result += "\n" + recast.Colorize(ColoredText.SubtleGrayColor);

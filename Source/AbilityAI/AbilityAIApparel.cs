@@ -179,7 +179,7 @@ namespace AbilityAI
             if (!(__instance is Command_VerbOwner command)) return;
             var a = AbilityAIApparel.Of(command);
             if (a?.Pawn == null || !AutocastMarker.Offers(a)) return;
-            string mode = AbilityAIAutocast.Label(AbilityAIAutocast.ModeFor(a.Pawn, a.Def), a.Def, false);
+            string mode = AbilityAIAutocast.Label(AbilityAIAutocast.ModeFor(a.Pawn, a.Def), a.Def, false, a.Pawn);
             __result += "\n\n" + "AAI_Autocast_Hint".Translate(mode).Colorize(ColoredText.SubtleGrayColor);
             if (a.SingleUse) __result += "\n" + "AAI_SingleUse_Hint".Translate().Colorize(ColoredText.SubtleGrayColor);
         }

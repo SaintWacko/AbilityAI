@@ -26,7 +26,8 @@ namespace AbilityAI
         protected internal virtual AbilityAICategory DefaultCategory => AbilityAICategory.Utility;
 
         /// <summary>What the rule does in a fight, for a job owner's arbiter: the rule's category, else the worker's.</summary>
-        public AbilityAICategory Category => ext.category == AbilityAICategory.Default ? DefaultCategory : ext.category;
+        public AbilityAICategory Category => ext.category != AbilityAICategory.Default ? ext.category
+            : DefaultCategory != AbilityAICategory.Default ? DefaultCategory : AbilityAICategory.Utility;
 
         /// <summary>Whether the player's pawns may autocast it while undrafted: any worker that isn't combat-only
         /// (Recovery, Rescue, Calm, Firefighting by default). A def can opt a combat worker in with combat Any.</summary>

@@ -54,15 +54,17 @@ namespace AbilityAI
         /// <summary>Cast ability at target / dest.</summary>
         Cast,
         /// <summary>Cast the pawn's Group link first, so the Word in ability (at target) reaches everyone linked on the
-        /// pawn's next check. The Word alone follows as its own Cast candidate.</summary>
+        /// pawn's next check. The Word alone always follows as its own Cast candidate, even past max.</summary>
         LinkFirst,
         /// <summary>The Word a Group link was cast for, at target through the link. Offered alone: while it is due
         /// nothing else is looked at, and the link comes down if no Word is made in time.</summary>
         LinkWord,
         /// <summary>Walk to dest (a cell) to cast ability, at target when it names a thing. Offered only when no cast
-        /// is.</summary>
+        /// is. Its category is Movement; the rule's own is rule.Worker.Category.</summary>
         Approach,
-        /// <summary>A player pawn's walk back to where it stood before a Full autocast walk. ability is null.</summary>
+        /// <summary>A player pawn's walk back after a Full autocast walk. ability is null; dest is where it stood or the
+        /// cell already chosen, though Start may pick a covered cell nearby instead (ReturnToCover). With no walk
+        /// possible, Start returns the attack the pawn was on before the walk, or null.</summary>
         Return,
     }
 
@@ -125,7 +127,9 @@ namespace AbilityAI
         /// would do for this pawn now, best first, under the same rules, settings, autocast modes and intervals as its
         /// own casts (a pawn checked less than 30 ticks ago, or within the gap after a cast, gets nothing). Casts are
         /// sorted by rule priority; a walk into range or back is offered only when no cast is. Starts nothing, makes no
-        /// job and holds nothing: pass the one picked to Start in the same tick.</summary>
+        /// job and holds nothing: pass the one picked to Start in the same tick. Ask at most once per pawn per check:
+        /// an ask that offers something makes the batch before it stale, and passing over a whole batch still costs the
+        /// pawn its next 30 ticks, as a check that cast nothing does.</summary>
         public static void GetCandidates(Pawn pawn, List<AbilityAICandidate> into, int max = 3)
         {
             if (into == null) return;
@@ -135,12 +139,17 @@ namespace AbilityAI
             var control = ControlOf(pawn);
             if (control == Control.None || !AIAbilitySources.AnyWithExtension(pawn)) return;
             var state = states.GetValue(pawn, _ => new PawnState());
-            state.offer = ++offerId;
+            // A new id only once something is offered: vanilla can run the constant tree twice in a tick, and a second
+            // ask that stops at the interval check must not make the first batch stale
+            int previous = state.offer;
+            state.offer = offerId + 1;
             offerInto = into;
             offerMax = max;
             try
             {
                 Evaluate(pawn, control);
+                if (into.Count > 0) offerId++;
+                else state.offer = previous;
                 if (into.Count == 0 && whyNot != null && whyNot.Length > 0) LogWhyNot(pawn, control);
             }
             catch (Exception e)
@@ -172,6 +181,11 @@ namespace AbilityAI
             {
                 Log.ErrorOnce($"[Ability AI] Start threw for {pawn.def.defName}: {e}", pawn.def.shortHash ^ 0x7A14);
                 return null;
+            }
+            finally
+            {
+                // A refused Group link leaves its reason for the Word's dev log line, which may never come
+                noLinkWhy = null;
             }
             if (job != null)
             {

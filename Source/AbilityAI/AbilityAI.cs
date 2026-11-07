@@ -2228,12 +2228,6 @@ namespace AbilityAI
                                 kind = AbilityAICandidateKind.LinkFirst, ability = a, rule = ext, target = target, dest = dest,
                                 priority = ext.priority, linker = linker, expected = linkCount, castAtPrey = ctx.CastAtPrey,
                             });
-                            if (OfferFull)
-                            {
-                                exclusiveDef = null;
-                                affectedCounted = false;
-                                return null;
-                            }
                         }
                         else
                         {
@@ -2713,7 +2707,7 @@ namespace AbilityAI
                     Offer(state, new AbilityAICandidate
                     {
                         kind = AbilityAICandidateKind.Approach, ability = a, rule = ext, target = claim, dest = cell,
-                        priority = ext.priority, expected = expected, at = at,
+                        priority = ext.priority, expected = expected, at = at, category = AbilityAICategory.Movement,
                     });
                     return null;
                 }

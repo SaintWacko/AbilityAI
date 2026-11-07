@@ -235,4 +235,4 @@ Keep a worker cheap. It runs for every pawn holding a ready ability with its rul
 
 ## Settings
 
-`AbilityAISettings` holds the player's settings as public static fields (`Enabled`, `Hostiles`, `NonHostiles`, `Animals`, `Mechs`, `Unclaimed`, `PlayerAutocast`, `DebugLog`, `NpcInstantKill`, `NpcBaseWrecking`, `NpcSingleUseItems` and the rest). Read them when you need them; the player can change them at any time.
+`AbilityAISettings` holds the player's settings as public static fields (`Enabled`, `Hostiles`, `NonHostiles`, `Animals`, `Mechs`, `Unclaimed`, `PlayerAutocast`, `DebugLog`, `NpcInstantKill`, `NpcMaiming`, `NpcBaseWrecking`, `NpcSingleUseItems`, `MaxDeployedNear`, `MaxSummonedNear` and the rest). Read them when you need them; the player can change them at any time.

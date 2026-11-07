@@ -266,6 +266,9 @@ namespace AbilityAI
         /// <summary>Wrecks buildings over a wide area (meteors, a sun beam, a tornado, wildfire): setting
         /// NpcBaseWrecking, hostile casters only. Friendly NPCs never use it, since it would be the player's base.</summary>
         BaseWrecking = 2,
+        /// <summary>Maims for good without killing (Alpha Animals' Leg skip takes both legs, Destroy eyes both eyes):
+        /// setting NpcMaiming, every NPC caster.</summary>
+        Maiming = 4,
     }
 
     /// <summary>Recovery: the health conditions a rule treats.</summary>
@@ -522,6 +525,9 @@ namespace AbilityAI
         /// <summary>AoE hostile: never centre the area within its radius of the caster, for areas that hit the caster
         /// too (berserk pulse). Unlike a fixed minRange it follows the radius when a stat or another mod scales it.</summary>
         public bool avoidSelf;
+        /// <summary>Target hostile: the caster has left its cell when the area lands (a leap onto the target), so
+        /// avoidAllies doesn't count the caster itself; without it a melee caster refuses every enemy beside it.</summary>
+        public bool casterLeaves;
         /// <summary>Hostile area and cone workers: not when a building of the caster's side, or of a faction not
         /// hostile to it, is inside (incendiaries cast by visitors near the player's base). Target hostile: within the
         /// radius (default 5) of the target. Movement, targeted: within the radius of the landing cell.</summary>
@@ -572,6 +578,13 @@ namespace AbilityAI
         /// <summary>Target friendly: only allies in fire danger (burning, a fire within 2.5 tiles, or an enemy that
         /// can set fires in reach of them, see AbilityAIFire) instead of allies who are fighting (Hydro shield).</summary>
         public bool fireDanger;
+        /// <summary>Target friendly: never an ally in fire danger (AbilityAIFire), for a buff that makes its bearer burn
+        /// worse (Alpha Animals' Fungal skin).</summary>
+        public bool avoidFireDanger;
+        /// <summary>Hostile workers: only pawns with at least one part of this def left, for an ability that works on that
+        /// part alone (Alpha Animals' Destroy eyes, Leg skip); a pawn missing all of them is skipped, so the ability isn't
+        /// spent on an enemy it already blinded. Mechs and other bodies without the part are skipped too.</summary>
+        public BodyPartDef targetPart;
         /// <summary>A heat vent: the driver tries this rule only when, with nothing else cast, another of the caster's
         /// psycasts had a target and neural heat alone held it back (the player's heat limit, or the game's maximum);
         /// zone, marker and recast work casts an out-of-combat one when heat holds back a psycast that has work there
@@ -748,6 +761,14 @@ namespace AbilityAI
                 yield return $"armedOnly is only read by Target hostile, not {workerClass.Name}";
             if (fireDanger && workerClass != null && !typeof(AbilityAIWorker_TargetFriendly).IsAssignableFrom(workerClass))
                 yield return $"fireDanger is only read by Target friendly, not {workerClass.Name}";
+            if (avoidFireDanger && workerClass != null && !typeof(AbilityAIWorker_TargetFriendly).IsAssignableFrom(workerClass))
+                yield return $"avoidFireDanger is only read by Target friendly, not {workerClass.Name}";
+            if (casterLeaves && workerClass != null && !typeof(AbilityAIWorker_TargetHostile).IsAssignableFrom(workerClass))
+                yield return $"casterLeaves is only read by Target hostile, not {workerClass.Name}";
+            if (casterLeaves && !avoidAllies) yield return "casterLeaves does nothing without avoidAllies";
+            if (avoidFireDanger && fireDanger) yield return "fireDanger and avoidFireDanger together leave no ally to target";
+            if (targetPart != null && Worker != null && !Worker.TargetsEnemies)
+                yield return $"targetPart is only read by hostile workers, not {workerClass.Name}";
             if (heatVent && Worker != null && !Worker.DriverCasts)
                 yield return $"heatVent does nothing on {workerClass.Name}: the driver never casts from it";
             bool shedWorker = workerClass != null && typeof(AbilityAIWorker_ShedHeat).IsAssignableFrom(workerClass);
@@ -2751,6 +2772,10 @@ namespace AbilityAI
                     if (npc.enabled) AbilityAISwitches.Used |= npc.setting;
                     if (friendly.enabled) AbilityAISwitches.Used |= friendly.setting;
                     if (own.enabled) AbilityAISwitches.Used |= own.setting;
+                    // Gear notes its own (ApparelAIAbility.Note): its limit is the turret packs' one
+                    if (!(abilityDef is ThingDef) && !(abilityDef is GearVerbDef) && (own.enabled || npc.enabled || friendly.enabled)
+                        && rule.workerClass != null && typeof(AbilityAIWorker_Deploy).IsAssignableFrom(rule.workerClass))
+                        AbilityAIWorker_Deploy.UsedByAbilities = true;
                 }
         }
 
@@ -2758,6 +2783,7 @@ namespace AbilityAI
         {
             if (role == AbilityAIRole.Player) return true;
             if ((gate & AbilityAINpcGate.InstantKill) != 0 && !AbilityAISettings.NpcInstantKill) return false;
+            if ((gate & AbilityAINpcGate.Maiming) != 0 && !AbilityAISettings.NpcMaiming) return false;
             if ((gate & AbilityAINpcGate.BaseWrecking) != 0 && (role != AbilityAIRole.Npc || !AbilityAISettings.NpcBaseWrecking)) return false;
             return true;
         }
@@ -2766,9 +2792,11 @@ namespace AbilityAI
         internal static string Why(AbilityAINpcGate gate, AbilityAIRole role)
         {
             if ((gate & AbilityAINpcGate.BaseWrecking) != 0 && role != AbilityAIRole.Npc) return "it wrecks buildings, which only hostile pawns may do";
-            return (gate & AbilityAINpcGate.InstantKill) != 0 && !AbilityAISettings.NpcInstantKill
-                ? "it kills outright, and \"Other factions may use abilities that kill outright\" is off"
-                : "it wrecks buildings, and \"Raiders may use abilities that wreck buildings\" is off";
+            if ((gate & AbilityAINpcGate.InstantKill) != 0 && !AbilityAISettings.NpcInstantKill)
+                return "it kills outright, and \"Other factions may use abilities that kill outright\" is off";
+            if ((gate & AbilityAINpcGate.Maiming) != 0 && !AbilityAISettings.NpcMaiming)
+                return "it maims for good, and \"Other factions may use abilities that maim permanently\" is off";
+            return "it wrecks buildings, and \"Raiders may use abilities that wreck buildings\" is off";
         }
     }
 
@@ -2870,9 +2898,10 @@ namespace AbilityAI
         /// other factions'.</summary>
         public static bool GatherWaitPlayer = true;
         public static bool GatherWaitNpcs = true;
-        /// <summary>npcGate: other factions may use abilities that kill or take a pawn for good in one cast, and hostile
-        /// ones abilities that wreck buildings over a wide area.</summary>
+        /// <summary>npcGate: other factions may use abilities that kill or take a pawn for good in one cast, or that maim
+        /// for good, and hostile ones abilities that wreck buildings over a wide area.</summary>
         public static bool NpcInstantKill;
+        public static bool NpcMaiming;
         public static bool NpcBaseWrecking;
         /// <summary>Other factions may use gear that is used up (lances, low-shield, turret and deadlife packs).</summary>
         public static bool NpcSingleUseItems = true;
@@ -2880,6 +2909,10 @@ namespace AbilityAI
         /// or on the way within its reach of the caster. 1 sends one turret out as a distraction; more add firepower.</summary>
         public const int DefaultMaxDeployedNear = 1;
         public static int MaxDeployedNear = DefaultMaxDeployedNear;
+        /// <summary>Deploy rules on abilities (summons), every caster: the same limit for each thing an ability puts on the
+        /// map. Summoned creatures last a while and run at the enemy, so a few of each can be about at once.</summary>
+        public const int DefaultMaxSummonedNear = 3;
+        public static int MaxSummonedNear = DefaultMaxSummonedNear;
         /// <summary>Barrier rules (AbilityAIBarrier), every caster: raised once this many shooters outside it aim at pawns
         /// inside it; dropped once fewer than BarrierDropFraction x BarrierMinShooters have stayed for
         /// BarrierDropTicks.</summary>
@@ -2941,12 +2974,13 @@ namespace AbilityAI
                     GroupLinkMinTargets = DefaultGroupLinkMinTargets;
                     GroupLinkKeep = false;
                     MaxDeployedNear = DefaultMaxDeployedNear;
+                    MaxSummonedNear = DefaultMaxSummonedNear;
                     RemoteShieldEnemies = false;
                     DebugLog = false;
                     break;
                 case Tab.OtherFactions:
                     Hostiles = NonHostiles = Animals = Mechs = Approach = Unclaimed = GatherWaitNpcs = true;
-                    NpcInstantKill = NpcBaseWrecking = false;
+                    NpcInstantKill = NpcMaiming = NpcBaseWrecking = false;
                     NpcSingleUseItems = true;
                     NpcIdleIntervalTicks = DefaultNpcIdleIntervalTicks;
                     break;
@@ -3006,6 +3040,7 @@ namespace AbilityAI
             Scribe_Values.Look(ref GatherWaitPlayer, "abilityAI_gatherWaitPlayer", true);
             Scribe_Values.Look(ref GatherWaitNpcs, "abilityAI_gatherWaitNpcs", true);
             Scribe_Values.Look(ref NpcInstantKill, "abilityAI_npcInstantKill", false);
+            Scribe_Values.Look(ref NpcMaiming, "abilityAI_npcMaiming", false);
             Scribe_Values.Look(ref NpcBaseWrecking, "abilityAI_npcBaseWrecking", false);
             Scribe_Values.Look(ref NpcSingleUseItems, "abilityAI_npcSingleUseItems", true);
             Scribe_Values.Look(ref NpcIdleIntervalTicks, "abilityAI_npcIdleIntervalTicks", DefaultNpcIdleIntervalTicks);
@@ -3058,6 +3093,8 @@ namespace AbilityAI
             Scribe_Values.Look(ref RemoteShieldEnemies, "abilityAI_remoteShieldEnemies", false);
             Scribe_Values.Look(ref MaxDeployedNear, "abilityAI_maxDeployedNear", DefaultMaxDeployedNear);
             MaxDeployedNear = Mathf.Clamp(MaxDeployedNear, 1, 6);
+            Scribe_Values.Look(ref MaxSummonedNear, "abilityAI_maxSummonedNear", DefaultMaxSummonedNear);
+            MaxSummonedNear = Mathf.Clamp(MaxSummonedNear, 1, 10);
             Scribe_Values.Look(ref DebugLog, "abilityAI_debugLog", false);
         }
 
@@ -3151,12 +3188,19 @@ namespace AbilityAI
                 list.CheckboxLabeled("AAI_GroupLinkKeep".Translate(), ref GroupLinkKeep, "AAI_GroupLinkKeep_Tip".Translate());
                 Hint(list, "AAI_GroupLink_Desc");
             }
-            // Only with a Deploy rule (Anomaly's turret pack, modded drone packs)
-            if (AbilityAIWorker_Deploy.Used)
+            // Only with a Deploy rule on gear (Anomaly's turret pack, modded drone packs)
+            if (AbilityAIWorker_Deploy.UsedByGear)
             {
                 Section(list, "AAI_Section_Deploy");
                 list.Label("AAI_MaxDeployedNear".Translate(MaxDeployedNear), -1f, "AAI_MaxDeployedNear_Tip".Translate());
                 MaxDeployedNear = Mathf.RoundToInt(list.Slider(MaxDeployedNear, 1f, 6f));
+            }
+            // Only with a Deploy rule on an ability (Alpha Animals' summons)
+            if (AbilityAIWorker_Deploy.UsedByAbilities)
+            {
+                Section(list, "AAI_Section_Summon");
+                list.Label("AAI_MaxSummonedNear".Translate(MaxSummonedNear), -1f, "AAI_MaxSummonedNear_Tip".Translate());
+                MaxSummonedNear = Mathf.RoundToInt(list.Slider(MaxSummonedNear, 1f, 10f));
             }
             // Only with a rule that names it (Biotech's Remote shield)
             if ((AbilityAISwitches.Used & AbilityAISwitch.RemoteShieldEnemies) != 0)
@@ -3213,6 +3257,8 @@ namespace AbilityAI
                 Section(list, "AAI_Section_Dangerous");
                 if ((gates & AbilityAINpcGate.InstantKill) != 0)
                     list.CheckboxLabeled("AAI_NpcInstantKill".Translate(), ref NpcInstantKill, "AAI_NpcInstantKill_Tip".Translate());
+                if ((gates & AbilityAINpcGate.Maiming) != 0)
+                    list.CheckboxLabeled("AAI_NpcMaiming".Translate(), ref NpcMaiming, "AAI_NpcMaiming_Tip".Translate());
                 if ((gates & AbilityAINpcGate.BaseWrecking) != 0)
                     list.CheckboxLabeled("AAI_NpcBaseWrecking".Translate(), ref NpcBaseWrecking, "AAI_NpcBaseWrecking_Tip".Translate());
                 Hint(list, "AAI_Dangerous_Desc");

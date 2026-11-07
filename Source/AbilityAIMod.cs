@@ -125,17 +125,19 @@ namespace AbilityAI
                 for (int i = 0; i < abilityDefs.Count; i++) AbilityAINpcGates.Note(abilityDefs[i]);
             }
             catch (Exception e) { Log.Error($"[Ability AI] Setting up the NPC gates failed; their settings may not show: {e}"); }
-            try
+            // Caught per item: ThingDefs come from every installed mod, and one odd item would otherwise end the loop and
+            // leave every pack and belt after it without rules
+            var thingDefs = DefDatabase<ThingDef>.AllDefsListForReading;
+            for (int i = 0; i < thingDefs.Count; i++)
             {
-                var thingDefs = DefDatabase<ThingDef>.AllDefsListForReading;
-                for (int i = 0; i < thingDefs.Count; i++)
+                if (thingDefs[i].modExtensions == null) continue;
+                try
                 {
-                    if (thingDefs[i].modExtensions == null) continue;
                     ApparelAIAbility.Note(thingDefs[i]);
                     if (ApparelAIAbility.HasRules(thingDefs[i])) AbilityAINpcGates.Note(thingDefs[i]);
                 }
+                catch (Exception e) { Log.Error($"[Ability AI] Setting up the gear rules for {thingDefs[i].defName} failed; that item is left to its own AI: {e}"); }
             }
-            catch (Exception e) { Log.Error($"[Ability AI] Setting up the gear rules failed; packs and belts are left to their own AI: {e}"); }
             try { ApparelGearCompat.Register(); }
             catch (Exception e) { Log.Error($"[Ability AI] Setting up other mods' gear checks failed; some modded packs may waste a cast: {e}"); }
         }

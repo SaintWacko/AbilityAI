@@ -140,7 +140,7 @@ These work on any rule.
 | `unlessCasterHas` | | A HediffDef: not while the caster has it, for an aura or channel a second cast would only restart. |
 | `currentMapOnly` | false | Only on the map the player is looking at, for an ability whose code lands its effect on `Find.CurrentMap`. |
 | `startsFires` | false | The ability sets fires, so an enemy holding it counts as a fire threat for `fireDanger` rules. |
-| `npcGate` | | `InstantKill`, `BaseWrecking`: see [Other factions](#other-factions). |
+| `npcGate` | | `InstantKill`, `Maiming`, `BaseWrecking`: see [Other factions](#other-factions). |
 | `heatVent` | false | A psycast that vents neural heat: see [Heat vents](#heat-vents). |
 | `npc`, `friendlyNpc` | | Changes for other factions: see [Other factions](#other-factions). |
 
@@ -156,6 +156,7 @@ Fields that several workers share:
 | `targetKinds` | every pawn | Which pawns the rule may target or count: `Humanlike`, `Animal`, `Mechanoid`, `Other` (entities and the rest). Also `Turret` (hostile area workers and Target hostile), `Shielded` (a raised shield belt) and `Psycaster` (has a psylink), which aren't in the default and must be named. Write several as `Humanlike, Animal`. |
 | `harmless` | false | Hostile rules: the ability disables without lasting harm (a stun, a slow, a blind). With the player's setting at its default, such a rule may also be used on an ally in a hostile mental break, and `avoidAllies` doesn't count downed faction-mates. |
 | `skipAffected` | true | Hostile rules: leave out pawns the cast would be wasted on (already stunned by a stunning ability, already carrying its hediff, already in a mental state from one that gives one, no psychic sensitivity for a psycast). Turn it off when the damage alone makes the cast worth it. |
+| `targetPart` | | Hostile rules: a BodyPartDef. Only pawns with at least one part of that def left, for an ability that works on that part alone (Alpha Animals' Destroy eyes: `Eye`, Leg skip: `Leg`). A pawn whose parts of that def are all gone is skipped, and so is a body without any (a mech has no `Eye`). |
 | `avoidAllies` | false | Keep the caster's side out of the area. What "the area" is depends on the worker. |
 | `allyKinds` | every pawn | Which of the caster's side `avoidAllies` keeps clear of: only those the effect would harm. An EMP: `Mechanoid, Turret, Shielded`. |
 | `avoidBuildings` | false | Not with a building of the caster's side, or of a faction not hostile to it, in the area. For fire and blasts, so visitors don't burn the player's base. |
@@ -254,6 +255,7 @@ One enemy (Stun, Burden, Berserk). Enemies in range that the ability would affec
 | `radius` | 5 | How near the target counts for `minTargets`, `preferGrouped`, `avoidAllies` and `avoidBuildings`. |
 | `preferGrouped` | false | Multiply the score by the enemies around the target. |
 | `avoidAllies` | false | Skip enemies with anyone of the caster's side within `radius` (a berserk enemy attacks whoever is nearest). |
+| `casterLeaves` | false | With `avoidAllies`: the caster itself doesn't count, for an ability that leaps the caster onto the target before the area lands (Alpha Animals' Spin cut). Without it a melee caster refuses every enemy beside it. |
 | `avoidBuildings` | false | Skip enemies with a friendly building within `radius`, for a fire or blast that spreads. |
 | `meleeOnly` | false | Only enemies in melee with the caster or an ally. |
 | `armedOnly` | false | Only enemies holding a weapon. |
@@ -281,13 +283,13 @@ An enemy aiming something dangerous: a hostile ability or psycast, or a weapon w
 
 #### Deploy
 
-Throw out something that fights on its own (Anomaly's turret pack, drone packs) to a cell from which it sees the most enemies, on the caster's side of the fight. The player's "Turret packs" setting limits how many may stand near each caster (default 1). Combat: InCombat.
+Throw out or summon something that fights on its own (Anomaly's turret pack, drone packs, Alpha Animals' Black Hive summons) to a cell from which it sees the most enemies, on the caster's side of the fight. Two player settings limit how many of each thing the caster's side may have standing within `radius` of the caster, downed pawns not counted: "Turret packs" for worn gear (default 1) and "Summons" for abilities (default 3). Combat: InCombat.
 
 | Field | Default | What it does |
 |---|---|---|
 | `minTargets` | 1 | Enemies the deployed thing must see from the cell. |
 | `minRange` | 2 | The nearest ring of cells tried around the caster (never under 2). |
-| `radius` | the turret's range, else 20 | How far the deployed thing reaches. |
+| `radius` | the turret's range, else 20 | How far the deployed thing reaches, and how near the caster the ones already standing count against the limit. |
 | `minGapDistance` | 6 | No enemy this close to the cell. |
 | `deployedThing` | read | What the cast puts down, when Ability AI can't read it from the verb or projectile. For a pawn, its race's ThingDef. |
 
@@ -319,6 +321,7 @@ A buff on one ally or the caster (Focus). Allies in range without the ability's 
 |---|---|---|
 | `minPain` | 0 | Only allies in at least this much pain (0 to 1), fighting or not. |
 | `fireDanger` | false | Only allies in fire danger: burning, a fire within 2.5 tiles, or within reach of an enemy that can set fires (fire weapons, or an ability with `startsFires`). |
+| `avoidFireDanger` | false | Never an ally in fire danger (as for `fireDanger`), for a buff that makes its bearer burn worse (Alpha Animals' Fungal skin). |
 | `auraKinds`, `auraMin`, `radius` | | As for Self buff, around the ally. |
 
 ```xml
@@ -541,9 +544,10 @@ A rule applies to every caster as written. Two blocks inside a rule change it fo
 
 A rule turned off this way still keeps vanilla's and VEF's own AI off the ability for those casters. To leave an ability to its own AI for NPCs, leave the rule out entirely or claim it away in C#.
 
-`npcGate` puts a rule behind one of two player settings (both off by default) for other factions. The player's own pawns are never held back by it.
+`npcGate` puts a rule behind one of three player settings (all off by default) for other factions. The player's own pawns are never held back by it.
 
 - `InstantKill`: the cast kills or takes a pawn for good (Mind Break, Reap, shamblerification). Every NPC caster, friendly ones too.
+- `Maiming`: the cast destroys body parts for good without killing (Alpha Animals' Leg skip, Destroy eyes). Every NPC caster, friendly ones too.
 - `BaseWrecking`: the cast wrecks buildings over a wide area (meteors, a tornado, wildfire). Hostile NPCs only; friendly NPCs never use it.
 
 The settings page shows each gate only when some rule uses it.

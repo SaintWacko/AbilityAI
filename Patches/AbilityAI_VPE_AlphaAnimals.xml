@@ -1,0 +1,519 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ability AI rules for the four Vanilla Psycasts Expanded paths in Alpha Animals (its Mods/VanillaPsycastsExpanded
+     folder, loaded with VPE): Ravager, Herald of the Black Hive, Oculist and Xeno-seer. They are VPE psycasts (VEF
+     abilities), read by the VEF compat assembly and priced by the VPE one. Every Ravager psycast needs a melee weapon
+     in hand (Ability_Melee.IsEnabledForPawn), and hits a pawn only when one of the four cells beside it is passable.
+     The summons (Ability_Summon) always make the creature in the player's faction, whoever casts them, so other
+     factions never use them; each is a Deploy rule under the "Summons" limit (MaxSummonedNear, 3 by default), and the
+     creatures go manhunter at every other faction and die after a day.
+     Left out: Summon hive (a permanent hive entrance, one per map), Ocular originator (a penned utility creature, one
+     per map), Ocular sprout and Greater ocular sprout (terrain and tree spawners), Chemfuel nodules (a charge that only
+     burns once its bearer dies, wherever that is), Hover, Light sustenance and Electrify (lasting changes for colony
+     work). -->
+<Patch>
+  <Operation Class="PatchOperationFindMod">
+    <mods>
+      <li>Alpha Animals</li>
+    </mods>
+    <match Class="PatchOperationSequence">
+      <operations>
+
+        <!-- Ravager -->
+
+        <!-- Slice: 20 cut (60% armour penetration) on a pawn within 5, the caster skipping beside it first. 5%
+             psyfocus, so the everyday opener. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="AAVPE_Slice"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="AAVPE_Slice"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
+                <priority>2</priority>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Claw frenzy: three 10 scratches on a pawn beside the caster. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="AAVPE_ClawFrenzy"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="AAVPE_ClawFrenzy"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
+                <priority>2</priority>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Disabling strike: three 10 blunt hits on a pawn beside the caster. Plain damage, despite the name. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="AAVPE_DisablingStrike"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="AAVPE_DisablingStrike"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
+                <priority>2</priority>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Skewer: 30 stab to the torso (90% armour penetration) on a humanlike beside the caster; the game refuses
+             animals and mechs. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="AAVPE_Skewer"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="AAVPE_Skewer"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
+                <priority>3</priority>
+                <targetKinds>Humanlike</targetKinds>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Charge: two 10 cuts on a pawn within 10, the caster leaping onto it. A gap closer, so not at a pawn within
+             3: the strikes beside the caster are cheaper there. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="AAVPE_Charge"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="AAVPE_Charge"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
+                <priority>3</priority>
+                <minRange>3</minRange>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Charge and skewer: 35 stab to the torso (90% armour penetration) on a humanlike within 16, the caster
+             leaping onto it. A gap closer like Charge, tried first. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="AAVPE_ChargeAndSkewer"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="AAVPE_ChargeAndSkewer"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
+                <priority>4</priority>
+                <minRange>3</minRange>
+                <targetKinds>Humanlike</targetKinds>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- EMP blow: 40 EMP (full armour penetration) on a pawn beside the caster, which stuns a mech for a while.
+             Mechs only: on anyone else it only takes down a shield belt, which doesn't stop melee anyway. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="AAVPE_EmpBlow"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="AAVPE_EmpBlow"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
+                <priority>4</priority>
+                <targetKinds>Mechanoid</targetKinds>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Spin cut: 25 cut on a pawn within 8 and on every pawn within 1.9 tiles of it, the caster's own side
+             included. The caster is already in the air on its leap onto the target when the cut lands (MakeFlyer
+             despawns it first), so it never cuts itself (casterLeaves: it may stand beside the target). So two enemies
+             or more within 1.9 of each other and nobody else of the caster's side within 1.9 of the target. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="AAVPE_SpinCut"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="AAVPE_SpinCut"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
+                <priority>5</priority>
+                <minTargets>2</minTargets>
+                <radius>1.9</radius>
+                <preferGrouped>true</preferGrouped>
+                <avoidAllies>true</avoidAllies>
+                <casterLeaves>true</casterLeaves>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Leg skip: the caster skips beside a pawn within 5 and cuts off both its legs. Never at a pawn with no
+             leg left (targetPart), nor one a faction-mate is already casting it at; other factions only with the
+             Maiming setting. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="AAVPE_LegSkip"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="AAVPE_LegSkip"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
+                <priority>4</priority>
+                <targetPart>Leg</targetPart>
+                <exclusive>true</exclusive>
+                <npcGate>Maiming</npcGate>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Knockout: a pawn beside the caster drops unconscious for a while (longer with the caster's psychic
+             sensitivity), with no injury. Harmless, so with the Mental breaks setting at its default it may also put
+             down an ally in a hostile break. Skips a pawn already knocked out, and one a faction-mate is casting at. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="AAVPE_KO"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="AAVPE_KO"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
+                <priority>3</priority>
+                <hediff>AAVPE_KO</hediff>
+                <harmless>true</harmless>
+                <exclusive>true</exclusive>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Fatal blow: kills a pawn beside the caster outright. 50% psyfocus; other factions only with the
+             InstantKill setting. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="AAVPE_FatalBlow"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="AAVPE_FatalBlow"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
+                <priority>6</priority>
+                <exclusive>true</exclusive>
+                <npcGate>InstantKill</npcGate>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Herald of the Black Hive -->
+
+        <!-- Venom spit: a toxic bolt at a pawn within 16.9 for 1% psyfocus, the path's plain attack. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="AAVPE_VenomSpit"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="AAVPE_VenomSpit"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
+                <priority>2</priority>
+                <approachDistance>6</approachDistance>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- The Black Hive summons: one creature on a cell within 20 that sees enough enemies within 20, on the
+             caster's side of the fight and no enemy within 6, after a 6 to 12.5 second cast. The bigger the creature
+             (and the dearer: 10% psyfocus for the scarab up to 80% for the queen), the more enemies it waits for, and
+             the bigger ones are tried first. Not while 3 (the Summons limit) of that creature on the caster's side
+             stand within 20 of it. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="AAVPE_SummonBlackScarab"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="AAVPE_SummonBlackScarab"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Deploy</workerClass>
+                <priority>2</priority>
+                <radius>20</radius>
+                <deployedThing>AA_BlackScarab_Temporary</deployedThing>
+                <npc>
+                  <enabled>false</enabled>
+                </npc>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="AAVPE_SummonBlackSpelopede"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="AAVPE_SummonBlackSpelopede"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Deploy</workerClass>
+                <priority>3</priority>
+                <minTargets>2</minTargets>
+                <radius>20</radius>
+                <deployedThing>AA_BlackSpelopede_Temporary</deployedThing>
+                <npc>
+                  <enabled>false</enabled>
+                </npc>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="AAVPE_SummonBlackSpider"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="AAVPE_SummonBlackSpider"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Deploy</workerClass>
+                <priority>4</priority>
+                <minTargets>2</minTargets>
+                <radius>20</radius>
+                <deployedThing>AA_BlackSpider_Temporary</deployedThing>
+                <npc>
+                  <enabled>false</enabled>
+                </npc>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="AAVPE_SummonMammothWorm"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="AAVPE_SummonMammothWorm"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Deploy</workerClass>
+                <priority>4</priority>
+                <minTargets>3</minTargets>
+                <radius>20</radius>
+                <deployedThing>AA_MammothWorm_Temporary</deployedThing>
+                <npc>
+                  <enabled>false</enabled>
+                </npc>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="AAVPE_SummonBlackQueen"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="AAVPE_SummonBlackQueen"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Deploy</workerClass>
+                <priority>5</priority>
+                <minTargets>3</minTargets>
+                <radius>20</radius>
+                <deployedThing>AAVPE_BlackQueen</deployedThing>
+                <npc>
+                  <enabled>false</enabled>
+                </npc>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Strengthen insect: 30 seconds of +20% armour, +50% manipulation and sight, +40% moving and a quarter of
+             the pain, on a Black Hive insect within 9.9 that is fighting. The ability refuses anything else, so only
+             animals are offered to it. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="AAVPE_StrengthenInsect"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="AAVPE_StrengthenInsect"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetFriendly</workerClass>
+                <priority>3</priority>
+                <targetKinds>Animal</targetKinds>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Oculist -->
+
+        <!-- Summon eyeling: one weak eyeling (combat power 10) as a distraction, 10% psyfocus. Eyeling horde: eight of
+             them for 80%, when three enemies or more are in sight. Both count against one Summons limit, since both
+             make the same creature. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="AAVPE_SummonEyeling"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="AAVPE_SummonEyeling"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Deploy</workerClass>
+                <priority>1</priority>
+                <radius>20</radius>
+                <deployedThing>AA_Summoned_Eyeling</deployedThing>
+                <npc>
+                  <enabled>false</enabled>
+                </npc>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="AAVPE_SummonEyelingHorde"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="AAVPE_SummonEyelingHorde"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Deploy</workerClass>
+                <priority>3</priority>
+                <minTargets>3</minTargets>
+                <radius>20</radius>
+                <deployedThing>AA_Summoned_Eyeling</deployedThing>
+                <npc>
+                  <enabled>false</enabled>
+                </npc>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Destroy eyes: burns out both eyes of a pawn within 9.9, for good. Never at a pawn with no eye left
+             (targetPart: mechs have none either), nor one a faction-mate is already casting it at; other factions only
+             with the Maiming setting. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="AAVPE_StrikeEyes"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="AAVPE_StrikeEyes"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
+                <priority>3</priority>
+                <targetPart>Eye</targetPart>
+                <exclusive>true</exclusive>
+                <npcGate>Maiming</npcGate>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Ocular eruption: four to seven malevolent eyes on random parts of a pawn within 9.9, each an infection
+             that kills in about a day unless tended. Humanlikes and animals (on a mech it is an infection on metal),
+             never one that already has them, nor one a faction-mate is casting at. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="AAVPE_EyeEruption"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="AAVPE_EyeEruption"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
+                <priority>3</priority>
+                <targetKinds>Humanlike, Animal</targetKinds>
+                <hediff>AA_MalevolentEye</hediff>
+                <exclusive>true</exclusive>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Xeno-seer -->
+
+        <!-- Web slinging: three webs at a pawn within 16.9, each 15 stun and 7.5 burn, for 1% psyfocus. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="AAVPE_WebSlinging"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="AAVPE_WebSlinging"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
+                <priority>2</priority>
+                <approachDistance>6</approachDistance>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Acid spit: a stream of acid (15 damage) at a pawn within 10 that hurts whoever stands on its way past the
+             first 2 tiles. Never with anyone of the caster's side on the way, or within 2 of the aim. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="AAVPE_AcidSpit"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="AAVPE_AcidSpit"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_BeamHostile</workerClass>
+                <priority>3</priority>
+                <approachDistance>4</approachDistance>
+                <coneWidth>2</coneWidth>
+                <avoidAllies>true</avoidAllies>
+                <radius>2</radius>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Concentrated light: a burning beam (10 flame, incendiary) at a pawn within 15, hitting whoever stands on its
+             way. As Acid spit, and also never with a building of the caster's side or a friendly one on the way or near
+             the aim, since it sets fires. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="AAVPE_Laser"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="AAVPE_Laser"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_BeamHostile</workerClass>
+                <priority>3</priority>
+                <approachDistance>4</approachDistance>
+                <coneWidth>2</coneWidth>
+                <avoidAllies>true</avoidAllies>
+                <avoidBuildings>true</avoidBuildings>
+                <radius>2.5</radius>
+                <startsFires>true</startsFires>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Fungal skin: +50% armour for four hours (times the target's psychic sensitivity) on someone within 20 who is
+             fighting, but a bearer that catches fire takes 15 extra burn every 50 ticks. So never on anyone in fire
+             danger: burning, beside a fire, or in reach of an enemy that can set fires. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="AAVPE_FungalSkin"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="AAVPE_FungalSkin"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetFriendly</workerClass>
+                <priority>2</priority>
+                <targetKinds>Humanlike, Animal</targetKinds>
+                <avoidFireDanger>true</avoidFireDanger>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Regeneration: four hours in which every injury heals 0.6 a second, on someone within 10. 80% psyfocus, so
+             only for someone under half health with injuries still healing, downed included, in a fight or not. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="AAVPE_Regeneration"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="AAVPE_Regeneration"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Recovery</workerClass>
+                <priority>4</priority>
+                <combat>Any</combat>
+                <health>Injured</health>
+                <healthThreshold>0.5</healthThreshold>
+                <hediff>AAVPE_Regeneration</hediff>
+              </li>
+            </value>
+          </match>
+        </li>
+
+      </operations>
+    </match>
+  </Operation>
+</Patch>

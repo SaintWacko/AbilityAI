@@ -29,7 +29,8 @@ namespace AbilityAI
             return false;
         }
 
-        /// <summary>Fighting right now: has an enemy target, an attack job, or was hurt or attacked recently.</summary>
+        /// <summary>Fighting right now: has an enemy target, an attack job, shot at or is aiming at an enemy pawn or
+        /// active turret, or was hurt or attacked recently.</summary>
         public static bool Fighting(AbilityAIContext ctx, Pawn p)
         {
             if (p == ctx.pawn) return ctx.InCombat;
@@ -41,13 +42,18 @@ namespace AbilityAI
             // A drafted colonist firing on its own (JobDriver_Wait's auto-attack) sets neither of those: it counted only
             // once hit, so Word of Protection saw two of five colonists on a firing line (build 0216 test). Its last shot
             // and its aim say it is fighting. Only at a hostile pawn: the same tick and stance come from a hunter's shot at
-            // a deer and an ally's warmup on a friendly cast (review 232).
+            // a deer and an ally's warmup on a friendly cast (review 232). An enemy turret counts too: Target hostile now
+            // shoots at turrets, and a colonist trading fire with one alone read as not fighting (review 249).
             if (mind.lastAttackTargetTick > 0 && ctx.tick - mind.lastAttackTargetTick < AbilityAIContext.RecentTicks
-                && mind.lastAttackedTarget.Thing is Pawn shot && shot.HostileTo(p)) return true;
-            if (p.TargetCurrentlyAimingAt.Thing is Pawn aimed && aimed.HostileTo(p)) return true;
+                && IsFoe(mind.lastAttackedTarget.Thing, p)) return true;
+            if (IsFoe(p.TargetCurrentlyAimingAt.Thing, p)) return true;
             return ctx.tick - mind.lastHarmTick < AbilityAIContext.RecentTicks
                 || (mind.lastRangedHarmTick > 0 && ctx.tick - mind.lastRangedHarmTick < AbilityAIContext.RecentTicks);
         }
+
+        // The same turrets Target hostile picks from (ctx.EnemyTurrets): an unpowered or dormant one is no fight
+        private static bool IsFoe(Thing t, Pawn p) =>
+            (t is Pawn || (t is Building_Turret turret && !turret.ThreatDisabled(p))) && t.HostileTo(p);
 
         public struct Cand { public Pawn pawn; public float score; }
 
@@ -71,7 +77,8 @@ namespace AbilityAI
     /// kind's combat power (0.5-3 x of 100), divided by distance over range. meleeOnly keeps only enemies next to
     /// the caster or an ally (one in a hostile break included: AbilityAIUtility.InMeleeWithSide). With minTargets above 1 the enemy needs that many of its side (itself included) within
     /// radius (default 5); preferGrouped multiplies the score by them, and avoidAllies skips enemies with anyone on
-    /// the caster's side (Friendlies, of allyKinds) within that radius (a berserk enemy attacks whoever is nearest). An ally in a
+    /// the caster's side (Friendlies, of allyKinds) within that radius (a berserk enemy attacks whoever is nearest),
+    /// the caster too unless casterLeaves. An ally in a
     /// hostile break is skipped, and avoided like a friendly, unless MayHitBrokenAllies. The best five are validated.
     /// Approach: the same out to range + approachDistance. whileHunting: the prey of the caster's hunt is a candidate
     /// too, scored as its current target. armedOnly: only enemies holding a weapon. avoidBuildings: not at an enemy with a
@@ -181,7 +188,7 @@ namespace AbilityAI
                 if (group < ext.minTargets) return;
                 if (ext.preferGrouped) score *= group;
             }
-            if (ext.avoidAllies && AbilityAIUtility.AllyWithin(ctx, ext, t.Position, near2, spareBroken, false)) return;
+            if (ext.avoidAllies && AbilityAIUtility.AllyWithin(ctx, ext, t.Position, near2, spareBroken, ext.casterLeaves)) return;
             if (ext.avoidBuildings && AbilityAIUtility.FriendlyBuildingWithin(ctx, t.Position, Near)) return;
             score /= 1f + Mathf.Sqrt(d) / Mathf.Max(range, 1f);
             cands.Add(new Cand { thing = t, score = score });
@@ -232,7 +239,7 @@ namespace AbilityAI
                 if (group < ext.minTargets) return;
                 if (ext.preferGrouped) score *= group;
             }
-            if (ext.avoidAllies && AbilityAIUtility.AllyWithin(ctx, ext, e.Position, near2, spareBroken, false)) return;
+            if (ext.avoidAllies && AbilityAIUtility.AllyWithin(ctx, ext, e.Position, near2, spareBroken, ext.casterLeaves)) return;
             // Here rather than on the best few: when those all stand by a wall, a clear enemy further down still counts
             if (ext.avoidBuildings && AbilityAIUtility.FriendlyBuildingWithin(ctx, e.Position, Near)) return;
             score /= 1f + Mathf.Sqrt(d) / Mathf.Max(range, 1f);
@@ -243,10 +250,11 @@ namespace AbilityAI
     /// <summary>
     /// Target friendly: a buff on one ally or the caster (Focus, Painblock on someone hurting). Allies in range
     /// without the ability's hediff; with fireDanger only those in fire danger (AbilityAIFire), with minPain only
-    /// those in at least that much pain, otherwise only allies fighting now; with auraKinds, only allies whose aura
+    /// those in at least that much pain, otherwise only allies fighting now; with avoidFireDanger none in fire danger;
+    /// with auraKinds, only allies whose aura
     /// would reach enough enemies (AbilityAIUtility.AuraWorthIt). Scored by (1 + pain + fire danger), the caster
-    /// x1.5, divided by distance over range. Cost: a checks, and for an aura or fireDanger rule a pass over the
-    /// enemies per ally that gets that far.
+    /// x1.5, divided by distance over range. Cost: a checks, and for an aura, fireDanger or avoidFireDanger rule a
+    /// pass over the enemies per ally that gets that far.
     /// </summary>
     public class AbilityAIWorker_TargetFriendly : AbilityAIWorker
     {
@@ -286,6 +294,7 @@ namespace AbilityAI
                 if (fire <= 0f) return false;
             }
             else if (ext.minPain > 0f ? pain < ext.minPain : !TargetingUtil.Fighting(ctx, a)) return false;
+            if (ext.avoidFireDanger && AbilityAIFire.Danger(ctx, a) > 0f) return false;
             return AbilityAIUtility.AuraWorthIt(ctx, ability, ext, a);
         }
 

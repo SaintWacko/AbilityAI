@@ -645,7 +645,7 @@ namespace AbilityAI
                         if (proj.explosionRadius > 0f && !e.hasEffectRadius)
                         {
                             e.hasEffectRadius = true;
-                            e.effectRadius = proj.explosionRadius + (def.verbProperties?.forcedMissRadius ?? 0f);
+                            e.effectRadius = proj.explosionRadius + (def.verbProperties?.ForcedMissRadius ?? 0f);
                         }
                         if (proj.damageDef == DamageDefOf.Smoke || proj.postExplosionGasType == GasType.BlindSmoke) e.smoke = true;
                         if (proj.damageDef != null && proj.damageDef.causeStun) e.stuns = true;

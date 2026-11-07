@@ -41,13 +41,16 @@ namespace AbilityAI
             // A drafted colonist firing on its own (JobDriver_Wait's auto-attack) sets neither of those: it counted only
             // once hit, so Word of Protection saw two of five colonists on a firing line (build 0216 test). Its last shot
             // and its aim say it is fighting. Only at a hostile pawn: the same tick and stance come from a hunter's shot at
-            // a deer and an ally's warmup on a friendly cast (review 232).
+            // a deer and an ally's warmup on a friendly cast (review 232). An enemy turret counts too: Target hostile now
+            // shoots at turrets, and a colonist trading fire with one alone read as not fighting (review 249).
             if (mind.lastAttackTargetTick > 0 && ctx.tick - mind.lastAttackTargetTick < AbilityAIContext.RecentTicks
-                && mind.lastAttackedTarget.Thing is Pawn shot && shot.HostileTo(p)) return true;
-            if (p.TargetCurrentlyAimingAt.Thing is Pawn aimed && aimed.HostileTo(p)) return true;
+                && IsFoe(mind.lastAttackedTarget.Thing, p)) return true;
+            if (IsFoe(p.TargetCurrentlyAimingAt.Thing, p)) return true;
             return ctx.tick - mind.lastHarmTick < AbilityAIContext.RecentTicks
                 || (mind.lastRangedHarmTick > 0 && ctx.tick - mind.lastRangedHarmTick < AbilityAIContext.RecentTicks);
         }
+
+        private static bool IsFoe(Thing t, Pawn p) => (t is Pawn || t is Building_Turret) && t.HostileTo(p);
 
         public struct Cand { public Pawn pawn; public float score; }
 

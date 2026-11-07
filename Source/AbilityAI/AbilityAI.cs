@@ -1427,26 +1427,26 @@ namespace AbilityAI
 
 
 
-        /// <summary>The player's per-pawn psycast limits (the gizmo beside vanilla's psyfocus one): the cast must not
-        /// push neural heat over the cap or psyfocus under the floor (real psycasts only), nor hemogen under the hemogen
-        /// floor (any ability with a hemogen cost). A pawn with no limits set stops at one dictionary lookup and the
-        /// default hemogen floor. Without a target the cheapest cost the psycast can have is used (asked
+        /// <summary>The player's per-pawn autocast limits (the gizmo beside vanilla's psyfocus one): the cast must not
+        /// push neural heat over the cap or psyfocus under the floor (real psycasts only), nor any resource (hemogen,
+        /// Force points: AIResources) under its floor (any ability that costs some). An ability that costs no resource
+        /// pays one cached cost lookup per resource in play. Without a target the cheapest cost the psycast can have is used (asked
         /// while choosing candidates); with one, the cost for that target (Word of Serenity costs more for a worse
         /// break).</summary>
         internal static bool PsycastWithinLimits(AIAbility a, LocalTargetInfo target, bool ignoreHeat = false)
         {
             Pawn pawn = a.Pawn;
-            bool any = AbilityAIAutocast.TryGetLimits(pawn, out float heatCap, out float focusFloor, out float hemogenFloor);
-            // Psycast or not: Biotech's own hemogen abilities spend the same reserve
-            if (hemogenFloor > 0f)
+            // Psycast or not: Biotech's own hemogen abilities spend the same reserve as VPE Hemosage's
+            var resources = AIResources.Active;
+            for (int i = 0; i < resources.Count; i++)
             {
-                float hemogen = a.HemogenCost;
-                if (hemogen > float.Epsilon)
-                {
-                    var gene = pawn.genes?.GetFirstGeneOfType<Gene_Hemogen>();
-                    if (gene != null && gene.Value - hemogen < hemogenFloor * gene.Max - 0.001f) return false;
-                }
+                AIResourceDef r = resources[i];
+                float cost = a.ResourceCost(r);
+                if (cost <= float.Epsilon) continue;
+                float floor = AbilityAIAutocast.ResourceFloor(pawn, r);
+                if (floor > 0f && r.TryRead(pawn, out float value, out float max) && value - cost < floor * max - 0.001f) return false;
             }
+            bool any = AbilityAIAutocast.TryGetLimits(pawn, out float heatCap, out float focusFloor);
             if (!any || !a.IsPsycast) return true;
             var pe = pawn.psychicEntropy;
             if (pe == null) return true;

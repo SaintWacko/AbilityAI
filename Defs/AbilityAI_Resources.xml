@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Resource floors (Source/AbilityAI/AIResource.cs): pools abilities spend from, each with a per-pawn floor on the
+     autocast limits gizmo. A def whose requiredMod is not active takes no part, so these need no patch; type and
+     member names are only looked up when it is. -->
+<Defs>
+
+  <AbilityAI.AIResourceDef>
+    <defName>AAI_Hemogen</defName>
+    <label>hemogen</label>
+    <limitLabel>Min hemogen</limitLabel>
+    <description>This covers every ability that costs hemogen, psycast or not.</description>
+    <barColor>(0.54, 0.16, 0.16)</barColor>
+    <defaultFloor>0.3</defaultFloor>
+    <requiredMod>ludeon.rimworld.biotech</requiredMod>
+    <geneResource>RimWorld.Gene_Hemogen</geneResource>
+    <!-- Biotech's own hemogen abilities; then VPE Hemosage's psycasts, whose extension carries the cost -->
+    <costComp>
+      <type>RimWorld.CompProperties_AbilityHemogenCost</type>
+      <field>hemogenCost</field>
+    </costComp>
+    <costExtensionField>hemogenCost</costExtensionField>
+  </AbilityAI.AIResourceDef>
+
+  <AbilityAI.AIResourceDef>
+    <defName>AAI_ForcePoints</defName>
+    <label>Force points</label>
+    <limitLabel>Min Force</limitLabel>
+    <barColor>(0.18, 0.37, 0.62)</barColor>
+    <defaultFloor>0</defaultFloor>
+    <requiredMod>lee.theforce.standalone</requiredMod>
+    <comp>
+      <type>TheForce_Standalone.CompClass_ForceUser</type>
+      <current>currentFP</current>
+      <max>MaxFP</max>
+    </comp>
+    <costStat>Force_AbilityForcePoolCost</costStat>
+  </AbilityAI.AIResourceDef>
+
+</Defs>

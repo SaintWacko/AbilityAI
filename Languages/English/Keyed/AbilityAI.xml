@@ -111,8 +111,8 @@
   <AAI_Limits_NoCap>no cap</AAI_Limits_NoCap>
   <AAI_Limits_NoFloor>none</AAI_Limits_NoFloor>
   <AAI_Limits_Title>Autocast limits</AAI_Limits_Title>
-  <AAI_Limits_Hemogen>Min hemogen</AAI_Limits_Hemogen>
-  <AAI_Limits_Hemogen_Tip>Autocast won't use an ability that would bring this pawn's hemogen below this point. This covers every ability that costs hemogen, psycast or not. The default is 30%. Casting by hand ignores this.</AAI_Limits_Hemogen_Tip>
+  <!-- {0}: the resource's label (hemogen, Force points); {1}: its default floor (30%, or none) -->
+  <AAI_Limits_Resource_Tip>Autocast won't use an ability that would bring this pawn's {0} below this point. The default is {1}. Casting by hand ignores this.</AAI_Limits_Resource_Tip>
   <AAI_MinGap>Least time between one pawn's casts: {0} s</AAI_MinGap>
   <AAI_MinGap_Desc>Stops a pawn with several abilities from using them all in the same moment. Each ability's own cooldown and charges still apply.</AAI_MinGap_Desc>
   <AAI_Section_Skip>Skip</AAI_Section_Skip>

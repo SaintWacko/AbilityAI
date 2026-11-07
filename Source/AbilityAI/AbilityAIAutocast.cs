@@ -65,31 +65,41 @@ namespace AbilityAI
             }
         }
 
-        // A pawn's psycast limits; only pawns whose limits differ from the defaults are stored
+        // A pawn's autocast limits; only pawns whose limits differ from the defaults are stored. Resource floors by
+        // defName, so a floor for a resource whose mod was removed is dropped on load rather than failing it
         private class LimitsEntry : IExposable
         {
             public Pawn pawn;
             public float heatCap = 1f;
             public float focusFloor;
-            public float hemogenFloor = DefaultHemogenFloor;
+            public Dictionary<string, float> resourceFloors;
+            // Saves before resource floors wrote the hemogen floor here, left out at its default of 0.3. Never written
+            // now (it stays at -1, the omitted value)
+            public float legacyHemogenFloor = -1f;
 
             public void ExposeData()
             {
                 Scribe_References.Look(ref pawn, "pawn");
                 Scribe_Values.Look(ref heatCap, "heatCap", 1f);
                 Scribe_Values.Look(ref focusFloor, "focusFloor", 0f);
-                Scribe_Values.Look(ref hemogenFloor, "hemogenFloor", DefaultHemogenFloor);
+                Scribe_Collections.Look(ref resourceFloors, "resourceFloors", LookMode.Value, LookMode.Value);
+                if (Scribe.mode == LoadSaveMode.LoadingVars) Scribe_Values.Look(ref legacyHemogenFloor, "hemogenFloor", -1f);
             }
         }
 
-        private struct Limits
+        private sealed class Limits
         {
-            public float heatCap, focusFloor, hemogenFloor;
+            public float heatCap, focusFloor;
+            // Only floors that differ from their resource's default; null when none do
+            public Dictionary<AIResourceDef, float> floors;
         }
 
         /// <summary>Default hemogen floor, as a fraction of the pawn's maximum: a sanguophage needs its hemogen to
-        /// live, so autocast leaves it a reserve unless the player lowers it.</summary>
+        /// live, so autocast leaves it a reserve unless the player lowers it. The AAI_Hemogen resource def holds the
+        /// value in play; this is the answer without Biotech.</summary>
         public const float DefaultHemogenFloor = 0.3f;
+
+        private const string HemogenResourceName = "AAI_Hemogen";
 
         /// <summary>Default heat cap: no limit beyond vanilla's own (its entropy-limit toggle decides overheating).</summary>
         public const float NoHeatCap = 1f;
@@ -187,42 +197,82 @@ namespace AbilityAI
         }
 
         /// <summary>The pawn's psycast autocast limits, or false when it has none (the defaults).</summary>
-        public static bool TryGetLimits(Pawn pawn, out float heatCap, out float focusFloor) =>
-            TryGetLimits(pawn, out heatCap, out focusFloor, out _);
-
-        /// <summary>The pawn's autocast limits, or false when it has none (the defaults, which are still written out).</summary>
-        public static bool TryGetLimits(Pawn pawn, out float heatCap, out float focusFloor, out float hemogenFloor)
+        public static bool TryGetLimits(Pawn pawn, out float heatCap, out float focusFloor)
         {
             var inst = Instance;
             if (inst != null && inst.limits.TryGetValue(pawn, out var l))
             {
                 heatCap = l.heatCap;
                 focusFloor = l.focusFloor;
-                hemogenFloor = l.hemogenFloor;
                 return true;
             }
             heatCap = NoHeatCap;
             focusFloor = NoFocusFloor;
-            hemogenFloor = DefaultHemogenFloor;
             return false;
         }
 
-        /// <summary>Sets the pawn's psycast limits, keeping its hemogen floor; the defaults remove its entry.</summary>
-        public static void SetLimits(Pawn pawn, float heatCap, float focusFloor)
+        /// <summary>The pawn's psycast limits and hemogen floor (AIResources.Hemogen, the default without an entry);
+        /// false when it has no psycast limits and no resource floors set.</summary>
+        public static bool TryGetLimits(Pawn pawn, out float heatCap, out float focusFloor, out float hemogenFloor)
         {
-            TryGetLimits(pawn, out _, out _, out float hemogenFloor);
-            SetLimits(pawn, heatCap, focusFloor, hemogenFloor);
+            var hemogen = AIResources.Hemogen;
+            hemogenFloor = hemogen != null ? ResourceFloor(pawn, hemogen) : DefaultHemogenFloor;
+            return TryGetLimits(pawn, out heatCap, out focusFloor);
         }
 
-        public static void SetLimits(Pawn pawn, float heatCap, float focusFloor, float hemogenFloor)
+        /// <summary>Sets the pawn's psycast limits, keeping its resource floors; the defaults remove its entry.</summary>
+        public static void SetLimits(Pawn pawn, float heatCap, float focusFloor)
         {
             var inst = Instance ?? Find.World?.GetComponent<AbilityAIAutocast>();
             if (inst == null || pawn == null) return;
+            inst.limits.TryGetValue(pawn, out var l);
+            inst.Store(pawn, heatCap, focusFloor, l?.floors);
+        }
+
+        /// <summary>Sets the pawn's psycast limits and hemogen floor (without Biotech, the psycast limits only).</summary>
+        public static void SetLimits(Pawn pawn, float heatCap, float focusFloor, float hemogenFloor)
+        {
+            SetLimits(pawn, heatCap, focusFloor);
+            if (AIResources.Hemogen is AIResourceDef hemogen) SetResourceFloor(pawn, hemogen, hemogenFloor);
+        }
+
+        /// <summary>The share of the pawn's maximum autocast leaves of this resource: the player's choice, else the
+        /// resource's default.</summary>
+        public static float ResourceFloor(Pawn pawn, AIResourceDef resource)
+        {
+            var inst = Instance;
+            if (inst != null && inst.limits.TryGetValue(pawn, out var l) && l.floors != null && l.floors.TryGetValue(resource, out float floor))
+                return floor;
+            return resource.defaultFloor;
+        }
+
+        public static void SetResourceFloor(Pawn pawn, AIResourceDef resource, float floor)
+        {
+            var inst = Instance ?? Find.World?.GetComponent<AbilityAIAutocast>();
+            if (inst == null || pawn == null || resource == null) return;
+            inst.limits.TryGetValue(pawn, out var l);
+            var floors = l?.floors != null ? new Dictionary<AIResourceDef, float>(l.floors) : new Dictionary<AIResourceDef, float>();
+            floors[resource] = floor;
+            inst.Store(pawn, l?.heatCap ?? NoHeatCap, l?.focusFloor ?? NoFocusFloor, floors);
+        }
+
+        // A floor at its resource's default is not kept, and a pawn with nothing but defaults has no entry, so a pawn
+        // with no limits stays one failed lookup
+        private void Store(Pawn pawn, float heatCap, float focusFloor, Dictionary<AIResourceDef, float> floors)
+        {
             heatCap = Mathf.Clamp01(heatCap);
             focusFloor = Mathf.Clamp01(focusFloor);
-            hemogenFloor = Mathf.Clamp01(hemogenFloor);
-            if (heatCap >= NoHeatCap && focusFloor <= NoFocusFloor && Mathf.Approximately(hemogenFloor, DefaultHemogenFloor)) inst.limits.Remove(pawn);
-            else inst.limits[pawn] = new Limits { heatCap = heatCap, focusFloor = focusFloor, hemogenFloor = hemogenFloor };
+            Dictionary<AIResourceDef, float> kept = null;
+            if (floors != null)
+                foreach (var kv in floors)
+                {
+                    float f = Mathf.Clamp01(kv.Value);
+                    if (Mathf.Approximately(f, kv.Key.defaultFloor)) continue;
+                    if (kept == null) kept = new Dictionary<AIResourceDef, float>();
+                    kept[kv.Key] = f;
+                }
+            if (heatCap >= NoHeatCap && focusFloor <= NoFocusFloor && kept == null) limits.Remove(pawn);
+            else limits[pawn] = new Limits { heatCap = heatCap, focusFloor = focusFloor, floors = kept };
         }
 
         // World.FinalizeInit runs before the loader resolves references and before the maps load, so the saved
@@ -285,7 +335,15 @@ namespace AbilityAI
                 savedLimits = new List<LimitsEntry>();
                 foreach (var kv in limits)
                     if (kv.Key != null && !kv.Key.Discarded)
-                        savedLimits.Add(new LimitsEntry { pawn = kv.Key, heatCap = kv.Value.heatCap, focusFloor = kv.Value.focusFloor, hemogenFloor = kv.Value.hemogenFloor });
+                    {
+                        var entry = new LimitsEntry { pawn = kv.Key, heatCap = kv.Value.heatCap, focusFloor = kv.Value.focusFloor };
+                        if (kv.Value.floors != null)
+                        {
+                            entry.resourceFloors = new Dictionary<string, float>();
+                            foreach (var f in kv.Value.floors) entry.resourceFloors[f.Key.defName] = f.Value;
+                        }
+                        savedLimits.Add(entry);
+                    }
             }
             Scribe_Collections.Look(ref saved, "abilityAutocast", LookMode.Deep);
             Scribe_Collections.Look(ref savedOther, "otherAutocast", LookMode.Deep);
@@ -309,7 +367,18 @@ namespace AbilityAI
                 limits.Clear();
                 if (savedLimits != null)
                     foreach (var e in savedLimits)
-                        if (e?.pawn != null) SetLimits(e.pawn, e.heatCap, e.focusFloor, e.hemogenFloor);
+                    {
+                        if (e?.pawn == null) continue;
+                        Dictionary<AIResourceDef, float> floors = null;
+                        if (e.resourceFloors != null)
+                            foreach (var f in e.resourceFloors)
+                                if (DefDatabase<AIResourceDef>.GetNamedSilentFail(f.Key) is AIResourceDef def)
+                                    (floors ?? (floors = new Dictionary<AIResourceDef, float>()))[def] = f.Value;
+                        if (e.legacyHemogenFloor >= 0f && DefDatabase<AIResourceDef>.GetNamedSilentFail(HemogenResourceName) is AIResourceDef hemogen
+                            && (floors == null || !floors.ContainsKey(hemogen)))
+                            (floors ?? (floors = new Dictionary<AIResourceDef, float>()))[hemogen] = e.legacyHemogenFloor;
+                        Store(e.pawn, e.heatCap, e.focusFloor, floors);
+                    }
             }
             if (Scribe.mode == LoadSaveMode.Saving || Scribe.mode == LoadSaveMode.PostLoadInit)
             {

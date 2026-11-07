@@ -160,9 +160,10 @@ namespace AbilityAI
         /// isn't a psycast.</summary>
         public abstract float HeatGain { get; }
 
-        /// <summary>Hemogen the cast spends (Biotech's Gene_Hemogen, absolute units). Read for the player's hemogen
-        /// floor (AbilityAIDriver.PsycastWithinLimits), psycast or not.</summary>
-        public virtual float HemogenCost => 0f;
+        /// <summary>What the cast spends of a resource (hemogen, Force points; absolute units), for the player's
+        /// resource floors (AbilityAIDriver.PsycastWithinLimits), psycast or not. By default the resource def's own
+        /// cost readers on this ability's def; override for a cost those can't see.</summary>
+        public virtual float ResourceCost(AIResourceDef resource) => AIResources.Cost(Def, resource);
 
         /// <summary>The job that casts it, handed back to the think tree rather than started; null when the ability's
         /// own system refuses the cast at the last moment. It may set up the cast on its system's side (VEF records
@@ -550,8 +551,6 @@ namespace AbilityAI
         }
 
         public override float HeatGain => ability is Psycast ? ability.def.EntropyGain : 0f;
-
-        public override float HemogenCost => ability.HemogenCost();
 
         public override Job MakeCastJob(LocalTargetInfo target, LocalTargetInfo dest) => ability.GetJob(target, dest);
 

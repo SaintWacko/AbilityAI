@@ -68,8 +68,6 @@ namespace AbilityAI.Vef
         private sealed class DefInfo
         {
             public bool self, touch, hostile;
-            // Read off any extension with a float hemogenCost field (VPE Hemosage's), so no compat assembly is needed
-            public float hemogenCost;
             // Target, then the cell it is sent to (VPE's Skip): only the Skip worker can cast it (TryGetDestRule)
             public bool twoTarget;
             public TargetingParameters targetParams, destParams;
@@ -95,7 +93,6 @@ namespace AbilityAI.Vef
         // Runtime ability types that declare their own ValidateTarget (Hemosage's Corpse Explosion and Sanguine Spear,
         // Runesmith's Invokes): the rules VEF's targeter enforces through it never reach CanHitTarget
         private static readonly Dictionary<Type, bool> ownTargetCheck = new Dictionary<Type, bool>();
-        private static readonly Dictionary<Type, System.Reflection.FieldInfo> hemogenCostFields = new Dictionary<Type, System.Reflection.FieldInfo>();
         private static readonly GlobalTargetInfo[] oneTarget = new GlobalTargetInfo[1];
 
         /// <summary>Whether the AI can cast abilities of this def: it has an AbilityAIExtension and a shape the
@@ -185,7 +182,6 @@ namespace AbilityAI.Vef
                 touch = !self && def.jobDef?.driverClass != null
                     && typeof(JobDriver_GotoTargetAndCastAbilityOnce).IsAssignableFrom(def.jobDef.driverClass),
                 hostile = IsHostile(def, self),
-                hemogenCost = ReadHemogenCost(def),
                 targetParams = def.targetingParametersList != null && def.targetingParametersList.Count > 0 ? def.targetingParametersList[0] : null,
             };
         }
@@ -208,26 +204,6 @@ namespace AbilityAI.Vef
             if (any) return enemies;
             if (def.goodwillImpact < 0) return true;
             return !self;
-        }
-
-        private static float ReadHemogenCost(VefAbilityDef def)
-        {
-            var exts = def.modExtensions;
-            if (exts == null) return 0f;
-            float cost = 0f;
-            for (int i = 0; i < exts.Count; i++)
-            {
-                if (exts[i] == null) continue;
-                Type type = exts[i].GetType();
-                if (!hemogenCostFields.TryGetValue(type, out var field))
-                {
-                    field = type.GetField("hemogenCost", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
-                    if (field != null && field.FieldType != typeof(float)) field = null;
-                    hemogenCostFields[type] = field;
-                }
-                if (field != null) cost += (float)field.GetValue(exts[i]);
-            }
-            return cost;
         }
 
         private IVefAbilityCosts Costs
@@ -536,7 +512,6 @@ namespace AbilityAI.Vef
 
         public override float HeatGain => Costs?.HeatGain(ability) ?? 0f;
 
-        public override float HemogenCost => Info.hemogenCost;
 
         public override bool TryGetDestRule(out AIDestRule rule)
         {

@@ -43,7 +43,7 @@ namespace AbilityAI
         /// hemogenCost on VEF abilities). Summed when several extensions have it.</summary>
         public string costExtensionField;
 
-        internal int index = -1;
+        internal int resourceIndex = -1;
         private Func<Pawn, object> holderOf;
         private Func<object, float> currentOf, maxOf;
         private StatDef costStatDef;
@@ -193,7 +193,7 @@ namespace AbilityAI
     public static class AIResources
     {
         private static List<AIResourceDef> active;
-        // Per def, its cost in each active resource, by AIResourceDef.index; read once (Entad registers defs late, so
+        // Per def, its cost in each active resource, by AIResourceDef.resourceIndex; read once (Entad registers defs late, so
         // not at startup)
         private static readonly Dictionary<Def, float[]> costs = new Dictionary<Def, float[]>();
         private static readonly Dictionary<(Type, string), FieldInfo> floatFields = new Dictionary<(Type, string), FieldInfo>();
@@ -235,17 +235,17 @@ namespace AbilityAI
                     Log.Warning($"[Ability AI] Resource {def.defName} is off: {problem}.");
                     continue;
                 }
-                def.index = active.Count;
+                def.resourceIndex = active.Count;
                 active.Add(def);
             }
             hemogen = DefDatabase<AIResourceDef>.GetNamedSilentFail("AAI_Hemogen");
-            if (hemogen != null && hemogen.index < 0) hemogen = null;
+            if (hemogen != null && hemogen.resourceIndex < 0) hemogen = null;
         }
 
         /// <summary>What a cast of this def spends of the resource; 0 for a resource not in play.</summary>
         public static float Cost(Def def, AIResourceDef resource)
         {
-            if (def == null || resource == null || resource.index < 0) return 0f;
+            if (def == null || resource == null || resource.resourceIndex < 0) return 0f;
             var list = Active;
             if (!costs.TryGetValue(def, out float[] byResource))
             {
@@ -257,7 +257,7 @@ namespace AbilityAI
                 }
                 costs[def] = byResource;
             }
-            return byResource[resource.index];
+            return byResource[resource.resourceIndex];
         }
 
         internal static Func<object, float> Getter(Type type, string member)

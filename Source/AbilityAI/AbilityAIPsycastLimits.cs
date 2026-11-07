@@ -123,7 +123,7 @@ namespace AbilityAI
                         }
                 }
                 // Def order, whichever ability turned each up first
-                shownResources.SortBy(r => r.index);
+                shownResources.SortBy(r => r.resourceIndex);
             }
             finally
             {
@@ -209,7 +209,7 @@ namespace AbilityAI
                     max > 0f ? value / max : 0f, ref newFloor, null, Increments);
                 Shade(resBar, 0f, newFloor);
                 BarText(resBar, newFloor <= 0.001f ? (string)"AAI_Limits_NoFloor".Translate() : newFloor.ToStringPercent());
-                TooltipHandler.TipRegion(resRow, new TipSignal(r.LimitTip, 0x4A41C3 + r.index));
+                TooltipHandler.TipRegion(resRow, new TipSignal(r.LimitTip, 0x4A41C3 + r.resourceIndex));
                 if (newFloor != floor) AbilityAIAutocast.SetResourceFloor(pawn, r, newFloor);
             }
             return new GizmoResult(GizmoState.Clear);

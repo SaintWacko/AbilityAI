@@ -765,7 +765,7 @@
     </match>
   </Operation>
 
-  <!-- Stugna launcher (one charge, then gone): two gizmos sharing it, the missile (verb 0) and a remote ATGM platform dropped beside the wearer (verb 1). The rule is for the platform. -->
+  <!-- Stugna launcher (one charge, then gone): two gizmos sharing it, the missile (verb 0, minimum range 9.9, a 160 shaped charge for a mech) and a remote ATGM platform dropped beside the wearer (verb 1). Each has its own rule and autocast setting; whichever finds a target first spends the charge. -->
   <Operation Class="PatchOperationFindMod">
     <mods>
       <li>The Dead Man&apos;s Switch - AncientCorps</li>
@@ -777,6 +777,14 @@
           <match Class="PatchOperationAddModExtension">
             <xpath>Defs/ThingDef[defName="DMSAC_StugnaATGM"]</xpath>
             <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
+                <verbIndex>0</verbIndex>
+                <priority>3</priority>
+                <radius>3.9</radius>
+                <targetKinds>Mechanoid</targetKinds>
+                <avoidAllies>true</avoidAllies>
+              </li>
               <li Class="AbilityAI.AbilityAIExtension">
                 <workerClass>AbilityAI.AbilityAIWorker_Deploy</workerClass>
                 <verbIndex>1</verbIndex>

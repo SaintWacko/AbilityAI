@@ -91,6 +91,8 @@ namespace AbilityAI
     /// </summary>
     public class AbilityAIWorker_TargetHostile : AbilityAIWorker
     {
+        protected internal override AbilityAICategory DefaultCategory => AbilityAICategory.Offensive;
+
         public override bool TargetsEnemies => true;
         private struct Cand { public Thing thing; public float score; }
         private static readonly List<Cand> cands = new List<Cand>();
@@ -258,6 +260,8 @@ namespace AbilityAI
     /// </summary>
     public class AbilityAIWorker_TargetFriendly : AbilityAIWorker
     {
+        protected internal override AbilityAICategory DefaultCategory => AbilityAICategory.Buff;
+
         private static readonly List<TargetingUtil.Cand> cands = new List<TargetingUtil.Cand>();
 
         public override bool TryFindTarget(AbilityAIContext ctx, AIAbility ability, out LocalTargetInfo target, out LocalTargetInfo dest)
@@ -312,6 +316,8 @@ namespace AbilityAI
     /// </summary>
     public class AbilityAIWorker_Defensive : AbilityAIWorker
     {
+        protected internal override AbilityAICategory DefaultCategory => AbilityAICategory.Defensive;
+
         private const float DangerRange = 15f;
         private static readonly List<TargetingUtil.Cand> cands = new List<TargetingUtil.Cand>();
 
@@ -360,6 +366,8 @@ namespace AbilityAI
     /// </summary>
     public class AbilityAIWorker_Rescue : AbilityAIWorker
     {
+        protected internal override AbilityAICategory DefaultCategory => AbilityAICategory.Rescue;
+
         protected override AbilityAICombat DefaultCombat => AbilityAICombat.Any;
         private static readonly List<TargetingUtil.Cand> cands = new List<TargetingUtil.Cand>();
 
@@ -517,6 +525,8 @@ namespace AbilityAI
     /// </summary>
     public class AbilityAIWorker_Bloodfeed : AbilityAIWorker
     {
+        protected internal override AbilityAICategory DefaultCategory => AbilityAICategory.Recovery;
+
         protected override AbilityAICombat DefaultCombat => AbilityAICombat.OutOfCombat;
         private const float DangerRange = 15f;
         // BleedRateTotal is blood lost per day. Two hours of it: a quarter day refused nearly every untended
@@ -642,6 +652,8 @@ namespace AbilityAI
     /// </summary>
     public class AbilityAIWorker_Interrupt : AbilityAIWorker
     {
+        protected internal override AbilityAICategory DefaultCategory => AbilityAICategory.Interrupt;
+
         public override bool TargetsEnemies => true;
         // One stun stops the cast; a second caster's is wasted
         protected override bool DefaultExclusive => true;

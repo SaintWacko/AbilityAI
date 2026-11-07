@@ -35,6 +35,10 @@ namespace AbilityAI
     /// </summary>
     public class AbilityAIWorker_Skip : AbilityAIWorker
     {
+        protected internal override AbilityAICategory DefaultCategory =>
+            ext.skipMode == AbilityAISkipMode.Rescue ? AbilityAICategory.Rescue
+            : ext.skipMode == AbilityAISkipMode.Escape ? AbilityAICategory.Movement : AbilityAICategory.Offensive;
+
         private const float DownedDanger = 10f;
         private const float EscapeDangerRange = 12f;
         private const float RepelMinDistance = 10f;

@@ -22,6 +22,8 @@ namespace AbilityAI
     /// </summary>
     public class AbilityAIWorker_Deploy : AbilityAIWorker
     {
+        protected internal override AbilityAICategory DefaultCategory => AbilityAICategory.Offensive;
+
         public override bool TargetsEnemies => true;
 
         private struct Spot { public IntVec3 cell; public int count; public float distSq; }

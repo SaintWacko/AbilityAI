@@ -23,6 +23,11 @@ namespace AbilityAI
 
         public AbilityAICombat Combat => ext.combat == AbilityAICombat.Default ? DefaultCombat : ext.combat;
 
+        protected internal virtual AbilityAICategory DefaultCategory => AbilityAICategory.Utility;
+
+        /// <summary>What the rule does in a fight, for a job owner's arbiter: the rule's category, else the worker's.</summary>
+        public AbilityAICategory Category => ext.category == AbilityAICategory.Default ? DefaultCategory : ext.category;
+
         /// <summary>Whether the player's pawns may autocast it while undrafted: any worker that isn't combat-only
         /// (Recovery, Rescue, Calm, Firefighting by default). A def can opt a combat worker in with combat Any.</summary>
         public bool WorksUndrafted => Combat != AbilityAICombat.InCombat;
@@ -603,6 +608,8 @@ namespace AbilityAI
     /// </summary>
     public class AbilityAIWorker_AoEHostile : AbilityAIWorker
     {
+        protected internal override AbilityAICategory DefaultCategory => AbilityAICategory.Offensive;
+
         public override bool TargetsEnemies => true;
         private struct Centre { public Thing thing; public int count; public float distSq; }
         private static readonly List<Centre> centres = new List<Centre>();
@@ -836,6 +843,8 @@ namespace AbilityAI
     /// </summary>
     public class AbilityAIWorker_AoEFriendly : AbilityAIWorker
     {
+        protected internal override AbilityAICategory DefaultCategory => AbilityAICategory.Buff;
+
         // Its self-cast branch counts the allies in reach itself; a cast at an ally is not an area around the caster
         protected internal override bool CountsAffectedAroundCaster => true;
         private struct Spot { public IntVec3 cell; public int count; public float dist; }
@@ -1026,6 +1035,8 @@ namespace AbilityAI
     /// </summary>
     public class AbilityAIWorker_SelfBuff : AbilityAIWorker
     {
+        protected internal override AbilityAICategory DefaultCategory => AbilityAICategory.Buff;
+
         public override bool TryFindTarget(AbilityAIContext ctx, AIAbility ability, out LocalTargetInfo target, out LocalTargetInfo dest)
         {
             target = dest = LocalTargetInfo.Invalid;
@@ -1067,6 +1078,8 @@ namespace AbilityAI
     /// </summary>
     public class AbilityAIWorker_Movement : AbilityAIWorker
     {
+        protected internal override AbilityAICategory DefaultCategory => AbilityAICategory.Movement;
+
         protected internal override bool ForFleeing => true;
 
         private const float EscapeDangerRange = 12f;
@@ -1275,6 +1288,8 @@ namespace AbilityAI
     /// </summary>
     public class AbilityAIWorker_Cover : AbilityAIWorker
     {
+        protected internal override AbilityAICategory DefaultCategory => AbilityAICategory.Defensive;
+
         public override bool TryFindTarget(AbilityAIContext ctx, AIAbility ability, out LocalTargetInfo target, out LocalTargetInfo dest)
         {
             target = dest = LocalTargetInfo.Invalid;
@@ -1417,6 +1432,8 @@ namespace AbilityAI
     /// </summary>
     public class AbilityAIWorker_Recovery : AbilityAIWorker
     {
+        protected internal override AbilityAICategory DefaultCategory => AbilityAICategory.Recovery;
+
         protected override AbilityAICombat DefaultCombat => AbilityAICombat.OutOfCombat;
         protected internal override bool ForFleeing => true;
         private static readonly List<TargetingUtil.Cand> cands = new List<TargetingUtil.Cand>();
@@ -1499,6 +1516,8 @@ namespace AbilityAI
     /// </summary>
     public class AbilityAIWorker_AoEHostileSelf : AbilityAIWorker
     {
+        protected internal override AbilityAICategory DefaultCategory => AbilityAICategory.Offensive;
+
         public override bool TargetsEnemies => true;
         protected internal override bool CountsAffectedAroundCaster => true;
         private struct Spot { public IntVec3 cell; public int count; public float dist; }
@@ -1677,6 +1696,8 @@ namespace AbilityAI
     /// </summary>
     public class AbilityAIWorker_ConeHostile : AbilityAIWorker
     {
+        protected internal override AbilityAICategory DefaultCategory => AbilityAICategory.Offensive;
+
         public override bool TargetsEnemies => true;
         // along: how far the shape reaches; lateral half width = max(minHalf, distance along the axis × tanHalf)
         private struct Shape { public float length, tanHalf, minHalf; }

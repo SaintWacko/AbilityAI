@@ -135,6 +135,23 @@ namespace AbilityAI
             if (barrier != null) __result += "\n" + barrier.Colorize(ColoredText.SubtleGrayColor);
             string link = AbilityAIGroupLink.Hint(ability.def);
             if (link != null) __result += "\n" + link.Colorize(ColoredText.SubtleGrayColor);
+            string group = GroupCooldownHint(ability);
+            if (group != null) __result += "\n" + group.Colorize(ColoredText.SubtleGrayColor);
+        }
+
+        // A role ability starts its group's cooldown on the pawn's other abilities of that group (Ideology's Leader
+        // group: Combat command puts Leader speech and Trial on a 10 day wait), which autocasting it spends unasked
+        private static string GroupCooldownHint(Ability ability)
+        {
+            var group = ability.def.groupDef;
+            if (group == null) return null;
+            int ticks = ability.def.overrideGroupCooldown ? ability.def.cooldownTicksRange.max : group.cooldownTicks;
+            var all = ability.pawn.abilities?.AllAbilitiesForReading;
+            if (ticks <= 0 || all == null) return null;
+            List<string> others = null;
+            for (int i = 0; i < all.Count; i++)
+                if (all[i] != ability && all[i].def.groupDef == group) (others ?? (others = new List<string>())).Add(all[i].def.label);
+            return others == null ? null : (string)"AAI_GroupCooldown_Hint".Translate(others.ToCommaList(true), ticks.ToStringTicksToPeriod());
         }
     }
 }

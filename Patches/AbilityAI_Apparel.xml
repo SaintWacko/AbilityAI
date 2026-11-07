@@ -7,7 +7,7 @@
      setting (on by default).
      Left out on purpose: the tornado generator (it wanders wherever it likes) and the mech cluster targeter (it calls
      in hostile mechs). The equippable weapon abilities (Hellcat, Incinerator, Odyssey's unique traits) are
-     AbilityDefs and get their rules with the other abilities. -->
+     AbilityDefs and get their rules with the other abilities (AbilityAI_Anomaly.xml, AbilityAI_Odyssey.xml). -->
 <Patch>
 
   <!-- Smokepop belt: smoke around the wearer once two shooters are on it, as the Smokepop psycast. Vanilla pops it

@@ -7,7 +7,8 @@
      Hemogen costs: the player's pawns keep the hemogen floor set on the autocast limits gizmo (30% by default).
      Left out on purpose: Resurrect mech (vanilla's AI already picks the nearest corpse, reserves it from other
      apocritons and finds a cast spot), Implant genes, Animal warcall (a wild animal fighting for the caster, a
-     15 day cooldown), and the mech abilities no mech here uses on its own. -->
+     15 day cooldown), the sanguophage's Resurrect (90% hemogen and a 4 month cooldown: which corpse is worth it is
+     the player's call), and the mech abilities no mech here uses on its own. -->
 <Patch>
   <Operation Class="PatchOperationFindMod">
     <mods>
@@ -253,6 +254,54 @@
                 </value>
               </li>
             </operations>
+          </match>
+        </li>
+
+        <!-- Mechanitor's remote repair: a mech of the caster's side under 75% health with a wound to mend, in a fight or
+             out of one. The mechanitor stands and channels until the mech is whole; vanilla ends it once the mech
+             attacks, so in a fight it suits a mech that has pulled back. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="RemoteRepair"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="RemoteRepair"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Recovery</workerClass>
+                <priority>4</priority>
+                <combat>Any</combat>
+                <health>Injured</health>
+                <healthThreshold>0.75</healthThreshold>
+                <targetKinds>Mechanoid</targetKinds>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Mechanitor's remote shield: a 30 second bullet shield the mechanitor channels from within about 8 tiles.
+             It also stops the shielded mech shooting out. On a mech of the caster's side with two shooters on it (the
+             shield stops no melee blow). With the "Remote shield on enemy mechs" setting, also on an enemy mech
+             holding a gun, to silence it. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="RemoteShield"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="RemoteShield"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Defensive</workerClass>
+                <priority>5</priority>
+                <targetKinds>Mechanoid</targetKinds>
+                <rangedOnly>true</rangedOnly>
+                <minThreats>2</minThreats>
+              </li>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
+                <priority>3</priority>
+                <targetKinds>Mechanoid</targetKinds>
+                <armedOnly>true</armedOnly>
+                <exclusive>true</exclusive>
+                <setting>RemoteShieldEnemies</setting>
+              </li>
+            </value>
           </match>
         </li>
 

@@ -1,0 +1,214 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ability AI rules for Odyssey's abilities (Source/AbilityAI/). Only applied when Odyssey is active. Raiders use them
+     only with the "also use abilities no mod claims" setting on, and vanilla's own casting of the ones it drives
+     (aiCanUse) then stands down for them. Each rule sits in its own PatchOperationConditional on its def, as in the
+     Royalty file.
+     Unique-weapon abilities: vanilla lists a weapon's ability among the wielder's own, so these are cast like any
+     other. Their radius is the shell's blast plus how far off the aimed cell it may land, read from the comp.
+     Left out on purpose: Call mechanoids (it drops mechs hostile to everyone near) and Call drop pods (travel). -->
+<Patch>
+  <Operation Class="PatchOperationFindMod">
+    <mods>
+      <li>Odyssey</li>
+    </mods>
+    <match Class="PatchOperationSequence">
+      <operations>
+
+        <!-- Frag grenade launcher: two or more enemies in the blast, nobody of the caster's side and no friendly
+             building there. One charge, reloaded with steel. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="LaunchFragGrenade"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="LaunchFragGrenade"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
+                <priority>5</priority>
+                <minTargets>2</minTargets>
+                <avoidAllies>true</avoidAllies>
+                <avoidBuildings>true</avoidBuildings>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- EMP shell: mechs, turrets and raised shield belts. Never with a mech, turret or shield of the caster's side
+             in reach of the blast. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="LaunchEMPShell"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="LaunchEMPShell"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
+                <priority>5</priority>
+                <targetKinds>Mechanoid, Turret, Shielded</targetKinds>
+                <allyKinds>Mechanoid, Turret, Shielded</allyKinds>
+                <avoidAllies>true</avoidAllies>
+                <harmless>true</harmless>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Incendiary shell: as the frag launcher, and it sets fires -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="LaunchIncendiaryShell"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="LaunchIncendiaryShell"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
+                <priority>5</priority>
+                <minTargets>2</minTargets>
+                <avoidAllies>true</avoidAllies>
+                <avoidBuildings>true</avoidBuildings>
+                <startsFires>true</startsFires>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Smoke shell: cover once two shooters are on the caster, landed two tiles toward the nearest -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="LaunchSmokeShell"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="LaunchSmokeShell"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Cover</workerClass>
+                <priority>4</priority>
+                <offsetTowardThreat>2</offsetTowardThreat>
+                <minThreats>2</minThreats>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- EMP pulser: a 4.9 tile EMP blast around the wielder, half a day's cooldown. At an enemy mech, turret or
+             shield belt in reach, never with one of the caster's side inside. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="EMPPulse"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="EMPPulse"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEHostileSelf</workerClass>
+                <priority>5</priority>
+                <targetKinds>Mechanoid, Turret, Shielded</targetKinds>
+                <allyKinds>Mechanoid, Turret, Shielded</allyKinds>
+                <avoidAllies>true</avoidAllies>
+                <harmless>true</harmless>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- War trumpet and Thrumbo roar: a slowing debuff on hostile people and animals around the caster (19.9 and
+             23.9 tiles); the roar touches only hostiles. A pet needs the trick trained; a wild animal never roars,
+             as in vanilla. Already-roared enemies don't count. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="WarTrumpet"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="WarTrumpet"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEHostileSelf</workerClass>
+                <priority>4</priority>
+                <minTargets>2</minTargets>
+                <targetKinds>Humanlike, Animal</targetKinds>
+                <hediff>WarTrumpet</hediff>
+                <harmless>true</harmless>
+              </li>
+            </value>
+          </match>
+        </li>
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="ThrumboRoar"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="ThrumboRoar"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEHostileSelf</workerClass>
+                <priority>4</priority>
+                <minTargets>2</minTargets>
+                <targetKinds>Humanlike, Animal</targetKinds>
+                <hediff>ThrumboRoar</hediff>
+                <harmless>true</harmless>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Terror roar (alpha thrumbo): hostile people and animals around it flee in terror. Vanilla's AI already casts
+             it; the rule waits for two of them. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="TerrorRoar"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="TerrorRoar"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEHostileSelf</workerClass>
+                <priority>5</priority>
+                <minTargets>2</minTargets>
+                <targetKinds>Humanlike, Animal</targetKinds>
+                <harmless>true</harmless>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Cerebrex node's Deactivate mechanoid: shuts a hostile mech down for good. Vanilla only lets it touch mechs
+             hostile to the player, so in practice it is the player's, or an ally fighting the player's enemies. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="DeactivateMechanoid"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="DeactivateMechanoid"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
+                <priority>6</priority>
+                <targetKinds>Mechanoid</targetKinds>
+                <approachDistance>8</approachDistance>
+                <exclusive>true</exclusive>
+                <npcGate>InstantKill</npcGate>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Larva's sludge spew and the hive queen's egg spew: as Biotech's acid spray, no ally in the spray and no
+             friendly building -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="SludgeSpew"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="SludgeSpew"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
+                <priority>4</priority>
+                <avoidAllies>true</avoidAllies>
+                <avoidBuildings>true</avoidBuildings>
+              </li>
+            </value>
+          </match>
+        </li>
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="EggSpew"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="EggSpew"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
+                <priority>4</priority>
+                <avoidAllies>true</avoidAllies>
+                <avoidBuildings>true</avoidBuildings>
+              </li>
+            </value>
+          </match>
+        </li>
+
+      </operations>
+    </match>
+  </Operation>
+</Patch>

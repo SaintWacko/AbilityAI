@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ability AI rules for Vanilla Ideology Expanded - Memes and Structures' role abilities (Source/AbilityAI/). Only
+     applied when that mod is active. They are vanilla AbilityDefs, so they cast like Ideology's own.
+     Left out on purpose: Enforce compliance (it executes one of the player's colonists), Throw party, Tame insectoid,
+     Construct a nest, Harvest body parts, Medical emergency, Call trade caravan, Work command, Make a dessert, and
+     the leader's conversion ritual, Convert, Reassure and Counsel. -->
+<Patch>
+  <Operation Class="PatchOperationFindMod">
+    <mods>
+      <li>Vanilla Ideology Expanded - Memes and Structures</li>
+    </mods>
+    <match Class="PatchOperationSequence">
+      <operations>
+
+        <!-- Mechacker's Enable self-destruct: a mech blows up (5.9 tiles) and dies; a turret's fuse is lit, or it
+             blows up (3.9 tiles). The enemy mech or turret with the most of its side around it, with nobody of the
+             caster's side and no friendly building within 5.9. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="VME_EnableSelfDestruct"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="VME_EnableSelfDestruct"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
+                <priority>6</priority>
+                <targetKinds>Mechanoid, Turret</targetKinds>
+                <radius>5.9</radius>
+                <preferGrouped>true</preferGrouped>
+                <avoidAllies>true</avoidAllies>
+                <avoidBuildings>true</avoidBuildings>
+                <approachDistance>8</approachDistance>
+                <exclusive>true</exclusive>
+                <npcGate>InstantKill</npcGate>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Fire Keeper's Strengthen flame: a fire bursts in a 3.9 tile explosion of flame. Centred on a fire with two
+             or more enemies around it, nobody of the caster's side and no friendly building. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="VME_StrengthenFlame"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="VME_StrengthenFlame"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
+                <priority>4</priority>
+                <anchorThings>
+                  <li>Fire</li>
+                </anchorThings>
+                <minTargets>2</minTargets>
+                <avoidAllies>true</avoidAllies>
+                <avoidBuildings>true</avoidBuildings>
+                <startsFires>true</startsFires>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- The leader's Preach health: as Ideology's -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="VME_LeaderPreachHealth"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="VME_LeaderPreachHealth"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Recovery</workerClass>
+                <priority>3</priority>
+                <health>Injured, Disease</health>
+                <healthThreshold>0.8</healthThreshold>
+                <maxRange>20</maxRange>
+              </li>
+            </value>
+          </match>
+        </li>
+
+      </operations>
+    </match>
+  </Operation>
+</Patch>

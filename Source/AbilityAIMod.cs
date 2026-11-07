@@ -1,8 +1,15 @@
 using System;
+using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using HarmonyLib;
 using RimWorld;
 using UnityEngine;
 using Verse;
+
+// The VEF compat assembly hooks VEF's gizmos into the same autocast menu, badge and marker, which stay internal here
+[assembly: InternalsVisibleTo("AbilityAI.VEF")]
+// The VPE compat's Better Autocasting bridge reads the owner setting and carries modes over when it changes
+[assembly: InternalsVisibleTo("AbilityAI.VPE")]
 
 namespace AbilityAI
 {
@@ -21,31 +28,62 @@ namespace AbilityAI
     {
         private Vector2 scroll;
         private float viewHeight = 600f;
+        private AbilityAISettings.Tab tab;
+        private List<TabRecord> tabs;
+        private LoadedLanguage tabsLanguage;
 
         public AbilityAIMod(ModContentPack content) : base(content)
         {
             // Settings only: no defs are loaded yet, and patching waits for AbilityAIStartup
             GetSettings<AbilityAIModSettings>();
+            // The VEF and VPE compat assemblies come in through IfModActive load folders, and a folder the game
+            // skipped leaves no error behind: this line is the only way to see which ones it took. With dev mode on,
+            // no line at all means AbilityAI.dll itself didn't load
+            if (Prefs.DevMode)
+                Log.Message($"[Ability AI] load folders: {string.Join(", ", content.foldersToLoadDescendingOrder)}; assemblies: {string.Join(", ", content.assemblies.loadedAssemblies.ConvertAll(a => a.GetName().Name))}");
         }
 
         public override string SettingsCategory() => "Ability AI";
 
+        private TabRecord MakeTab(AbilityAISettings.Tab t, string key) =>
+            new TabRecord(key.Translate(), () => { tab = t; scroll = Vector2.zero; }, () => tab == t);
+
         public override void DoSettingsWindowContents(Rect inRect)
         {
-            // The bottom 40 px are kept for the reset button
-            var outer = new Rect(inRect.x, inRect.y, inRect.width, inRect.height - 40f);
+            // The labels are translated when the list is made: made again after a language change
+            if (tabs == null || tabsLanguage != LanguageDatabase.activeLanguage)
+            {
+                tabsLanguage = LanguageDatabase.activeLanguage;
+                tabs = new List<TabRecord>
+                {
+                    MakeTab(AbilityAISettings.Tab.General, "AAI_Tab_General"),
+                    MakeTab(AbilityAISettings.Tab.OtherFactions, "AAI_Tab_OtherFactions"),
+                    MakeTab(AbilityAISettings.Tab.YourPawns, "AAI_Tab_YourPawns"),
+                    MakeTab(AbilityAISettings.Tab.MentalBreaks, "AAI_Tab_MentalBreaks"),
+                };
+            }
+            // TabDrawer draws the tabs above the rect it is given; the bottom 40 px are kept for the reset buttons
+            var menu = new Rect(inRect.x, inRect.y + TabDrawer.TabHeight, inRect.width, inRect.height - TabDrawer.TabHeight - 40f);
+            Widgets.DrawMenuSection(menu);
+            TabDrawer.DrawTabs(menu, tabs);
+
+            var outer = menu.ContractedBy(10f);
             var view = new Rect(0f, 0f, outer.width - 16f, viewHeight);
             Widgets.BeginScrollView(outer, ref scroll, view);
             // maxOneColumn: without it an overrun wraps into a second column and CurHeight stops growing
             var list = new Listing_Standard { maxOneColumn = true };
             list.Begin(view);
-            AbilityAISettings.DoSettings(list);
+            AbilityAISettings.DoTab(list, tab);
             viewHeight = list.CurHeight + 20f;
             list.End();
             Widgets.EndScrollView();
 
-            var reset = new Rect(inRect.x, inRect.yMax - 32f, 200f, 32f);
-            if (Widgets.ButtonText(reset, "AAI_Reset".Translate())) AbilityAISettings.Reset();
+            var resetTab = new Rect(inRect.x, inRect.yMax - 32f, 200f, 32f);
+            if (Widgets.ButtonText(resetTab, "AAI_ResetTab".Translate())) AbilityAISettings.ResetTab(tab);
+            var resetAll = new Rect(inRect.xMax - 200f, inRect.yMax - 32f, 200f, 32f);
+            if (Widgets.ButtonText(resetAll, "AAI_Reset".Translate()))
+                Find.WindowStack.Add(Dialog_MessageBox.CreateConfirmation("AAI_Reset_Confirm".Translate(),
+                    AbilityAISettings.Reset, destructive: true));
         }
     }
 
@@ -65,6 +103,41 @@ namespace AbilityAI
                 try { harmony.CreateClassProcessor(type).Patch(); }
                 catch (Exception e) { Log.Error($"[Ability AI] Patch {type.FullName} failed; that one feature is off, the rest still works: {e}"); }
             }
+            // After the patches, so a def problem here can't keep them from being applied
+            try
+            {
+                var abilityDefs = DefDatabase<AbilityDef>.AllDefsListForReading;
+                for (int i = 0; i < abilityDefs.Count; i++)
+                {
+                    AbilityAIRecast.Note(abilityDefs[i]);
+                    AbilityAIGather.Note(abilityDefs[i]);
+                    AbilityAIZones.Note(abilityDefs[i]);
+                    AbilityAISpots.Note(abilityDefs[i]);
+                    AbilityAIHeat.Note(abilityDefs[i]);
+                    AbilityAIBarrier.Note(abilityDefs[i]);
+                    AbilityAIGroupLink.Note(abilityDefs[i]);
+                }
+            }
+            catch (Exception e) { Log.Error($"[Ability AI] Setting up recasting failed; nothing is recast: {e}"); }
+            try
+            {
+                var abilityDefs = DefDatabase<AbilityDef>.AllDefsListForReading;
+                for (int i = 0; i < abilityDefs.Count; i++) AbilityAINpcGates.Note(abilityDefs[i]);
+            }
+            catch (Exception e) { Log.Error($"[Ability AI] Setting up the NPC gates failed; their settings may not show: {e}"); }
+            try
+            {
+                var thingDefs = DefDatabase<ThingDef>.AllDefsListForReading;
+                for (int i = 0; i < thingDefs.Count; i++)
+                {
+                    if (thingDefs[i].modExtensions == null) continue;
+                    ApparelAIAbility.Note(thingDefs[i]);
+                    if (ApparelAIAbility.HasRules(thingDefs[i])) AbilityAINpcGates.Note(thingDefs[i]);
+                }
+            }
+            catch (Exception e) { Log.Error($"[Ability AI] Setting up the gear rules failed; packs and belts are left to their own AI: {e}"); }
+            try { ApparelGearCompat.Register(); }
+            catch (Exception e) { Log.Error($"[Ability AI] Setting up other mods' gear checks failed; some modded packs may waste a cast: {e}"); }
         }
     }
 
@@ -79,12 +152,12 @@ namespace AbilityAI
     ///
     /// That includes a player pawn the driver isn't casting for right now (mode Off, undrafted with a combat-only
     /// ability, in a lord), so a host can't count on its aiCanUse fallback for the player's pawns while this mod and
-    /// its player autocast are on. A player pawn in a mental break, and NPCs, stand vanilla down only where this mod
+    /// its player autocast are on, except for an ability its hook vetoes for that pawn: a veto hands it back. A player pawn in a mental break, and NPCs, stand vanilla down only where this mod
     /// decides (Handles): an NPC whose kind is switched off in the settings, or an unclaimed ability with Unclaimed
     /// off, keeps vanilla's behaviour.
     ///
-    /// Cost: one bool read on every call, and only calls vanilla answered true (abilities with aiCanUse that are
-    /// ready) go on to the extension lookup and the hooks' vote. Our own driver never calls this method, so it
+    /// Cost: only calls vanilla answered true (abilities with aiCanUse that are ready) go on to the extension lookup
+    /// and the hooks' vote. Our own driver never calls this method, so it
     /// doesn't stand itself down.
     /// </summary>
     [HarmonyPatch(typeof(Ability), nameof(Ability.AICanTargetNow))]
@@ -92,8 +165,47 @@ namespace AbilityAI
     {
         static void Postfix(Ability __instance, ref bool __result)
         {
-            if (!__result || !AbilityAISettings.VanillaStandDown) return;
+            if (!__result) return;
             if (AbilityAIDriver.OthersStandDown(__instance.pawn, __instance)) __result = false;
+        }
+    }
+
+    /// <summary>
+    /// Vanilla also casts abilities from think-tree branches that never ask AICanTargetNow: a raider's Longjump
+    /// escape, an enemy Tunneler's smokepop, an Apocriton's jump away after a resurrection. Each branch sits under a
+    /// ThinkNode_ConditionalHasAbility for its ability, so for a pawn not of the player's faction whose ability this
+    /// mod handles (Handles), the node answers no and the branch is skipped. Only the abilities whose vanilla
+    /// branches this mod's rules replace: other mods key their own branches on abilities too (Better Traders Guild's
+    /// NPC paramedic jumps to a pawn it is rescuing with LongjumpMechLauncher, which this mod has no rescue rule for).
+    /// The player's pawns keep vanilla's branches for the same reason.
+    /// Cost: one reference compare on each such node vanilla answered yes, then the extension lookup.
+    /// </summary>
+    [HarmonyPatch(typeof(ThinkNode_ConditionalHasAbility), "Satisfied")]
+    internal static class Patch_ConditionalHasAbility_StandDown
+    {
+        private static readonly string[] ReplacedNames = { "Longjump", "LongjumpMech", "SmokepopMech" };
+        private static AbilityDef[] replaced;
+
+        private static bool Replaced(AbilityDef def)
+        {
+            if (replaced == null)
+            {
+                var found = new List<AbilityDef>();
+                foreach (string name in ReplacedNames)
+                    if (DefDatabase<AbilityDef>.GetNamedSilentFail(name) is AbilityDef d) found.Add(d);
+                replaced = found.ToArray();
+            }
+            for (int i = 0; i < replaced.Length; i++)
+                if (replaced[i] == def) return true;
+            return false;
+        }
+
+        static void Postfix(ThinkNode_ConditionalHasAbility __instance, Pawn pawn, ref bool __result)
+        {
+            if (!__result || !Replaced(__instance.ability)
+                || (pawn.Faction != null && pawn.Faction.IsPlayer)) return;
+            Ability ability = pawn.abilities?.GetAbility(__instance.ability);
+            if (ability != null && AbilityAIDriver.Handles(pawn, ability)) __result = false;
         }
     }
 }

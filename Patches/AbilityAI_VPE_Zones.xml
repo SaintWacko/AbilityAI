@@ -1,0 +1,246 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Zone casting rules for Vanilla Psycasts Expanded's utility psycasts (Source/AbilityAI/AbilityAIZones.cs). The
+     player paints a zone per psycast from its autocast menu; colonists with the psycast on autocast cast it on what the
+     zone holds, as Basic work. Word of Trust needs no zone: it goes to the prisoners the wardens are recruiting or wearing
+     down. What each kind takes is in AbilityAIZones.Wants, its thresholds in the Your pawns tab ("Zone casting").
+     Crop Burst and Tree Sprout are cast at markers instead (Source/AbilityAI/AbilityAISpots.cs), put down from the
+     autocast menu, whenever no crop grows within spotRadius of one and enough cells in reach are open.
+     NPCs never cast from these rules (the Zone worker isn't the driver's), so VEF's own AI keeps them, as before. -->
+<Patch>
+  <Operation Class="PatchOperationFindMod">
+    <mods>
+      <li>Vanilla Psycasts Expanded</li>
+    </mods>
+    <match Class="PatchOperationSequence">
+      <operations>
+
+        <!-- Enchant Quality: items with a quality, one step per cast, up to the setting or what the caster's
+             sensitivity allows (VPE's ValidateTarget), whichever is lower. Not books: VPE's cast does nothing to them. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_EnchantQuality"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_EnchantQuality"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Zone</workerClass>
+                <zoneTarget>QualityItems</zoneTarget>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Mend: the player's buildings and any items under the setting's share of their hit points. It restores
+             (sensitivity - 1) x 100, so a caster at 100% sensitivity or less is never sent. VPE's Mend also repairs a
+             colonist's gear and allied mechs; those aren't zone targets (operator's plan). -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Mend"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Mend"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Zone</workerClass>
+                <zoneTarget>Damaged</zoneTarget>
+                <sensitivityAbove>1</sensitivityAbove>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Recharge: the player's batteries and mechs (off their chargers) under the setting's share of their charge.
+             Not one a colonist's Recharge is already charging (the VPE compat's busy check). -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Recharge"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Recharge"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Zone</workerClass>
+                <zoneTarget>Rechargeable</zoneTarget>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Power: the player's buildings drawing power. A building already powered draws nothing, so it is recast
+             once the last one ends. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Power"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Power"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Zone</workerClass>
+                <zoneTarget>PowerConsumers</zoneTarget>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Craft Timeskip: unfinished items whose bill still exists. Ages the caster a year per cast, so never one
+             who would pass the setting's age. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_CraftTimeskip"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_CraftTimeskip"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Zone</workerClass>
+                <zoneTarget>Unfinished</zoneTarget>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Enthrall: humanlike corpses of enemies and the factionless, never the colony's own dead or a friendly
+             faction's. By default only while enemies are on the map, since the skeleton lasts a day. Ranged in VPE
+             (19.9), so the work walks into range first; Better Autocasting makes it a walk-up psycast, whose own cast
+             job walks instead. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Enthrall"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Enthrall"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Zone</workerClass>
+                <zoneTarget>HumanlikeCorpses</zoneTarget>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Consume Bodies: the same corpses as Enthrall, in heaps. The caster walks to the cell with the most of the
+             zone's corpses within its radius (3.9 unless a mod scales it), at least the setting's minimum, and only where no other humanlike
+             corpse is in reach: VPE destroys every one there, through walls. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_ConsumeBodies"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_ConsumeBodies"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Zone</workerClass>
+                <zoneTarget>ConsumableCorpses</zoneTarget>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Crop Burst: at markers, once the last burst's crops are all harvested (no crop within 6) and enough cells
+             are fertile ground with no tree or building. Its one-day cooldown keeps it to one burst a day. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_CropBurst"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_CropBurst"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Spot</workerClass>
+                <spotKind>Crops</spotKind>
+                <spotRadius>6</spotRadius>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Tree Sprout: at markers, while no crop grows within 8 (its largest radius) and enough cells in the caster's
+             own radius (3 x sensitivity, 8 at most) can take a tree. It has no cooldown, so the open-cell minimum is
+             what stops it on a full grove. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_TreeSprout"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_TreeSprout"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Spot</workerClass>
+                <spotKind>Trees</spotKind>
+                <spotRadius>8</spotRadius>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Word of Trust: no zone. Prisoners of the colony set to recruit or reduce resistance, with resistance left,
+             not downed or in a break. Through a group link it may reach anyone not hostile: a colonist only has an unused
+             resistance lowered and hears the word. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_WordofTrust"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_WordofTrust"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Zone</workerClass>
+                <zoneTarget>Prisoners</zoneTarget>
+                <linkSafe>NonHostile</linkSafe>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Word of Joy: no zone. Colonists (and slaves, by setting) awake, not in a break, whose mood is heading below
+             the setting, without joyfuzz already. Joyfuzz lowers consciousness and costs another faction's pawn 25
+             goodwill, so a group link goes first only where everyone it reaches is a target. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_WordofJoy"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_WordofJoy"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Zone</workerClass>
+                <zoneTarget>LowMood</zoneTarget>
+                <hediff>Joyfuzz</hediff>
+                <linkSafe>Targets</linkSafe>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Word of Inspiration: no zone. Colonists (and slaves, by setting) awake, not in a break, not inspired and able
+             to be. Through a link, anyone not hostile: an inspiration hurts nobody, and VPE skips one who can't have it. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_WordofInspiration"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_WordofInspiration"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Zone</workerClass>
+                <zoneTarget>Inspirable</zoneTarget>
+                <linkSafe>NonHostile</linkSafe>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Word of Productivity: no zone. Colonists (and slaves, by setting) not downed or in a break, without the buff.
+             It costs another faction's pawn 10 goodwill, so a link goes first only where everyone it reaches is a target. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_WordofProductivity"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_WordofProductivity"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Zone</workerClass>
+                <zoneTarget>ColonistsWithout</zoneTarget>
+                <hediff>VPE_Productivity</hediff>
+                <linkSafe>Targets</linkSafe>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Word of Alliance: no zone. Visitors, traders and other pawns of factions that aren't hostile, whose goodwill
+             is below the setting. Not one of VPE's Word class, so no group link reaches past its target. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_WordofAlliance"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_WordofAlliance"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Zone</workerClass>
+                <zoneTarget>Visitors</zoneTarget>
+              </li>
+            </value>
+          </match>
+        </li>
+
+      </operations>
+    </match>
+  </Operation>
+</Patch>

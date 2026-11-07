@@ -1,0 +1,177 @@
+using System;
+using System.Collections.Generic;
+using HarmonyLib;
+using RimWorld;
+using VanillaPsycastsExpanded;
+using VanillaPsycastsExpanded.Skipmaster;
+using VanillaPsycastsExpanded.Staticlord;
+using VanillaPsycastsExpanded.Technomancer;
+using Verse;
+using VefAbility = VEF.Abilities.Ability;
+using VefAbilityDef = VEF.Abilities.AbilityDef;
+
+// Vanilla Psycasts Expanded's side of VEF abilities: what a psycast costs and what it does that VEF's own extensions
+// don't say. VPE marks its psycasts with AbilityExtension_Psycast and charges psyfocus and neural heat from it on the
+// vanilla psychic entropy tracker. Psycasts² postfixes both cost methods, so they are always called rather than the
+// extension's fields read.
+namespace AbilityAI.Vpe
+{
+    [StaticConstructorOnStartup]
+    internal static class VpeStartup
+    {
+        static VpeStartup()
+        {
+            Vef.VefAIAbility.RegisterCosts(new VpeCosts());
+            Vef.VefAIAbility.RegisterEffectsReader(ReadEffects);
+            BetterAutocastBridge.Init();
+            VpeQuietSpawners.Install();
+            try
+            {
+                rechargeTarget = AccessTools.FieldRefAccess<HediffComp_Recharge, Thing>("target");
+                AbilityAIZones.RegisterBusy(RechargeUnderWay);
+            }
+            catch (Exception e) { Log.Warning($"[Ability AI] VPE's recharge target wasn't found, so zone casting may send a second Recharge to a battery already charging: {e.Message}"); }
+            AbilityAIGroupLink.Register(GroupLinkOf, h => (h as Hediff_GroupLink)?.linkedPawns, IsWord);
+        }
+
+        // Ability_WordOf.Cast reads the link by this def
+        private static Hediff GroupLinkOf(Pawn pawn) =>
+            VPE_DefOf.VPE_GroupLink == null ? null : pawn.health?.hediffSet?.GetFirstHediffOfDef(VPE_DefOf.VPE_GroupLink);
+
+        private static bool IsWord(Def def) =>
+            def is VefAbilityDef d && d.abilityClass != null && typeof(Ability_WordOf).IsAssignableFrom(d.abilityClass);
+
+        private static AccessTools.FieldRef<HediffComp_Recharge, Thing> rechargeTarget;
+
+        // Recharge is a hediff on the caster that charges its target for a while (HediffComp_Recharge); a second cast
+        // would stack another on top. Only the player's pawns cast in zones, so only theirs are looked at.
+        private static bool RechargeUnderWay(Thing thing, Def def)
+        {
+            if (!(def is VefAbilityDef d) || d.abilityClass == null || !typeof(Ability_Recharge).IsAssignableFrom(d.abilityClass)) return false;
+            Map map = thing.MapHeld;
+            if (map == null) return false;
+            var pawns = map.mapPawns.SpawnedPawnsInFaction(Faction.OfPlayer);
+            for (int i = 0; i < pawns.Count; i++)
+            {
+                var hediffs = pawns[i].health?.hediffSet?.hediffs;
+                if (hediffs == null) continue;
+                for (int j = 0; j < hediffs.Count; j++)
+                {
+                    if (hediffs[j].def != VPE_DefOf.VPE_Recharge || !(hediffs[j] is HediffWithComps hw)) continue;
+                    var comp = hw.TryGetComp<HediffComp_Recharge>();
+                    if (comp != null && rechargeTarget(comp) == thing) return true;
+                }
+            }
+            return false;
+        }
+
+        private static void ReadEffects(VefAbilityDef def, AIAbilityEffects e)
+        {
+            var psycast = def.GetModExtension<AbilityExtension_Psycast>();
+            // VPE's ValidateTarget then refuses a target without psychic sensitivity; WouldAffect leaves those out
+            // before the AI gets that far
+            if (psycast != null && psycast.psychic) e.psychic = true;
+            // The Cover worker keeps walls off pawns and off the caster's own cell
+            var wallraise = def.GetModExtension<AbilityExtension_Wallraise>();
+            if (wallraise?.pattern != null)
+            {
+                e.wall = true;
+                e.wallPattern = wallraise.pattern;
+            }
+            else if (def.abilityClass != null && typeof(Ability_IceBlock).IsAssignableFrom(def.abilityClass))
+            {
+                e.wall = true;
+                e.wallPattern = IceBlockPattern;
+            }
+            // VPE's smokepop makes its smoke in code, with no extension saying so: the Cover worker then doesn't cast
+            // it again while the caster already stands in smoke
+            if (def.abilityClass != null && typeof(Ability_Smokepop).IsAssignableFrom(def.abilityClass)) e.smoke = true;
+            // Haywire marks a turret in VPE's own set rather than with a hediff, so skipAffected asks the set
+            if (def.abilityClass != null && typeof(Ability_AffectMechs).IsAssignableFrom(def.abilityClass))
+                e.thingAffected = IsHaywire;
+        }
+
+        private static readonly Func<Thing, bool> IsHaywire = t => HaywireManager.HaywireThings.Contains(t);
+
+        // Ability_IceBlock.Cast: 20 random cells of the 5x5 square centred on the target. Any of the 25 may get ice.
+        private static readonly List<IntVec2> IceBlockPattern = Square(2);
+
+        private static List<IntVec2> Square(int half)
+        {
+            var cells = new List<IntVec2>();
+            for (int x = -half; x <= half; x++)
+                for (int z = -half; z <= half; z++) cells.Add(new IntVec2(x, z));
+            return cells;
+        }
+    }
+
+    internal sealed class VpeCosts : Vef.IVefAbilityCosts, Vef.IVefAbilityHeat
+    {
+        public bool Covers(VefAbilityDef def) => def.GetModExtension<AbilityExtension_Psycast>() != null;
+
+        // AbilityExtension_Psycast.IsEnabledForPawn's refusals that build a translated reason, without the reason. The
+        // path lock it also checks hands back a stored string, so that one is left to it.
+        public bool Affordable(VefAbility ability)
+        {
+            var psycast = ability.def.GetModExtension<AbilityExtension_Psycast>();
+            if (psycast == null) return false;
+            Pawn pawn = ability.pawn;
+            var pe = pawn.psychicEntropy;
+            if (pe == null || pe.PsychicSensitivity < float.Epsilon || pawn.Downed) return false;
+            var psycasts = pawn.Psycasts();
+            if (psycasts == null || psycasts.CurrentlyChanneling != null) return false;
+            // Strictly more, as Hediff_PsycastAbilities.SufficientPsyfocusPresent
+            if (!(pe.CurrentPsyfocus > psycast.GetPsyfocusUsedByPawn(pawn))) return false;
+            return !pe.WouldOverflowEntropy(psycast.GetEntropyUsedByPawn(pawn));
+        }
+
+        // AbilityExtension_Psycast.IsEnabledForPawn without its heat check, the path lock included, since
+        // CanCastIgnoringHeat skips that extension's own check altogether
+        public bool AffordableIgnoringHeat(VefAbility ability)
+        {
+            var psycast = ability.def.GetModExtension<AbilityExtension_Psycast>();
+            if (psycast == null) return false;
+            Pawn pawn = ability.pawn;
+            var pe = pawn.psychicEntropy;
+            if (pe == null || pe.PsychicSensitivity < float.Epsilon || pawn.Downed) return false;
+            var psycasts = pawn.Psycasts();
+            if (psycasts == null || psycasts.CurrentlyChanneling != null) return false;
+            if (!(pe.CurrentPsyfocus > psycast.GetPsyfocusUsedByPawn(pawn))) return false;
+            var path = psycast.path;
+            return path == null || path.ignoreLockRestrictionsForNeurotrainers || path.CanPawnUnlock(pawn);
+        }
+
+        // Subclasses too: Word of Serenity's inherits the heat check. Its own Valid (the target's break, the exceptions)
+        // is then skipped while the AI only asks whether to vent heat; the cast itself still runs it.
+        public bool IsCostExtension(VEF.Abilities.AbilityExtension_AbilityMod extension) => extension is AbilityExtension_Psycast;
+
+        // Word of Serenity charges by the target's break on top of the base cost, unscaled, as its Cast does
+        public float PsyfocusCost(VefAbility ability, LocalTargetInfo target)
+        {
+            var psycast = ability.def.GetModExtension<AbilityExtension_Psycast>();
+            if (psycast == null) return 0f;
+            float cost = psycast.GetPsyfocusUsedByPawn(ability.pawn);
+            if (psycast is AbilityExtension_PsycastWordOfSerenity serenity)
+            {
+                Map map = ability.pawn.Map;
+                cost += target.IsValid && map != null
+                    ? serenity.PsyfocusCostForTarget(target.ToGlobalTargetInfo(map))
+                    : LeastBreakCost(serenity);
+            }
+            return cost;
+        }
+
+        public float HeatGain(VefAbility ability) =>
+            ability.def.GetModExtension<AbilityExtension_Psycast>()?.GetEntropyUsedByPawn(ability.pawn) ?? 0f;
+
+        // The three per-intensity costs default to -1 (unset); unset ones are left out
+        private static float LeastBreakCost(AbilityExtension_PsycastWordOfSerenity s)
+        {
+            float least = float.MaxValue;
+            if (s.psyfocusCostForMinor >= 0f) least = Math.Min(least, s.psyfocusCostForMinor);
+            if (s.psyfocusCostForMajor >= 0f) least = Math.Min(least, s.psyfocusCostForMajor);
+            if (s.psyfocusCostForExtreme >= 0f) least = Math.Min(least, s.psyfocusCostForExtreme);
+            return least == float.MaxValue ? 0f : least;
+        }
+    }
+}

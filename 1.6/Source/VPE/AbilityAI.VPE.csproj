@@ -1,0 +1,75 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <!--
+        RimWorld 1.6 build of the Vanilla Psycasts Expanded compat assembly: psycast costs for VEF abilities and VPE's
+        own effect markers. Built on the VEF compat assembly (AbilityAI.VEF), not on the core alone. Shared C# in the
+        mod's top-level Source/VPE folder. Output goes to 1.6/VPE/Assemblies, which LoadFolders.xml loads only on 1.6
+        with VPE active (VPE requires VEF, so the VEF compat is loaded too).
+
+        Its own folder: two projects in one folder share obj/ and break restore.
+    -->
+    <Import Project="..\..\..\Source\Workshop.props" />
+
+    <PropertyGroup>
+        <OutputType>Library</OutputType>
+        <TargetFramework>net472</TargetFramework>
+        <RootNamespace>AbilityAI.Vpe</RootNamespace>
+        <AssemblyName>AbilityAI.VPE</AssemblyName>
+        <LangVersion>latest</LangVersion>
+        <Deterministic>true</Deterministic>
+        <OutputPath>..\..\VPE\Assemblies\</OutputPath>
+        <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+        <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+        <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+        <DefineConstants>$(DefineConstants);RW16</DefineConstants>
+        <!-- VPE's 1.6 assembly is built for .NET Framework 4.8; RimWorld's Mono runs both, and we only name its types -->
+        <ResolveAssemblyReferenceIgnoreTargetFrameworkAttributeVersionMismatch>true</ResolveAssemblyReferenceIgnoreTargetFrameworkAttributeVersionMismatch>
+        <Version>1.0.0</Version>
+        <AssemblyVersion>1.0.0.0</AssemblyVersion>
+        <FileVersion>1.0.0.0</FileVersion>
+        <Product>Ability AI</Product>
+        <Authors>SaintWacko</Authors>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+        <Optimize>true</Optimize>
+        <DebugType>none</DebugType>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
+        <Optimize>false</Optimize>
+        <DebugType>portable</DebugType>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <Compile Include="..\..\..\Source\VPE\*.cs" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Krafs.Rimworld.Ref" Version="1.6.4871">
+            <PrivateAssets>all</PrivateAssets>
+            <ExcludeAssets>runtime</ExcludeAssets>
+        </PackageReference>
+        <PackageReference Include="Lib.Harmony" Version="2.4.1">
+            <PrivateAssets>all</PrivateAssets>
+            <ExcludeAssets>runtime</ExcludeAssets>
+        </PackageReference>
+    </ItemGroup>
+
+    <ItemGroup>
+        <!-- Private=false on all: a copy of any of these in 1.6/VPE/Assemblies would be loaded a second time -->
+        <ProjectReference Include="..\AbilityAI.csproj">
+            <Private>false</Private>
+        </ProjectReference>
+        <ProjectReference Include="..\VEF\AbilityAI.VEF.csproj">
+            <Private>false</Private>
+        </ProjectReference>
+        <Reference Include="VEF">
+            <HintPath>$(VEFRoot)/1.6/Assemblies/VEF.dll</HintPath>
+            <Private>false</Private>
+        </Reference>
+        <Reference Include="VanillaPsycastsExpanded">
+            <HintPath>$(VPERoot)/1.6/Assemblies/VanillaPsycastsExpanded.dll</HintPath>
+            <Private>false</Private>
+        </Reference>
+    </ItemGroup>
+</Project>

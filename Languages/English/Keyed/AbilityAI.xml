@@ -1,9 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Ability AI's settings, autocast menu and badge. AAI_ prefix: these keys are global across every loaded mod. -->
 <LanguageData>
+  <AAI_Tab_General>General</AAI_Tab_General>
+  <AAI_Tab_OtherFactions>Other factions</AAI_Tab_OtherFactions>
+  <AAI_Tab_YourPawns>Your pawns</AAI_Tab_YourPawns>
+  <AAI_Tab_MentalBreaks>Mental breaks</AAI_Tab_MentalBreaks>
   <AAI_Enabled>Ability AI</AAI_Enabled>
+  <AAI_Enabled_Desc>Off: nobody uses abilities through this mod; vanilla's or their own mod's casting takes over.</AAI_Enabled_Desc>
   <AAI_Enabled_Tip>Raiders, visitors, animals and mechs decide for themselves when to use abilities that are set up for this mod, and your own pawns use the abilities you set to autocast. Off: nobody does, and abilities fall back to whatever casting vanilla or their own mod gives them.</AAI_Enabled_Tip>
-  <AAI_Who>Who uses them:</AAI_Who>
+  <AAI_Who>Who uses abilities</AAI_Who>
+  <AAI_What>What they use</AAI_What>
+  <AAI_Section_Undrafted>Undrafted</AAI_Section_Undrafted>
+  <AAI_Section_Breaks>Pawns in a break</AAI_Section_Breaks>
+  <AAI_Section_Dev>Dev mode</AAI_Section_Dev>
   <AAI_Hostiles>Hostile pawns</AAI_Hostiles>
   <AAI_Hostiles_Tip>Raiders and anyone else hostile to your colony.</AAI_Hostiles_Tip>
   <AAI_NonHostiles>Friendly and neutral pawns</AAI_NonHostiles>
@@ -14,18 +23,19 @@
   <AAI_Mechs_Tip>Other factions' mechanoids. Yours use the abilities you set to autocast.</AAI_Mechs_Tip>
   <AAI_Who_Desc>Your own colonists, slaves, ghouls and mechs only use abilities you set to autocast. Prisoners never use any.</AAI_Who_Desc>
   <AAI_Unclaimed>Also use abilities no mod claims</AAI_Unclaimed>
-  <AAI_Unclaimed_Tip>Mods built on Ability AI (such as Entad Framework and Bastle Framework) claim the abilities their own gear and traits give. With this on, a pawn also uses any other ability that is set up for this mod, such as a raider psycaster's own psycasts (most combat psycasts from Royalty are). Off: only claimed abilities.</AAI_Unclaimed_Tip>
-  <AAI_VanillaStandDown>Replace vanilla's casting for abilities this mod handles</AAI_VanillaStandDown>
-  <AAI_VanillaStandDown_Tip>Some abilities also have vanilla's simple casting turned on, so they still get used when this mod is missing. With this on, vanilla's casting stays out of the way of any ability Ability AI is deciding for, so the two never both use it. Off: both may cast it.</AAI_VanillaStandDown_Tip>
+  <AAI_Unclaimed_Desc>Such as a raider psycaster's own psycasts. Rules marked off for NPCs stay off.</AAI_Unclaimed_Desc>
+  <AAI_Unclaimed_Tip>Mods built on Ability AI (such as Entad Framework and Bastle Framework) claim the abilities their own gear and traits give. With this on, a pawn also uses any other ability that is set up for this mod, such as a raider psycaster's own psycasts (most combat psycasts from Royalty and Vanilla Psycasts Expanded are). Off: only claimed abilities.</AAI_Unclaimed_Tip>
   <AAI_Approach>Walk into range to use an ability</AAI_Approach>
   <AAI_Approach_Tip>A ranged raider, visitor, animal or mech in a fight walks a few tiles closer when a target for one of its abilities is just out of range or out of sight, uses it, and then fights as usual. Only for abilities set up for it, such as flashbang and battle cry. Never while badly hurt, fleeing or held in melee. This setting doesn't cover your own pawns: they walk only for abilities you set to "Full Autocast", whether this is on or off.</AAI_Approach_Tip>
   <AAI_PlayerAutocast>Autocast for your pawns</AAI_PlayerAutocast>
-  <AAI_PlayerAutocast_Tip>Right-click an ability button to choose whether your pawn uses it by itself. Only for abilities the AI knows how to use. Drafted, the pawn casts while it stands in position or shoots, never in the middle of a move you ordered. With "Full Autocast" a drafted ranged pawn also walks a few tiles to get a target in range, casts, and walks back to where it stood or finds new cover (see below); any order you give in the meantime cancels the walk back.</AAI_PlayerAutocast_Tip>
+  <AAI_PlayerAutocast_Tip>Right-click an ability button to choose whether your pawn uses it by itself. Only for abilities the AI knows how to use. Drafted, the pawn casts while it stands in position or shoots, never in the middle of a move you ordered (a melee attack order excepted, see below). With "Full Autocast" a drafted ranged pawn also walks a few tiles to get a target in range, casts, and walks back to where it stood or finds new cover (see below); any order you give in the meantime cancels the walk back.</AAI_PlayerAutocast_Tip>
   <AAI_UndraftedAutocast>Also while undrafted</AAI_UndraftedAutocast>
   <AAI_UndraftedAutocast_Tip>Lets undrafted pawns autocast too. Any time: abilities that aren't only for fighting (recovering a low need, helping a downed ally, calming an ally in a mental break, putting out fires). While fleeing: movement abilities as well. While fighting back (a colonist with its hostility response set to attack, or an animal defending itself or released on an enemy, that is attacking or was hit in the last 10 seconds): every ability. The pawn stops its current job to cast, but never while lying down, carrying something, doing a job you ordered, or doing a job that can't be interrupted (surgery, bills). An attack it was making is picked up again after the cast. A pawn whose hostility response is attack or flee checks for an ability before attacking or running, so it can, for example, calm a berserk friend instead of fighting it.</AAI_UndraftedAutocast_Tip>
   <AAI_UndraftedInterval>Check undrafted pawns every {0} ticks ({1} s)</AAI_UndraftedInterval>
-  <AAI_UndraftedInterval_Tip>How often an undrafted pawn that isn't fighting back or fleeing looks for something to autocast. Higher is cheaper on large colonies; lower reacts sooner to a downed ally or a low need. Drafted pawns, pawns fighting back or fleeing, and other factions' pawns are always checked every 30 ticks (0.5 s), and drafting a pawn or a fight starting cuts the wait short. Default 250 (about 4 s).</AAI_UndraftedInterval_Tip>
-  <AAI_BlockedJobs>Jobs not to interrupt ({0})...</AAI_BlockedJobs>
+  <AAI_UndraftedInterval_Tip>How often an undrafted pawn that isn't fighting back or fleeing looks for something to autocast. Higher is cheaper on large colonies; lower reacts sooner to a downed ally or a low need. Drafted pawns and pawns fighting back or fleeing are always checked every 30 ticks (0.5 s), and drafting a pawn or a fight starting cuts the wait short. Default 250 (about 4 s).</AAI_UndraftedInterval_Tip>
+  <AAI_NpcIdleInterval>Check other factions' pawns outside a fight every {0} ticks ({1} s)</AAI_NpcIdleInterval>
+   <AAI_NpcIdleInterval_Tip>How often a pawn of another faction looks again after finding nothing to cast because every ability it has is for fighting and it isn't in a fight. Being hit, attacking, picking a target, hunting, fleeing or a mental break cuts the wait short. A pawn with an ability it may use outside a fight (healing, firefighting) is always checked every 30 ticks. Higher is cheaper with many psycasters on the map; lower notices a fight it hasn't joined yet sooner. 30 turns the wait off. Default 120 (2 s).</AAI_NpcIdleInterval_Tip>
+   <AAI_BlockedJobs>Jobs not to interrupt ({0})...</AAI_BlockedJobs>
   <AAI_BlockedJobs_Tip>Pick the jobs an undrafted pawn finishes before it autocasts: by default meals, recreation, gatherings, rituals and childcare.</AAI_BlockedJobs_Tip>
   <AAI_BlockedJobs_Title>Jobs undrafted autocast won't interrupt</AAI_BlockedJobs_Title>
   <AAI_BlockedJobs_Desc>An undrafted pawn doing a checked job won't stop it to autocast ({0} checked). Jobs you ordered, jobs that can't be interrupted (surgery, bills, lovin'), lying down and carrying something are always left alone and aren't listed. Drafted pawns ignore this list.</AAI_BlockedJobs_Desc>
@@ -33,16 +43,38 @@
   <AAI_BlockedJobs_GroupOn>Checked</AAI_BlockedJobs_GroupOn>
   <AAI_BlockedJobs_GroupOff>Other jobs that can be interrupted</AAI_BlockedJobs_GroupOff>
   <AAI_BlockedJobs_Reset>Reset to defaults</AAI_BlockedJobs_Reset>
+  <AAI_GatherWait>Wait for enemies to gather</AAI_GatherWait>
+  <AAI_GatherWaitPlayer_Tip>An area attack cast at a fixed spot, such as a Vanilla Psycasts Expanded Runesmith Invoke at a runecircle, holds while more enemies are walking into it. Your pawn reads where each enemy is heading over the next 3 seconds and waits, for at most 5 seconds, while more will be inside soon than when the cast would land. It never casts while one of your pawns is about to walk in.</AAI_GatherWaitPlayer_Tip>
+  <AAI_Section_Dangerous>Abilities that kill outright or wreck bases</AAI_Section_Dangerous>
+  <AAI_NpcInstantKill>Other factions may use abilities that kill outright</AAI_NpcInstantKill>
+  <AAI_NpcInstantKill_Tip>Abilities that kill a pawn, or take it from its faction for good, in one cast: shamblerification, Reap, Deep Skip, Kidney Stone, Mind Break, Degrade and the like. Off: raiders, visitors and allies never use them, so a raid can't turn your colonists into shamblers or thralls. Your own pawns use them whenever you set them to autocast.</AAI_NpcInstantKill_Tip>
+  <AAI_NpcBaseWrecking>Raiders may use abilities that wreck buildings</AAI_NpcBaseWrecking>
+  <AAI_NpcBaseWrecking_Tip>Abilities that destroy buildings over a wide area: meteors, molten pull, a sun beam, a tornado, wildfire, Blazing dash, orbital bombardment and power beam targeters, and Crimson deadlife burst's necrosis cloud over a base. Off: hostile pawns never use them. Visitors and allies never use them either way, since the buildings nearby would be yours.</AAI_NpcBaseWrecking_Tip>
+  <AAI_NpcSingleUseItems>Other factions may use single-use gear</AAI_NpcSingleUseItems>
+  <AAI_NpcSingleUseItems_Tip>Gear that is gone once its charges are spent: psychic lances, low-shield packs, turret, deadlife and hunter drone packs, orbital targeters. In the base game raiders never use most of these. Off: other factions keep them, except the low-shield pack, which the base game deploys for them on its own.</AAI_NpcSingleUseItems_Tip>
+  <AAI_SingleUse_Hint>The item is used up once its charges are spent.</AAI_SingleUse_Hint>
+  <!-- A worn item's second ruled verb, as the dev log and the autocast menu name it: {0} the item, {1} the verb -->
+  <AAI_GearVerbLabel>{0}: {1}</AAI_GearVerbLabel>
+  <AAI_Dangerous_Desc>Both are off by default. Each one shows only when an installed mod has such an ability.</AAI_Dangerous_Desc>
+  <AAI_GatherWaitNpcs_Tip>Other factions' pawns hold an area attack cast at a fixed spot, such as a Vanilla Psycasts Expanded Runesmith Invoke at a runecircle, while more enemies are walking into it: for at most 5 seconds, while more will be inside within 3 seconds than when the cast would land.</AAI_GatherWaitNpcs_Tip>
+  <AAI_ChargeGapClose>Use abilities to close with the target of a melee attack order</AAI_ChargeGapClose>
+  <AAI_ChargeGapClose_Tip>When you order a drafted pawn to attack someone in melee, it may use a movement ability set to autocast (such as Vanilla Psycasts Expanded's Power Leap, Shadowskip and Ghostwalk) to close the distance, then carries on with the attack. Only while the target is further away than the ability's minimum, and only movement abilities: nothing else is cast during the charge, and the pawn never uses one to run away from the fight you ordered.</AAI_ChargeGapClose_Tip>
   <AAI_ShowMarker>Mark abilities that can autocast</AAI_ShowMarker>
-  <AAI_ShowMarker_Tip>Draws a small grey ring on the button of every ability your pawn could autocast but isn't set to. Once you pick a mode, the "auto" or "auto+" badge takes its place.</AAI_ShowMarker_Tip>
+  <AAI_ShowMarker_Tip>Draws a small grey ring on the button of every ability your pawn could autocast but isn't set to.</AAI_ShowMarker_Tip>
   <AAI_Autocast_Hint>Right-click to set autocast (now: {0}).</AAI_Autocast_Hint>
-  <AAI_ReturnTo>After a "Full Autocast" cast:</AAI_ReturnTo>
-  <AAI_ReturnTo_Tip>Where a drafted pawn goes after walking a few tiles to cast an ability set to "Full Autocast".</AAI_ReturnTo_Tip>
+  <AAI_AutocastOwner>With Better Autocasting also installed, priority is given to:</AAI_AutocastOwner>
+  <AAI_AutocastOwner_Tip>Better Autocasting for Vanilla Psycasts Expanded has its own autocast for about forty VPE psycasts. Where Ability AI also has rules for one (Overshield, Word of Serenity, ...), only one of the two mods casts it for your colonists, and its gizmo has one autocast toggle. Switching keeps each colonist's on or off choice. Mechs, animals and NPCs always use Ability AI's rules.</AAI_AutocastOwner_Tip>
+  <AAI_AutocastOwner_AbilityAI>Ability AI</AAI_AutocastOwner_AbilityAI>
+  <AAI_AutocastOwner_AbilityAI_Tip>Right-click menu with Autocast and Full Autocast, Ability AI's targeting and your psycast limits. Better Autocasting's settings for these psycasts have no effect.</AAI_AutocastOwner_AbilityAI_Tip>
+  <AAI_AutocastOwner_BetterAutocast>Better Autocasting</AAI_AutocastOwner_BetterAutocast>
+  <AAI_AutocastOwner_BetterAutocast_Tip>VEF's autocast toggle and Better Autocasting's own targeting settings. Ability AI leaves these psycasts alone for colonists.</AAI_AutocastOwner_BetterAutocast_Tip>
+  <AAI_ReturnTo>After moving to cast an ability:</AAI_ReturnTo>
+  <AAI_ReturnTo_Tip>Where a drafted pawn goes after moving to cast an ability set to "Full Autocast".</AAI_ReturnTo_Tip>
   <AAI_ReturnTo_Original>Walk back to original position</AAI_ReturnTo_Original>
   <AAI_ReturnTo_Original_Tip>The pawn walks back to the exact spot it was standing on before it set off.</AAI_ReturnTo_Original_Tip>
   <AAI_ReturnTo_Cover>Find new cover from the ending position</AAI_ReturnTo_Cover>
   <AAI_ReturnTo_Cover_Tip>The pawn looks for a spot within 6 tiles of where it ended up that has cover from the nearest enemy and that it can shoot from, and goes there. It stays put if its own spot already has good cover. If there is none, it walks back to its original position.</AAI_ReturnTo_Cover_Tip>
-  <AAI_CalmBreaks>Your pawns' calming abilities (such as word of serenity) end:</AAI_CalmBreaks>
+  <AAI_CalmBreaks>Your pawns will use calming abilities on:</AAI_CalmBreaks>
   <AAI_CalmBreaks_Tip>Which of an ally's mental breaks your pawns end by themselves with an ability set to autocast. Word of serenity also puts the target into a psychic coma for a few hours and costs more psyfocus for a worse break (30% minor, 50% major, 70% extreme). Breaks that will end on their own within a minute are left alone. Raiders and visitors only ever calm aggressive breaks.</AAI_CalmBreaks_Tip>
   <AAI_CalmBreaks_Aggressive>Aggressive breaks only</AAI_CalmBreaks_Aggressive>
   <AAI_CalmBreaks_Aggressive_Tip>Berserk, murderous rage and other breaks where the pawn attacks people.</AAI_CalmBreaks_Aggressive_Tip>
@@ -50,10 +82,18 @@
   <AAI_CalmBreaks_Major_Tip>Aggressive breaks, plus major and extreme ones such as psychotic wandering, tantrums, fire starting and catatonic breakdown. Minor breaks such as sad wandering, a food binge or hiding in a room are left to run.</AAI_CalmBreaks_Major_Tip>
   <AAI_CalmBreaks_Any>Any break</AAI_CalmBreaks_Any>
   <AAI_CalmBreaks_Any_Tip>Every mental break, minor ones included.</AAI_CalmBreaks_Any_Tip>
-  <AAI_CalmRange>Undrafted, walk up to {0} tiles to calm someone</AAI_CalmRange>
-  <AAI_CalmRange_Tip>Measured in a straight line, so the walk itself can be longer. How far an undrafted pawn goes to use a calming ability it has to touch the target with. Drafted pawns keep the ability's own reach (8 tiles for word of serenity), so they don't walk far from where you put them.</AAI_CalmRange_Tip>
+  <AAI_CalmRange>Undrafted, walk up to {0} tiles to calm or feed on someone</AAI_CalmRange>
+  <AAI_CalmRange_Tip>Measured in a straight line, so the walk itself can be longer. How far an undrafted pawn goes to use a calming ability or a sanguophage's bloodfeed, which it has to touch the target with. Drafted pawns keep the ability's own reach (8 tiles for word of serenity and bloodfeed), so they don't walk far from where you put them.</AAI_CalmRange_Tip>
   <AAI_BreakCasting>Your pawns use abilities during mental breaks</AAI_BreakCasting>
   <AAI_BreakCasting_Tip>A pawn of yours in a mental break (a colonist, or an animal gone manhunter) is out of your control, so your autocast choices don't apply. With this on, a pawn in an aggressive break uses its abilities the way a raider would, treating your other pawns as enemies, and a panicking one may use movement abilities to flee. Off: the game's own AI decides, as it would without this mod.</AAI_BreakCasting_Tip>
+  <AAI_BrokenAllies>Hostile abilities on allies in a break</AAI_BrokenAllies>
+  <AAI_BrokenAllies_Tip>A berserk colonist or a tame animal gone manhunter attacks its own side. This decides whether its friends use their enemy abilities on it. It applies to every caster: your pawns on autocast, raiders and visitors alike. Calming abilities are not affected; they have their own setting.</AAI_BrokenAllies_Tip>
+  <AAI_BrokenAllies_Never>Never</AAI_BrokenAllies_Never>
+  <AAI_BrokenAllies_Never_Tip>Allies in a break are treated as friends: never targeted, and kept out of area abilities that avoid allies.</AAI_BrokenAllies_Never_Tip>
+  <AAI_BrokenAllies_Harmless>Harmless abilities only</AAI_BrokenAllies_Harmless>
+  <AAI_BrokenAllies_Harmless_Tip>Only abilities that disable without lasting harm, such as stun, burden and blinding pulse. Everything else treats them as friends.</AAI_BrokenAllies_Harmless_Tip>
+  <AAI_BrokenAllies_Any>Any ability</AAI_BrokenAllies_Any>
+  <AAI_BrokenAllies_Any_Tip>Allies in a break are treated as enemies, damaging abilities included.</AAI_BrokenAllies_Any_Tip>
   <AAI_Mode_Title>Autocast {0}</AAI_Mode_Title>
   <AAI_Mode_Off>Don't autocast</AAI_Mode_Off>
   <AAI_Mode_Stationary>Stationary Autocast</AAI_Mode_Stationary>
@@ -68,9 +108,141 @@
   <AAI_Limits_Focus_Tip>Autocast won't use a psycast that would bring this pawn's psyfocus below this point. Casting by hand ignores this.</AAI_Limits_Focus_Tip>
   <AAI_Limits_NoCap>no cap</AAI_Limits_NoCap>
   <AAI_Limits_NoFloor>none</AAI_Limits_NoFloor>
+  <AAI_Limits_Title>Autocast limits</AAI_Limits_Title>
+  <AAI_Limits_Hemogen>Min hemogen</AAI_Limits_Hemogen>
+  <AAI_Limits_Hemogen_Tip>Autocast won't use an ability that would bring this pawn's hemogen below this point. This covers every ability that costs hemogen, psycast or not. The default is 30%. Casting by hand ignores this.</AAI_Limits_Hemogen_Tip>
   <AAI_MinGap>Least time between one pawn's casts: {0} s</AAI_MinGap>
   <AAI_MinGap_Desc>Stops a pawn with several abilities from using them all in the same moment. Each ability's own cooldown and charges still apply.</AAI_MinGap_Desc>
-  <AAI_DebugLog>Log ability AI decisions (dev mode)</AAI_DebugLog>
-  <AAI_DebugLog_Tip>Writes a line to the log each time a pawn decides to cast something, naming the rule it used.</AAI_DebugLog_Tip>
-  <AAI_Reset>Reset to defaults</AAI_Reset>
+  <AAI_Section_Skip>Skip</AAI_Section_Skip>
+  <AAI_SkipRepel>Skip enemies away from allies who can't fight them off</AAI_SkipRepel>
+  <AAI_SkipRepel_Tip>An enemy standing next to a downed or badly hurt ally, or next to someone with a ranged weapon, is skipped far from the caster's side and back toward its own. Never into your home area when the caster is yours or friendly to you. Healthy melee fighters are left to their fight.</AAI_SkipRepel_Tip>
+  <AAI_SkipRescue>Skip downed or badly hurt allies out of danger</AAI_SkipRescue>
+  <AAI_SkipRescue_Tip>A downed ally with an enemy within 10 tiles, or a badly hurt ally being hit or shot at, is skipped to a spot near the caster, away from the enemies and behind cover if there is any. Drafted pawns on their feet and pawns doing something you ordered stay where they are.</AAI_SkipRescue_Tip>
+  <AAI_SkipEscape>Skip the caster away when it is in trouble</AAI_SkipEscape>
+  <AAI_SkipEscape_Tip>When the caster is badly hurt, fleeing, or has a ranged weapon and is caught in melee, it skips itself to the spot furthest from every enemy within reach.</AAI_SkipEscape_Tip>
+  <AAI_Skip_Desc>For every pawn that uses Skip on its own: yours set to autocast it, and other factions' psycasters.</AAI_Skip_Desc>
+  <AAI_Section_Cai>Combat AI (CAI 5000)</AAI_Section_Cai>
+  <AAI_CaiHoldNpcs>Other factions' casts can't be cut off by CAI</AAI_CaiHoldNpcs>
+  <AAI_CaiHoldNpcs_Tip>CAI 5000 sends pawns under fire to cover, to duck or to retreat, and that cancels a psycast's warmup. With this on, CAI waits until the cast has gone off (and until a channelled effect such as Frost Ray's ray has ended, up to 10 seconds) before it moves the pawn. With it off, CAI reacts as it would without Ability AI.</AAI_CaiHoldNpcs_Tip>
+  <AAI_CaiHoldColonists>Your auto-controlled pawns' casts can't be cut off by CAI</AAI_CaiHoldColonists>
+  <AAI_CaiHoldColonists_Tip>The same for your drafted colonists and mechs that you have handed to CAI's auto-control. CAI never moves your pawns that aren't on auto-control, so this doesn't affect them.</AAI_CaiHoldColonists_Tip>
+  <AAI_Cai_Desc>Switch off to compare how pawns fight when CAI may interrupt their casts.</AAI_Cai_Desc>
+  <AAI_Section_Barrier>Projectile barriers</AAI_Section_Barrier>
+  <AAI_BarrierMinShooters>Raise one when {0} or more shooters aim in from outside</AAI_BarrierMinShooters>
+  <AAI_BarrierMinShooters_Tip>A barrier such as Guardian Skipbarrier is raised once at least this many enemies with ranged weapons (enemy turrets included), standing outside its reach, aim at the caster or at someone or something of its side inside it.</AAI_BarrierMinShooters_Tip>
+  <AAI_BarrierDropFraction>Drop it when fewer than {0}% of that many shooters are left</AAI_BarrierDropFraction>
+  <AAI_BarrierDropFraction_Tip>Counted against the shooters needed to raise it, whatever the volley it was raised against: with 3 needed and 50%, it comes down once only 1 shooter is left. A barrier only comes down this way if the AI raised it; one you raised by hand stays up until you cancel it or the caster's heat runs out.</AAI_BarrierDropFraction_Tip>
+  <AAI_BarrierDropSeconds>...for {0} seconds in a row</AAI_BarrierDropSeconds>
+  <AAI_BarrierDropSeconds_Tip>How long the shooters must stay below that share before the barrier comes down, so a pause in the shooting doesn't drop it.</AAI_BarrierDropSeconds_Tip>
+  <AAI_Barrier_Desc>For every pawn that raises barriers on its own: yours set to autocast one (drafted only), and other factions' psycasters. While a Guardian Skipbarrier is up the caster can't use other psycasts and gains heat every second. Your pawns also drop it at their Max heat limit.</AAI_Barrier_Desc>
+  <AAI_Section_Deploy>Turret packs</AAI_Section_Deploy>
+  <AAI_MaxDeployedNear>At most {0} deployed turrets per side within a turret's range</AAI_MaxDeployedNear>
+  <AAI_Section_Mechanitor>Mechanitors</AAI_Section_Mechanitor>
+  <AAI_RemoteShieldEnemies>Remote shield on enemy mechs</AAI_RemoteShieldEnemies>
+  <AAI_RemoteShieldEnemies_Tip>A mechanitor may put its remote shield on an enemy mech that is shooting. The shield also stops that mech shooting out for up to 30 seconds, but the mechanitor has to stand within the shield's range of it (about 8 tiles) for the whole time. Off: the shield only goes on your side's mechs when they are badly hurt or under heavy fire. Applies to every mechanitor, yours and other factions'.</AAI_RemoteShieldEnemies_Tip>
+  <AAI_MaxDeployedNear_Tip>A pawn with a turret pack (or another pack that throws something that fights on its own) holds it while this many of its side's turrets already stand within the turret's gun range of it, or are being thrown there by its mates. 1: one turret draws fire while the pawns fight. More: several turrets add firepower. Each turret lands at least 4 tiles from the others. Applies to every pawn, yours and other factions'.</AAI_MaxDeployedNear_Tip>
+  <AAI_Section_GroupLink>Group link</AAI_Section_GroupLink>
+  <AAI_GroupLinkMinTargets>Link first when it reaches {0} or more targets of the Word</AAI_GroupLinkMinTargets>
+  <AAI_GroupLinkMinTargets_Tip>A pawn with Group Link on autocast casts it just before a Word of psycast on autocast when the link would take in at least this many of that Word's targets, so one Word reaches them all. It also needs the link and one Word to cost less than a Word for each target (psyfocus and heat), and both casts to fit the pawn's limits.</AAI_GroupLinkMinTargets_Tip>
+  <AAI_GroupLinkKeep>Keep links up after their Word</AAI_GroupLinkKeep>
+  <AAI_GroupLinkKeep_Tip>Off: a group link the AI cast comes down once its Word has gone off. The Word's effect stays on each pawn for its own duration either way; the link only decides who the next Word cast by this pawn reaches. On: the link stays until VPE ends it, when nobody linked is near.</AAI_GroupLinkKeep_Tip>
+  <AAI_GroupLink_Desc>For your pawns and other factions' psycasters alike. A Word reaches everyone linked to its caster, so while a pawn is linked (by the AI or by your order) the AI casts a Word only when everyone linked may take it: enemies for Word of Pain and Fear, anyone not hostile for Protection, Healing, Immunity and Trust, and only those it would calm for Serenity.</AAI_GroupLink_Desc>
+  <AAI_Section_Vpe>Vanilla Psycasts Expanded</AAI_Section_Vpe>
+  <AAI_VpeQuietSpawners>Silence emerging plants</AAI_VpeQuietSpawners>
+  <AAI_VpeQuietSpawners_Tip>Bramble maze and the other Wildspeaker plant psycasts make one emerging spot per cell, each with its own tunnel rumble: about 112 for a bramble maze. Starting that many sounds at once causes a stutter on every cast, and a long freeze when several casters use it in one fight. Only one rumble can be heard at a time, so with this on the casts are silent apart from the cast sound. Applies to plants that start emerging after the change.</AAI_VpeQuietSpawners_Tip>
+  <AAI_DebugLog>Log ability AI decisions</AAI_DebugLog>
+  <AAI_DebugLog_Tip>Writes a line to the log each time a pawn decides to cast something, naming the rule it used. When a pawn with abilities set up for this mod checks and casts nothing, it also writes why, at most once every 10 seconds per pawn.</AAI_DebugLog_Tip>
+  <AAI_Reset>Reset all</AAI_Reset>
+  <AAI_Reset_Confirm>Reset every Ability AI setting, on every tab, to its default?</AAI_Reset_Confirm>
+  <AAI_ResetTab>Reset this tab</AAI_ResetTab>
+
+  <AAI_Section_Recast>Recasting</AAI_Section_Recast>
+  <AAI_RecastTrackNewCasts>Keep up new casts</AAI_RecastTrackNewCasts>
+  <AAI_RecastTrackNewCasts_Tip>When a colonist casts a psycast that leaves something behind for a while (solar pinhole, ice crystal), remember the spot. Colonists with that psycast on autocast then recast it there before it runs out, and a recast marker shows the spot once it has. Off: only things switched on with their own Recast gizmo are kept up.</AAI_RecastTrackNewCasts_Tip>
+  <AAI_RecastAt>Recast with {0}% of its time left</AAI_RecastAt>
+  <AAI_RecastAt_Gone>Recast once it has run out</AAI_RecastAt_Gone>
+  <AAI_RecastAt_Tip>How early a colonist comes to recast a kept-up psycast. At 0% it is recast only after it is gone, so the light or cooling stops for a while.</AAI_RecastAt_Tip>
+  <AAI_Recast_Desc>Recasting is Basic work: colonists do it between other jobs in Work tab order, never while drafted, and each goes for the nearest spot nobody else is heading to.</AAI_Recast_Desc>
+  <AAI_Recast_Hint>On autocast, this pawn helps keep up every {0} your colonists cast: it recasts one before it runs out, as Basic work, and casts at recast markers (where one ran out, or placed from this menu).</AAI_Recast_Hint>
+  <AAI_RecastToggle>Recast</AAI_RecastToggle>
+  <AAI_RecastToggle_Desc>On: before this {0} runs out, a colonist with the psycast on autocast recasts it here, and a recast marker shows the spot if it runs out first. Off: it is left to run out.</AAI_RecastToggle_Desc>
+  <AAI_RecastMarker_Label>{0} (recast marker)</AAI_RecastMarker_Label>
+  <AAI_RecastMarker_Inspect>Waiting for a colonist with this psycast on autocast.</AAI_RecastMarker_Inspect>
+  <AAI_RecastMarker_Claimed>{0} is coming to recast it.</AAI_RecastMarker_Claimed>
+  <AAI_RecastMarker_Remove>Remove marker</AAI_RecastMarker_Remove>
+  <AAI_RecastMarker_Remove_Desc>Stop keeping this spot up. Nobody recasts here unless it is cast again.</AAI_RecastMarker_Remove_Desc>
+  <AAI_RecastPlace>Place {0} markers</AAI_RecastPlace>
+  <AAI_RecastPlace_Desc>Click to put down recast markers for {0}, as many as you like; right-click or Escape to stop. Colonists with the psycast on autocast cast one at each marker as Basic work, then keep it up.</AAI_RecastPlace_Desc>
+  <AAI_RecastPlace_Blocked>Something is in the way there.</AAI_RecastPlace_Blocked>
+  <AAI_RecastPlace_Taken>There is already a marker or a kept-up one there.</AAI_RecastPlace_Taken>
+  <AAI_RecastPlace_Standing>A {0} is already there. Select it and switch on Recast to keep it up.</AAI_RecastPlace_Standing>
+
+  <AAI_Section_Zone>Zone casting</AAI_Section_Zone>
+  <AAI_ZoneEnchantUpTo>Enchant items up to {0}</AAI_ZoneEnchantUpTo>
+  <AAI_ZoneEnchantUpTo_Tip>Enchant raises an item's quality one step per cast. Items in its zone below this quality are enchanted, as far as this or the caster's psychic sensitivity allows (good up to 120%, excellent up to 250%, masterwork above).</AAI_ZoneEnchantUpTo_Tip>
+  <AAI_ZoneMendBelow>Mend things below {0}% hit points</AAI_ZoneMendBelow>
+  <AAI_ZoneMendBelow_Tip>Your buildings and any items in Mend's zone below this share of their hit points are mended. Each cast restores (psychic sensitivity - 100%) x 100 hit points, so a caster at 100% sensitivity or less is never sent.</AAI_ZoneMendBelow_Tip>
+  <AAI_ZoneRechargeBelow>Recharge batteries and mechs below {0}%</AAI_ZoneRechargeBelow>
+  <AAI_ZoneRechargeBelow_Tip>Your batteries in Recharge's zone below this share of their stored energy, and your mechs in it below this much energy (not ones on a charger), are recharged. One already being recharged is left alone.</AAI_ZoneRechargeBelow_Tip>
+  <AAI_ZoneTimeskipMaxAge>Craft timeskip: never age a caster past {0}</AAI_ZoneTimeskipMaxAge>
+  <AAI_ZoneTimeskipMaxAge_Tip>Each craft timeskip ages its caster by a full year. A colonist whose next cast would take their biological age past this doesn't cast it.</AAI_ZoneTimeskipMaxAge_Tip>
+  <AAI_ZoneEnthrallOnlyWithEnemies>Enthrall only while enemies are on the map</AAI_ZoneEnthrallOnlyWithEnemies>
+  <AAI_ZoneEnthrallOnlyWithEnemies_Tip>An enthralled skeleton fights for a day, then falls apart. On: corpses in Enthrall's zone are raised only while there are enemies to fight. Off: they are raised whenever a caster is free.</AAI_ZoneEnthrallOnlyWithEnemies_Tip>
+  <AAI_Zone_Desc>Zone casting is Basic work: colonists do it between other jobs in Work tab order, never while drafted, and each goes for the nearest target nobody else is heading to. Paint a psycast's zone from its autocast menu (right-click its button). Every caster on the map shares it. Needs undrafted autocast on.</AAI_Zone_Desc>
+  <AAI_ZoneExpand>Expand {0} zone</AAI_ZoneExpand>
+  <AAI_ZoneExpand_Desc>Drag to add cells to the {0} zone. Colonists with the psycast on autocast cast it on what lies there, as Basic work. Every caster on the map shares this zone; it doesn't affect any other zone or area.</AAI_ZoneExpand_Desc>
+  <AAI_ZoneShrink>Shrink {0} zone</AAI_ZoneShrink>
+  <AAI_ZoneShrink_Desc>Drag to take cells out of the {0} zone.</AAI_ZoneShrink_Desc>
+  <AAI_Zone_NeedsSensitivity>Not this pawn: it needs psychic sensitivity above {0} and has {1}.</AAI_Zone_NeedsSensitivity>
+  <AAI_Zone_TooOld>Not this pawn: another cast would age it past {0}, the limit in the mod settings.</AAI_Zone_TooOld>
+  <AAI_Zone_Hint_QualityItems>On autocast, this pawn enchants items in this psycast's zone, as Basic work.</AAI_Zone_Hint_QualityItems>
+  <AAI_Zone_Hint_Damaged>On autocast, this pawn mends damaged buildings and items in this psycast's zone, as Basic work.</AAI_Zone_Hint_Damaged>
+  <AAI_Zone_Hint_Rechargeable>On autocast, this pawn recharges batteries and mechs in this psycast's zone, as Basic work.</AAI_Zone_Hint_Rechargeable>
+  <AAI_Zone_Hint_PowerConsumers>On autocast, this pawn powers buildings that draw power in this psycast's zone, as Basic work.</AAI_Zone_Hint_PowerConsumers>
+  <AAI_Zone_Hint_Unfinished>On autocast, this pawn finishes unfinished items in this psycast's zone, as Basic work. Each cast ages them a year.</AAI_Zone_Hint_Unfinished>
+  <AAI_Zone_Hint_HumanlikeCorpses>On autocast, this pawn enthralls the corpses of enemies and strangers in this psycast's zone, as Basic work.</AAI_Zone_Hint_HumanlikeCorpses>
+  <AAI_Zone_Hint_Prisoners>On autocast, this pawn casts it on prisoners set to recruit or reduce resistance, as Basic work.</AAI_Zone_Hint_Prisoners>
+  <AAI_Zone_Hint_ConsumableCorpses>On autocast, this pawn consumes heaps of enemy and stranger corpses in this psycast's zone, as Basic work. It casts only where no other corpse is in reach.</AAI_Zone_Hint_ConsumableCorpses>
+  <AAI_Zone_Hint_LowMood>On autocast, this pawn speaks it to colonists whose mood is heading below the level in the mod settings, as Basic work. Only those awake and without joyfuzz.</AAI_Zone_Hint_LowMood>
+  <AAI_Zone_Hint_Inspirable>On autocast, this pawn speaks it to awake colonists who aren't inspired and can be, as Basic work.</AAI_Zone_Hint_Inspirable>
+  <AAI_Zone_Hint_ColonistsWithout>On autocast, this pawn speaks it to colonists who don't have its effect yet, as Basic work.</AAI_Zone_Hint_ColonistsWithout>
+  <AAI_Zone_Hint_Visitors>On autocast, this pawn speaks it to visitors and traders whose faction's goodwill is below the level in the mod settings, as Basic work.</AAI_Zone_Hint_Visitors>
+  <AAI_Zone_Hint_LeechHosts>On autocast, while it leeches nobody, this pawn leeches a prisoner (or a slave, if the mod settings allow it) that nobody else leeches, as Basic work.</AAI_Zone_Hint_LeechHosts>
+  <AAI_ZoneJoyBelowMood>Word of joy: colonists heading below {0}% mood</AAI_ZoneJoyBelowMood>
+  <AAI_ZoneJoyBelowMood_Tip>Word of Joy gives five days of joyfuzz (more with high psychic sensitivity), which raises mood and lowers consciousness. It goes to colonists whose mood is heading below this share, not where it stands now, so a colonist already recovering is left alone.</AAI_ZoneJoyBelowMood_Tip>
+  <AAI_ZoneWordsOnSlaves>Colony words reach slaves too</AAI_ZoneWordsOnSlaves>
+  <AAI_ZoneWordsOnSlaves_Tip>On: Word of Joy, Word of Inspiration and Word of Productivity go to slaves as well as colonists. Off: colonists only.</AAI_ZoneWordsOnSlaves_Tip>
+  <AAI_ZoneAllianceBelowGoodwill>Word of alliance: factions below {0} goodwill</AAI_ZoneAllianceBelowGoodwill>
+  <AAI_ZoneAllianceBelowGoodwill_Tip>Word of Alliance raises a faction's goodwill by at least 10 (more with high psychic sensitivity). It goes to visitors, traders and other non-hostile pawns whose faction's goodwill is below this. Hostile factions can't be reached.</AAI_ZoneAllianceBelowGoodwill_Tip>
+  <AAI_ZoneLeechPrisoners>Brain leech: prisoners</AAI_ZoneLeechPrisoners>
+  <AAI_ZoneLeechPrisoners_Tip>Brain Leech takes up to half of its host's consciousness over two days and gives a share of it to the caster, then fades. A caster keeps one leech at a time and is sent again once it has faded. On: the colony's prisoners can be hosts.</AAI_ZoneLeechPrisoners_Tip>
+  <AAI_ZoneLeechSlaves>Brain leech: slaves</AAI_ZoneLeechSlaves>
+  <AAI_ZoneLeechSlaves_Tip>On: the colony's slaves can be hosts too. They work more slowly while leeched.</AAI_ZoneLeechSlaves_Tip>
+  <AAI_ZoneConsumeMinCorpses>Consume bodies: at least {0} corpses per cast</AAI_ZoneConsumeMinCorpses>
+  <AAI_ZoneConsumeMinCorpses_Tip>Consume Bodies takes every humanlike corpse within its radius of the caster. A colonist casts it only at a spot in its zone with at least this many corpses of enemies or strangers in reach, and none of anyone else's.</AAI_ZoneConsumeMinCorpses_Tip>
+  <AAI_SpotCropMinCells>Crop markers: at least {0} open cells</AAI_SpotCropMinCells>
+  <AAI_SpotCropMinCells_Tip>A crop marker is cast at only once no crop grows in its radius, and with at least this many cells of fertile ground with no tree or building on them.</AAI_SpotCropMinCells_Tip>
+  <AAI_SpotTreeMinCells>Tree markers: at least {0} cells a tree can take</AAI_SpotTreeMinCells>
+  <AAI_SpotTreeMinCells_Tip>A tree marker is cast at only while no crop grows in its radius, and with at least this many cells in the caster's radius where a tree of this biome can grow with no plant beside it in the way. Tree Sprout has no cooldown, so this is what stops it on a full grove.</AAI_SpotTreeMinCells_Tip>
+  <AAI_Spot_Desc>Cast markers are Basic work too. Put them down from a psycast's autocast menu; colonists cast at each one whenever the ground around it is ready. Select a marker to see its reach and what it waits for.</AAI_Spot_Desc>
+  <AAI_Spot_Hint_Crops>On autocast, this pawn casts it at its markers once their crops are harvested, as Basic work.</AAI_Spot_Hint_Crops>
+  <AAI_Spot_Hint_Trees>On autocast, this pawn casts it at its markers while there is room for more trees, as Basic work.</AAI_Spot_Hint_Trees>
+  <AAI_HeatVent_Hint>On autocast, this pawn casts it only when neural heat is what stops it casting another psycast on autocast: the heat cap or your Max heat limit.</AAI_HeatVent_Hint>
+  <AAI_Barrier_Hint>On autocast, this pawn raises it while drafted once {0} or more shooters aim in from outside, and drops it once fewer than {2} are left for {1} seconds.</AAI_Barrier_Hint>
+  <AAI_GroupCooldown_Hint>Casting it, by hand or on autocast, also puts {0} on cooldown for {1}.</AAI_GroupCooldown_Hint>
+  <AAI_GroupCooldownUpTo_Hint>Casting it, by hand or on autocast, also puts {0} on cooldown for up to {1}.</AAI_GroupCooldownUpTo_Hint>
+  <AAI_GroupLink_Hint>On autocast, this pawn casts it just before a Word on autocast when the link would reach {0} or more of that Word's targets and nobody the Word shouldn't touch.</AAI_GroupLink_Hint>
+  <AAI_SpotPlace>Place {0} markers</AAI_SpotPlace>
+  <AAI_SpotPlace_Desc>Click to put down markers for {0}, as many as you like; right-click or Escape to stop. Colonists with the psycast on autocast cast it at each marker whenever the ground around it is ready, as Basic work.</AAI_SpotPlace_Desc>
+  <AAI_SpotPlace_Taken>There is already a marker for this psycast there.</AAI_SpotPlace_Taken>
+  <AAI_SpotMarker_Label>{0} (marker)</AAI_SpotMarker_Label>
+  <AAI_SpotMarker_Crops>Waiting: a sowable plant ({0}) grows within {1} tiles, and a cast would wipe it. Harvest or cut it to free the marker.</AAI_SpotMarker_Crops>
+  <AAI_SpotMarker_Landing>Waiting: a cast is landing here.</AAI_SpotMarker_Landing>
+  <AAI_SpotMarker_TooFew_Crops>Waiting: it needs {0} open cells and has {1}.</AAI_SpotMarker_TooFew_Crops>
+  <AAI_SpotMarker_TooFew_Trees>Waiting: it needs {0} cells a tree can take and has {1}.</AAI_SpotMarker_TooFew_Trees>
+  <AAI_SpotMarker_NoTrees>Never cast here: no trees grow wild in this biome, so tree sprout would only sprout other wild plants.</AAI_SpotMarker_NoTrees>
+  <AAI_SpotMarker_Fogged>Waiting: the spot is hidden.</AAI_SpotMarker_Fogged>
+  <AAI_SpotMarker_RingNote_Trees>The ring shows the largest reach ({0} tiles). A caster with lower psychic sensitivity covers a smaller circle, so it may find the ground full sooner.</AAI_SpotMarker_RingNote_Trees>
+  <AAI_SpotMarker_Claimed>{0} is coming to cast it.</AAI_SpotMarker_Claimed>
+  <AAI_SpotMarker_Remove_Desc>Stop casting here.</AAI_SpotMarker_Remove_Desc>
 </LanguageData>

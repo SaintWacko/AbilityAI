@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ability AI rules for VPE - Pyromancer. Its psycasts are VPE psycasts (VEF abilities), read by the VEF compat
+     assembly and priced by the VPE one. Fire spreads, so the rules that start it keep the caster's side and its
+     buildings clear of where it lands. Blazing dash and Wildfire wreck buildings, so raiders use them only with the
+     setting for abilities that wreck buildings on, and friendly NPCs never.
+     Left out: Warmth and Flame focus (utility), Psionic kindling (a passive), Thermal ascension (a world tile target)
+     and Firestorm (a map-wide game condition). -->
+<Patch>
+  <Operation Class="PatchOperationFindMod">
+    <mods>
+      <li>VPE - Pyromancer</li>
+    </mods>
+    <match Class="PatchOperationSequence">
+      <operations>
+
+        <!-- Ignite: sets a standing enemy ablaze (on a downed or friendly pawn it would cauterize wounds instead, and
+             the AI only picks standing enemies). Range 34.9, 1% psyfocus, 10 heat. The fire spreads, so no pawn of the
+             caster's side and no building of its side or a friendly faction within 3 tiles of the target. The ability
+             refuses a target already standing in fire. Walks up to 8 tiles past its range to get a shot. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Pyromancer_Ignite_Ability_STNL"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Pyromancer_Ignite_Ability_STNL"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <startsFires>true</startsFires>
+                <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
+                <priority>2</priority>
+                <targetKinds>Humanlike, Animal</targetKinds>
+                <radius>3</radius>
+                <avoidAllies>true</avoidAllies>
+                <avoidBuildings>true</avoidBuildings>
+                <approachDistance>8</approachDistance>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Blazing dash: the caster flies in a straight line to the aimed cell (range 24.9, no sight line needed).
+             Within 1.9 tiles of the line every building is destroyed whoever owns it, walls included; items and plants
+             catch fire; every standing pawn with no faction or hostile to the caster is stunned for 3 s and set
+             ablaze. The caster's own side is spared. A melee caster closes on a target more than 6 tiles off this way,
+             landing beside it, with nobody of its side and no friendly building within 2 tiles of the line. 3%
+             psyfocus, 50 heat. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Pyromancer_BlazingOnslaught_Ability_STNL"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Pyromancer_BlazingOnslaught_Ability_STNL"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <startsFires>true</startsFires>
+                <workerClass>AbilityAI.AbilityAIWorker_Movement</workerClass>
+                <priority>4</priority>
+                <modes>GapClose</modes>
+                <pathClearance>2</pathClearance>
+                <npcGate>BaseWrecking</npcGate>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Emberize: an aura on the caster alone for 12 500 ticks times its psychic sensitivity (about 5 hours at
+             100%): no fire or burn damage, no flammability, any temperature comfortable. Every 1.5 s it eats a fire
+             within 5.9 tiles to heal its worst wound and sets ablaze every standing enemy within 1.9 tiles; what it
+             hits catches fire too. Cast in a fight while the caster doesn't have it. 5% psyfocus, 75 heat. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Pyromancer_Emberize_Ability_STNL"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Pyromancer_Emberize_Ability_STNL"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <startsFires>true</startsFires>
+                <workerClass>AbilityAI.AbilityAIWorker_SelfBuff</workerClass>
+                <radius>1.9</radius>
+                <priority>3</priority>
+                <hediff>VPE_Pyromancer_Emberize_STNL</hediff>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Wildfire: for 2500 ticks (about 42 s) every cell within 14.9 tiles of the aimed cell is tried once a second:
+             half the time each thing there (pawns, buildings, items, plants, the caster's side included) catches fire
+             with a chance equal to its flammability. Range 40.9, 7% psyfocus, 100 heat. Three enemies or more, as for Sun
+             beam, with nobody of the caster's side and no building of its side or a friendly faction within 14.9 tiles
+             (fixed in code, so stated). -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Pyromancer_Wildfire_Ability_STNL"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Pyromancer_Wildfire_Ability_STNL"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <startsFires>true</startsFires>
+                <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
+                <priority>5</priority>
+                <radius>14.9</radius>
+                <minTargets>3</minTargets>
+                <avoidAllies>true</avoidAllies>
+                <avoidBuildings>true</avoidBuildings>
+                <avoidSelf>true</avoidSelf>
+                <npcGate>BaseWrecking</npcGate>
+              </li>
+            </value>
+          </match>
+        </li>
+
+      </operations>
+    </match>
+  </Operation>
+</Patch>

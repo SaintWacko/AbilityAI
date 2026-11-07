@@ -1,0 +1,74 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <!--
+        RimWorld 1.7 build of the Vanilla Psycasts Expanded compat assembly. Same shared C# as 1.6/Source/VPE, with
+        RW17 defined and the game referenced the way 1.7/Source/AbilityAI.csproj does it (net10.0, the Krafs 1.7
+        package). Output goes to 1.7/VPE/Assemblies.
+    -->
+    <Import Project="..\..\..\Source\Workshop.props" />
+
+    <PropertyGroup>
+        <OutputType>Library</OutputType>
+        <TargetFramework>net10.0</TargetFramework>
+        <RootNamespace>AbilityAI.Vpe</RootNamespace>
+        <AssemblyName>AbilityAI.VPE</AssemblyName>
+        <LangVersion>latest</LangVersion>
+        <Deterministic>true</Deterministic>
+        <OutputPath>..\..\VPE\Assemblies\</OutputPath>
+        <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+        <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+        <!-- The game resolves mod assemblies itself; a deps.json beside the DLL would only ship as clutter -->
+        <GenerateDependencyFile>false</GenerateDependencyFile>
+        <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+        <DefineConstants>$(DefineConstants);RW17</DefineConstants>
+        <Version>1.0.0</Version>
+        <AssemblyVersion>1.0.0.0</AssemblyVersion>
+        <FileVersion>1.0.0.0</FileVersion>
+        <Product>Ability AI</Product>
+        <Authors>SaintWacko</Authors>
+        <!-- Keep in step with 1.7/Source/AbilityAI.csproj -->
+        <RW17RefVersion>1.7.4979-alpha</RW17RefVersion>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+        <Optimize>true</Optimize>
+        <DebugType>none</DebugType>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
+        <Optimize>false</Optimize>
+        <DebugType>portable</DebugType>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <Compile Include="..\..\..\Source\VPE\*.cs" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Krafs.Rimworld.Ref" Version="[$(RW17RefVersion)]">
+            <PrivateAssets>all</PrivateAssets>
+            <ExcludeAssets>runtime</ExcludeAssets>
+        </PackageReference>
+        <PackageReference Include="Lib.Harmony" Version="2.4.1">
+            <PrivateAssets>all</PrivateAssets>
+            <ExcludeAssets>runtime</ExcludeAssets>
+        </PackageReference>
+    </ItemGroup>
+
+    <ItemGroup>
+        <!-- Private=false on all: a copy of any of these in 1.7/VPE/Assemblies would be loaded a second time -->
+        <ProjectReference Include="..\AbilityAI.csproj">
+            <Private>false</Private>
+        </ProjectReference>
+        <ProjectReference Include="..\VEF\AbilityAI.VEF.csproj">
+            <Private>false</Private>
+        </ProjectReference>
+        <Reference Include="VEF">
+            <HintPath>$(VEFRoot)/1.7/Assemblies/VEF.dll</HintPath>
+            <Private>false</Private>
+        </Reference>
+        <Reference Include="VanillaPsycastsExpanded">
+            <HintPath>$(VPERoot)/1.7/Assemblies/VanillaPsycastsExpanded.dll</HintPath>
+            <Private>false</Private>
+        </Reference>
+    </ItemGroup>
+</Project>

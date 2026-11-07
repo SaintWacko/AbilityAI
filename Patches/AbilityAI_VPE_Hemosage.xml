@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ability AI rules for Vanilla Psycasts Expanded - Hemosage. Its psycasts are VPE psycasts (VEF abilities), read by
+     the VEF compat assembly and priced by the VPE one; five of them also cost hemogen, which the player's hemogen
+     floor (psycast limits gizmo, 30% by default) holds back. Bloodmist (Blood Spew, Sanguine Spear, Corpse
+     Explosion) only takes on humanlikes that aren't hemogenic, allies included, and the caster is always hemogenic.
+     Left out: Bloodfocus (it keeps turning hemogen into psyfocus until one of them runs out, so any autocast drains
+     the caster to 10%), Word of Offering (gathering hemogen, a utility) and Bloodstorm (map-wide, asks for
+     confirmation). -->
+<Patch>
+  <Operation Class="PatchOperationFindMod">
+    <mods>
+      <li>Vanilla Psycasts Expanded - Hemosage</li>
+    </mods>
+    <match Class="PatchOperationSequence">
+      <operations>
+
+        <!-- Blood shard: the plain attack, 1% psyfocus and 4% hemogen. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPEH_BloodShard"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPEH_BloodShard"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
+                <priority>2</priority>
+                <approachDistance>6</approachDistance>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Blood spew: a line to the aimed cell that bloodmists every humanlike within 1.5 tiles of it. 20% hemogen,
+             so only for two enemies or more, and never with an ally of the caster on the way or within 2.5 of the
+             aim. Vomiting does no lasting harm. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPEH_BloodSpew"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPEH_BloodSpew"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_BeamHostile</workerClass>
+                <priority>4</priority>
+                <minTargets>2</minTargets>
+                <targetKinds>Humanlike</targetKinds>
+                <coneWidth>3.5</coneWidth>
+                <avoidAllies>true</avoidAllies>
+                <allyKinds>Humanlike</allyKinds>
+                <radius>2.5</radius>
+                <hediff>VPEH_Bloodmist</hediff>
+                <harmless>true</harmless>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Close wounds: stops all of the caster's bleeding. Bleeding at 30% a day or more, in a fight or not. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPEH_CloseWounds"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPEH_CloseWounds"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Recovery</workerClass>
+                <priority>6</priority>
+                <combat>Any</combat>
+                <health>Bleeding</health>
+                <minBleedRate>0.3</minBleedRate>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Hemodrain: 55% blood loss on a humanlike that isn't hemogenic (its own check), refilling the caster's
+             hemogen. Range 6.9. Never at a pawn already losing blood, by one caster or from wounds, and one caster
+             per target: a second drain kills rather than downs. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPEH_Hemodrain"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPEH_Hemodrain"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
+                <priority>3</priority>
+                <targetKinds>Humanlike</targetKinds>
+                <hediff>BloodLoss</hediff>
+                <exclusive>true</exclusive>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Corpse explosion: bursts a humanlike corpse (not desiccated: its own check), bloodmisting everyone within
+             2.9 tiles of it, and destroys the corpse. Only corpses of pawns with no faction or a hostile one, for two
+             enemies or more and no humanlike ally inside. 16% hemogen. The radius is the def's own: the cast ignores
+             any range or radius scaling. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPEH_CorpseExplosion"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPEH_CorpseExplosion"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
+                <priority>4</priority>
+                <anchorCorpses>Humanlike</anchorCorpses>
+                <radius>2.9</radius>
+                <minTargets>2</minTargets>
+                <targetKinds>Humanlike</targetKinds>
+                <avoidAllies>true</avoidAllies>
+                <allyKinds>Humanlike</allyKinds>
+                <hediff>VPEH_Bloodmist</hediff>
+                <harmless>true</harmless>
+                <exclusive>true</exclusive>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Sanguine spear: an arcing spear (no sight line needed, range 52.9) that explodes over 1.9 tiles, harder the
+             more hemogen the caster has, and bloodmists humanlikes there. Neither end may be under a roof (its own
+             checks). 10% hemogen. 2.9 tiles clear of the caster's side, for the spread. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPEH_SanguineSpear"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPEH_SanguineSpear"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
+                <priority>3</priority>
+                <radius>2.9</radius>
+                <avoidAllies>true</avoidAllies>
+                <avoidSelf>true</avoidSelf>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Blood rite: a mote that raises the caster's psychic sensitivity with its hemogen, for about 4 hours. In a
+             fight, while the caster doesn't have it. 20% psyfocus and 10% hemogen. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPEH_BloodRite"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPEH_BloodRite"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_SelfBuff</workerClass>
+                <priority>1</priority>
+                <hediff>VPEH_BloodRite</hediff>
+              </li>
+            </value>
+          </match>
+        </li>
+
+      </operations>
+    </match>
+  </Operation>
+</Patch>

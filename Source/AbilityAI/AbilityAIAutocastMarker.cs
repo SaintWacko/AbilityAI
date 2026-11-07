@@ -30,30 +30,53 @@ namespace AbilityAI
             public bool offers;
         }
 
-        private static readonly Dictionary<Ability, Entry> cache = new Dictionary<Ability, Entry>();
+        // Keyed by the ability object of whichever system it belongs to (RimWorld.Ability, VEF's Ability)
+        private static readonly Dictionary<object, Entry> cache = new Dictionary<object, Entry>();
         private static readonly Texture2D RingTex = MakeRing();
 
         internal static void ClearCache() => cache.Clear();
 
         internal static bool Offers(Ability ability)
         {
+            if (TryCached(ability, out bool offers)) return offers;
+            return Store(ability, AbilityAIAutocast.Offers(ability));
+        }
+
+        internal static bool Offers(AIAbility ability)
+        {
+            if (TryCached(ability.Raw, out bool offers)) return offers;
+            return Store(ability.Raw, AbilityAIAutocast.Offers(ability));
+        }
+
+        private static bool TryCached(object key, out bool offers)
+        {
             int now = Time.frameCount;
-            if (cache.TryGetValue(ability, out Entry e) && now - e.frame < RefreshFrames && now >= e.frame) return e.offers;
+            if (cache.TryGetValue(key, out Entry e) && now - e.frame < RefreshFrames && now >= e.frame)
+            {
+                offers = e.offers;
+                return true;
+            }
+            offers = false;
+            return false;
+        }
+
+        private static bool Store(object key, bool offers)
+        {
             if (cache.Count >= MaxEntries) cache.Clear();
-            bool offers = AbilityAIAutocast.Offers(ability);
-            cache[ability] = new Entry { frame = now, offers = offers };
+            cache[key] = new Entry { frame = Time.frameCount, offers = offers };
             return offers;
         }
 
         // Where the badge goes: full size on the second text line at the left (the hotkey has the first), shrunk at
-        // the bottom left
-        internal static void Draw(Rect button, bool shrunk)
+        // the bottom left, or bottom right with rightEdge (AbilityAIAutocast.DrawBadge)
+        internal static void Draw(Rect button, bool shrunk, bool rightEdge = false)
         {
             float size = shrunk ? 9f : 12f;
             Text.Font = GameFont.Tiny;
             float y = shrunk ? button.yMax - size - 2f : button.y + 3f + Text.LineHeight + 1f;
             Text.Font = GameFont.Small;
-            GUI.DrawTexture(new Rect(button.x + 4f, y, size, size), RingTex);
+            float x = shrunk && rightEdge ? button.xMax - 4f - size : button.x + 4f;
+            GUI.DrawTexture(new Rect(x, y, size, size), RingTex);
         }
 
         private static Texture2D MakeRing()
@@ -97,8 +120,42 @@ namespace AbilityAI
             if (!(__instance is Command_Ability command)) return;
             Ability ability = command.Ability;
             if (ability?.pawn == null || !AutocastMarker.Offers(ability)) return;
-            string mode = AbilityAIAutocast.Label(AbilityAIAutocast.ModeFor(ability.pawn, ability.def), ability.def);
+            string mode = AbilityAIAutocast.Label(AbilityAIAutocast.ModeFor(ability.pawn, ability.def), ability.def, ability.pawn);
             __result += "\n\n" + "AAI_Autocast_Hint".Translate(mode).Colorize(ColoredText.SubtleGrayColor);
+            string recast = AbilityAIRecast.Hint(ability.def);
+            if (recast != null) __result += "\n" + recast.Colorize(ColoredText.SubtleGrayColor);
+            // Zone casting is undrafted work: without undrafted autocast it never runs
+            string zone = AbilityAISettings.UndraftedAutocast ? AbilityAIZones.Hint(ability.def, ability.pawn) : null;
+            if (zone != null) __result += "\n" + zone.Colorize(ColoredText.SubtleGrayColor);
+            string spot = AbilityAISettings.UndraftedAutocast ? AbilityAISpots.Hint(ability.def) : null;
+            if (spot != null) __result += "\n" + spot.Colorize(ColoredText.SubtleGrayColor);
+            string vent = AbilityAIHeat.Hint(ability.def);
+            if (vent != null) __result += "\n" + vent.Colorize(ColoredText.SubtleGrayColor);
+            string barrier = AbilityAIBarrier.Hint(ability.def);
+            if (barrier != null) __result += "\n" + barrier.Colorize(ColoredText.SubtleGrayColor);
+            string link = AbilityAIGroupLink.Hint(ability.def);
+            if (link != null) __result += "\n" + link.Colorize(ColoredText.SubtleGrayColor);
+            string group = GroupCooldownHint(ability);
+            if (group != null) __result += "\n" + group.Colorize(ColoredText.SubtleGrayColor);
+        }
+
+        // A role ability starts its group's cooldown on the pawn's other abilities of that group (Ideology's Leader
+        // group: Combat command puts Leader speech and Trial on a 10 day wait), which autocasting it spends unasked
+        private static string GroupCooldownHint(Ability ability)
+        {
+            var group = ability.def.groupDef;
+            if (group == null) return null;
+            // An override rolls its own range: the hint gives the longest it can be
+            int ticks = ability.def.overrideGroupCooldown ? ability.def.cooldownTicksRange.max : group.cooldownTicks;
+            var all = ability.pawn.abilities?.AllAbilitiesForReading;
+            if (ticks <= 0 || all == null) return null;
+            List<string> others = null;
+            for (int i = 0; i < all.Count; i++)
+                if (all[i] != ability && all[i].def.groupDef == group) (others ?? (others = new List<string>())).Add(all[i].def.label);
+            if (others == null) return null;
+            return ability.def.overrideGroupCooldown && ability.def.cooldownTicksRange.min != ability.def.cooldownTicksRange.max
+                ? (string)"AAI_GroupCooldownUpTo_Hint".Translate(others.ToCommaList(true), ticks.ToStringTicksToPeriod())
+                : (string)"AAI_GroupCooldown_Hint".Translate(others.ToCommaList(true), ticks.ToStringTicksToPeriod());
         }
     }
 }

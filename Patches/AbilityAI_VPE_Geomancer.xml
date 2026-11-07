@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ability AI rules for VPE - Geomancer. Its psycasts are VPE psycasts (VEF abilities) with C# ability classes that
+     state neither their area nor their hediff to the AI, so radius and hediff are set here from the code. Kidney
+     Stone and Deep Skip are held back for other factions by the setting for abilities that kill outright; the
+     player's pawns are never held back, and Deep Skip's 200 neural heat is covered by the player's Max heat limit.
+     Chunk burst and Mass chunk burst only work on rock chunks lying on the map and use them up.
+     Left out: Overhead Collapse (brings a roof down on a wide area), Chunk Manifestation (makes a chunk), Mineralize
+     Soil (turns soil rich), Sandstorm (a game condition), Detect Ore (a map utility), Geo Aegis (a chunk that acts as
+     overhead mountain) and Soul Shard (kills the target for a psyfocus item). -->
+<Patch>
+  <Operation Class="PatchOperationFindMod">
+    <mods>
+      <li>VPE - Geomancer</li>
+    </mods>
+    <match Class="PatchOperationSequence">
+      <operations>
+
+        <!-- Kidney stone: puts a stone in the target's pelvis (the ability refuses a target without one) for intense
+             pain (enough to down most pawns) for 20 000 ticks, and a wound infection there that can kill if left.
+             Range 14.9, 10% psyfocus, 15 heat. Humanlikes and animals only (mechs have no pelvis), never at a pawn
+             that already has the stone, one caster per target. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_KidneyStoneSTNL"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_KidneyStoneSTNL"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
+                <priority>4</priority>
+                <targetKinds>Humanlike, Animal</targetKinds>
+                <hediff>VPEKidneyStoneSTNL</hediff>
+                <exclusive>true</exclusive>
+                <approachDistance>6</approachDistance>
+                <npcGate>InstantKill</npcGate>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Quake: stuns every pawn within 4.5 tiles of the aimed cell, enemies, allies, animals and the caster alike,
+             for 2 seconds times the caster's psychic sensitivity. Nothing lasting. Range 14.9, 15% psyfocus, 25 heat.
+             Two enemies or more, and nobody of the caster's side, the caster included, inside. A second quake on
+             stunned pawns adds nothing, so one caster per target. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_QuakeSTNL"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_QuakeSTNL"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
+                <priority>3</priority>
+                <minTargets>2</minTargets>
+                <avoidAllies>true</avoidAllies>
+                <harmless>true</harmless>
+                <exclusive>true</exclusive>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Geo shield: floating stones around one pawn (animals and mechs too) that halve the damage it takes and stop
+             staggering, for a day (the hediff's 60 000 ticks). Range 14.9, 10% psyfocus, 10 heat, 2 seconds to cast.
+             On the caster or an ally in trouble (badly hurt near enemies, in melee, or shot at), never on one that has
+             it. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_GeoShieldSTNL"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_GeoShieldSTNL"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Defensive</workerClass>
+                <priority>3</priority>
+                <hediff>VPE_GeoShieldSTNL</hediff>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Chunk burst: detonates one rock chunk in a 2 tile cut explosion for 10 damage times psychic sensitivity,
+             and destroys the chunk. Range 20.9, 6% psyfocus, 10 heat. Centred on a chunk with an enemy within 2 tiles,
+             never with anyone of the caster's side inside (the 2 is fixed in code). Chunks have no owner, so any on the map will do. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_ChunkBurstSTNL"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_ChunkBurstSTNL"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
+                <priority>2</priority>
+                <radius>2</radius>
+                <anchorThings>
+                  <li>ChunkGranite</li>
+                  <li>ChunkLimestone</li>
+                  <li>ChunkSandstone</li>
+                  <li>ChunkSlate</li>
+                  <li>ChunkMarble</li>
+                  <li MayRequire="Ludeon.RimWorld.Odyssey">ChunkVacstone</li>
+                </anchorThings>
+                <avoidAllies>true</avoidAllies>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Mass chunk burst: every rock chunk within 4.9 tiles of the aimed chunk detonates in its own 2 tile cut
+             explosion for 10 damage times psychic sensitivity, so the blasts reach up to 6.9 tiles from it. Range 20.9,
+             25% psyfocus, 40 heat. Centred on a chunk with two enemies or more within 6.9 and nobody of the caster's
+             side that close. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_MassChunkBurstSTNL"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_MassChunkBurstSTNL"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
+                <priority>3</priority>
+                <anchorThings>
+                  <li>ChunkGranite</li>
+                  <li>ChunkLimestone</li>
+                  <li>ChunkSandstone</li>
+                  <li>ChunkSlate</li>
+                  <li>ChunkMarble</li>
+                  <li MayRequire="Ludeon.RimWorld.Odyssey">ChunkVacstone</li>
+                </anchorThings>
+                <radius>6.9</radius>
+                <minTargets>2</minTargets>
+                <avoidAllies>true</avoidAllies>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Deep skip: kills every pawn within 1.5 tiles of the aimed cell outright, downed ones too, whatever their
+             health. Buildings and items are untouched. Range 14.9, 3 seconds to cast, 80% psyfocus and 200 neural
+             heat. Never with anyone of the caster's side, the caster included, within 1.5 of the aim. At least 2
+             enemies inside: one is not worth 80% psyfocus and 200 heat, and 3 in a 3 by 3 block almost never happens
+             without an ally in it. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_DeepSkipSTNL"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_DeepSkipSTNL"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
+                <priority>7</priority>
+                <minTargets>2</minTargets>
+                <avoidAllies>true</avoidAllies>
+                <npcGate>InstantKill</npcGate>
+              </li>
+            </value>
+          </match>
+        </li>
+
+      </operations>
+    </match>
+  </Operation>
+</Patch>

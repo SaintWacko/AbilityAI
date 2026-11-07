@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ability AI rules for Anomaly's abilities (Source/AbilityAI/). Only applied when Anomaly is active. Raiders use them
+     only with the "also use abilities no mod claims" setting on, and vanilla's own casting of the ones it drives
+     (aiCanUse) then stands down for them. Each rule sits in its own PatchOperationConditional on its def, as in the
+     Royalty file.
+     Left out on purpose: the entities' abilities (devourer leap, finger and tough spikes, gorehulk spines, revenant
+     invisibility, entity and unnatural corpse skips, the nociosphere's agony pulse, fleshmelter bolt and heatspikes),
+     which vanilla's entity AI drives; Unnatural healing (vanilla refuses it to every AI, it may grow a tentacle, and
+     it has a 6 day cooldown); Shape flesh (its fleshbeast is hostile to everyone); Transmute steel (crafting). -->
+<Patch>
+  <Operation Class="PatchOperationFindMod">
+    <mods>
+      <li>Anomaly</li>
+    </mods>
+    <match Class="PatchOperationSequence">
+      <operations>
+
+        <!-- Hellcat rifle and incinerator burners: as Biotech's fire spew, a cone with two or more enemies in it, no
+             ally and no friendly building. Charges reloaded with bioferrite. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="HellcatBurner" or defName="IncineratorBurner"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="HellcatBurner" or defName="IncineratorBurner"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_ConeHostile</workerClass>
+                <priority>4</priority>
+                <minTargets>2</minTargets>
+                <avoidAllies>true</avoidAllies>
+                <avoidBuildings>true</avoidBuildings>
+                <startsFires>true</startsFires>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Ghoul adrenal heart: a 15 second frenzy once an enemy is within 6 tiles of a melee ghoul -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="GhoulFrenzy"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="GhoulFrenzy"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_SelfBuff</workerClass>
+                <priority>5</priority>
+                <maxRange>6</maxRange>
+                <requires>Melee</requires>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Ghoul metalblood heart: damage resistance once the ghoul is hurt below 60% near enemies, held in melee, or
+             has two shooters on it -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="MetalbloodInjection"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="MetalbloodInjection"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Defensive</workerClass>
+                <priority>6</priority>
+                <healthThreshold>0.6</healthThreshold>
+                <minThreats>2</minThreats>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Ghoul corrosive heart: as Biotech's acid spray, no ally and no friendly building in the spray -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="CorrosiveSpray"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="CorrosiveSpray"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
+                <priority>4</priority>
+                <avoidAllies>true</avoidAllies>
+                <avoidBuildings>true</avoidBuildings>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Creepjoiner's psychic slaughter: kills a flesh creature outright within 4.9 tiles, once a day. The most
+             dangerous enemy, walking up to 8 tiles closer. Vanilla refuses it to every AI; Ability AI lets the player's
+             pawns past that, never other factions. Never a pawn of a humanlike faction that isn't permanently hostile:
+             the kill costs 100 goodwill with it even at war. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="PsychicSlaughter"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="PsychicSlaughter"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
+                <priority>6</priority>
+                <targetKinds>Humanlike, Animal, Other</targetKinds>
+                <permanentEnemiesOnly>true</permanentEnemiesOnly>
+                <approachDistance>8</approachDistance>
+                <exclusive>true</exclusive>
+                <npcGate>InstantKill</npcGate>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Void terror: a hostile person flees in terrifying hallucinations. Five charges. Never at a pawn already in a
+             mental state (the effects reader skips those). -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="VoidTerror"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="VoidTerror"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
+                <priority>5</priority>
+                <targetKinds>Humanlike</targetKinds>
+                <approachDistance>8</approachDistance>
+                <exclusive>true</exclusive>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Release deadlife dust: the dust raises the corpses around the caster as shamblers. As the deadlife pack,
+             only in a fight, with two or more enemy or factionless corpses within reach of the dust and none of the
+             caster's own dead or a friend's, which it would raise too. The dust fills 15 cells (about 2.2 tiles) and
+             drifts a little, so corpses count out to 2.9. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="ReleaseDeadlifeDust"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="ReleaseDeadlifeDust"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEHostileSelf</workerClass>
+                <priority>5</priority>
+                <combat>InCombat</combat>
+                <radius>2.9</radius>
+                <minTargets>0</minTargets>
+                <minCorpses>2</minCorpses>
+                <anchorCorpses>Humanlike, Animal</anchorCorpses>
+              </li>
+            </value>
+          </match>
+        </li>
+
+      </operations>
+    </match>
+  </Operation>
+</Patch>

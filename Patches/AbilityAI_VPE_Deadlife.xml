@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ability AI rules for VPE - Deadlife. Its psycasts are VPE psycasts (VEF abilities), read by the VEF compat
+     assembly and priced by the VPE one. Three of them get rules: Shamblerification and Mass shamblerification (both
+     kill the target outright and raise it as a shambler of the caster's faction, so other factions only use them
+     with the setting that allows killing outright) and Crimson deadlife burst (a cloud that infects every pawn it
+     reaches with dustborne necrosis; it breaks no buildings, but a cloud in a base reaches everyone in it, so it is
+     held back by the base wrecking setting: raiders only with it on, friendly NPCs never).
+     Left out: Deadlife sacks, Shambler extinction, Deadlife harvest, Corpse skip, Deadlife cloud, the three
+     resurrections (Permanent, Pure, Mass) and Crimson deadlife storm (summons, utility, or effects the AI can't
+     judge; the storm is a map-wide game condition and its own def keeps the AI off it). -->
+<Patch>
+  <Operation Class="PatchOperationFindMod">
+    <mods>
+      <li>VPE - Deadlife</li>
+    </mods>
+    <match Class="PatchOperationSequence">
+      <operations>
+
+        <!-- Shamblerification: kills one pawn at range 14 and raises it at once as a shambler of the caster's
+             faction (60 000 ticks of life). Mechanoids are refused. 9% psyfocus, no neural heat. One enemy human or
+             animal; a second caster on the same pawn would only waste the cast. Other factions use it only with the
+             kill-outright setting. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_zombifySTNL"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_zombifySTNL"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
+                <priority>3</priority>
+                <targetKinds>Humanlike, Animal</targetKinds>
+                <exclusive>true</exclusive>
+                <npcGate>InstantKill</npcGate>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Mass shamblerification: the same kill and raise on every pawn within 2.5 tiles of the aimed pawn
+             (range 14), allies and bystanders included, since the area takes any pawn but mechanoids. 29% psyfocus and
+             50 neural heat, so only for two enemies or more, never with anyone of the caster's side inside. The
+             radius is the def's own, so it follows any scaling. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_zombifyAOESTNL"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_zombifyAOESTNL"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
+                <priority>4</priority>
+                <minTargets>2</minTargets>
+                <targetKinds>Humanlike, Animal</targetKinds>
+                <avoidAllies>true</avoidAllies>
+                <avoidSelf>true</avoidSelf>
+                <exclusive>true</exclusive>
+                <npcGate>InstantKill</npcGate>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Crimson deadlife burst: a cloud at the aimed cell (range 28.9) that spreads cell to cell for 12 cardinal steps
+             (the def's 9.9 plus 30%, which is what the code uses), so never more than 12 tiles from the aim, stopped by closed doors, and lasts about 20
+             seconds. Every pawn standing in it without full toxic resistance gets dustborne necrosis, friend or foe:
+             it turns into a shambler only if it dies of it, and tending cures it. 9% psyfocus and 75 neural heat, so
+             only for three enemies or more, with nobody of the caster's side and no friendly building within 12 tiles
+             of the aim. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Deadlife_CrimsonDeadlifeBurst_STNL"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_Deadlife_CrimsonDeadlifeBurst_STNL"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
+                <priority>5</priority>
+                <radius>12</radius>
+                <minTargets>3</minTargets>
+                <targetKinds>Humanlike, Animal</targetKinds>
+                <hediff>VPE_Deadlife_Crimson_Plague_STNL</hediff>
+                <avoidAllies>true</avoidAllies>
+                <avoidSelf>true</avoidSelf>
+                <avoidBuildings>true</avoidBuildings>
+                <npcGate>BaseWrecking</npcGate>
+              </li>
+            </value>
+          </match>
+        </li>
+
+      </operations>
+    </match>
+  </Operation>
+</Patch>

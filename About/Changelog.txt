@@ -1,0 +1,32 @@
+Changelog
+Ability AI
+
+## 1.0.0
+
+- First release. The ability AI that used to ship inside Entad Framework is now its own mod, so Entad Framework and Bastle Framework share one copy. Requires Harmony. Builds for RimWorld 1.6 and 1.7.
+- Other factions' pawns, animals and mechs use their abilities in combat: vanilla, Royalty psycasts, Vanilla Expanded Framework abilities and Vanilla Psycasts Expanded psycasts. Each group can be switched off in the settings.
+- Other factions use every ability that has an Ability AI rule, even when the mod that adds the ability doesn't ask for it. The "Also use abilities no mod claims" setting, on by default, turns this off.
+- Player autocast for each pawn and ability, from a right-click menu on the ability's button: Off, Stationary (cast from where the pawn stands) or Full (walk into range, cast, walk back or to new cover). Undrafted pawns can cast by situation, such as healing or putting out fires.
+- A drafted pawn you order to attack someone in melee uses a movement ability set to autocast, such as Power Leap, to close the distance, then carries on with the attack. A setting in the Your pawns tab turns this off.
+- Area abilities that need no target, such as Terror Roar, can now be cast by the caster-centred and ally-area rules. The check that only accepts hostile targets was asked about the caster itself and always refused.
+- Trained animals can autocast abilities their training unlocks, such as War trumpet and Thrumbo roar. These were always refused before.
+- Per-pawn psycast limits for autocast: max heat and min psyfocus.
+- Rules for 75 Vanilla Psycasts Expanded psycasts, priced through VPE's own cost methods so Psycasts² changes apply.
+- Skip for Royalty and VPE: rescue a downed or hurt ally, repel an enemy that has reached someone who can't fight it off, and (Royalty's Skip only) escape when the caster is in trouble. Each use has its own setting.
+- A new whileHunting rule option lets predators use an ability on the animal they are hunting, such as a leap at a fleeing deer, and then carry on with the hunt. It is for mods that add predator abilities: none of this mod's own rules use it. Tame predators use such a rule when the ability is set to autocast. A gapCloseJobTarget option lets a leap close on whatever the pawn's melee attack is aimed at, a door or turret included.
+- A drafted colonist shooting on its own now counts as aiming at its target, so enemy cover abilities such as the tunneler's smokepop answer a drafted firing line.
+- Two casters on the same side never use a helping ability on the same pawn at once.
+- Better Autocasting for VPE: a setting picks which mod controls the psycasts both mods have rules for. Switching carries each colonist's on/off choice across.
+- CAI 5000: casts are no longer cut off by CAI's cover and retreat moves, and pawns crouched behind cover still count as in combat. Two settings let CAI interrupt casts again, one for other factions and one for your auto-controlled pawns.
+- An Ability AI rule that uses auraKinds without a radius now logs a config error at startup instead of never firing.
+- Colonists keep up solar pinholes (Royalty and VPE) and VPE ice crystals cast by the colony. A colonist with the psycast on autocast recasts each one before it runs out, as Basic work, so the Work tab decides when. Where one ran out first, a recast marker shows the spot. Pinholes are now selectable so their Recast toggle can be reached.
+- Recast markers can be placed by hand from the psycast's right-click menu ("Place ... markers"). Colonists with the psycast on autocast then cast at each marker. A marker can be removed from its own button.
+- Rules for the VPE Hemosage, Puppeteer and Runesmith paths. Runesmith's Invokes are cast at your runecircles: the attacks when enemies gather at a circle and none of your pawns stand there, the buffs and the heal when your pawns stand at one with no enemy inside.
+- Hagalaz and Sowilo wait up to 5 seconds while more enemies are walking into the circle, and never fire while one of your pawns is about to walk in. The AI reads where each enemy is heading from the path it is already following. The "Wait for enemies to gather" setting turns this off, once for your pawns and once for other factions.
+- Autocast keeps a hemogen reserve: an ability that costs hemogen is not autocast if it would leave the pawn under 30% of its maximum. This applies to existing saves too. The autocast limits gizmo has a hemogen row for any pawn with a hemogen gene and an ability that costs hemogen, and shows only the rows that apply to the pawn.
+- Ranged VEF abilities that add their own targeting checks (a charged runecircle, a corpse that isn't desiccated, an unroofed target) are no longer autocast at targets those checks refuse.
+- The autocast limits gizmo shows for any psycaster, before anything is set to autocast, so limits can be set first.
+- Rules for Biotech's gene abilities: Coagulate tends anyone bleeding, Piercing spine, Acid spray, Fire spew, Foam spray and Longjump. Raiders with these genes now use them through Ability AI.
+- Bloodfeed can be autocast, out of combat only. A sanguophage feeds on downed enemies whenever it has room for the hemogen. Once it is under its hemogen target it also feeds on prisoners set to bloodfeed and then on colonists with no blood loss, the colonists only when no hemogen pack is in reach. It never bites someone the bite would kill. Undrafted, it walks as far as the calming range setting.
+- Rules for Biotech mech abilities: the tunneler's smokepop, the paramedic's firefoam pop and jump, the diabolus's fire burst and the apocriton's jump. Your mechs can autocast them. The paramedic and the apocriton jump clear when caught in melee or badly hurt (the paramedic already at 70% health), and the paramedic keeps one jump charge for its rescues. The Apex Mechanoids pulse mech's jump, built on the apocriton's, is left to Apex. Enemy mechs use them through Ability AI, and vanilla's own branches for these stand down. The apocriton's resurrection stays with vanilla.
+- A dev mode log explains each cast, and why a pawn casts nothing.

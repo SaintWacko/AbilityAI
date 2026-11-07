@@ -1,0 +1,916 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ability AI rule builder</title>
+<style>
+:root {
+  --bg: #16181c; --panel: #1f2228; --panel2: #262a31; --line: #343a43; --ink: #dfe3e8; --dim: #8d96a3;
+  --accent: #6aa8ff; --warn: #e8b04a; --bad: #ef6b6b; --good: #6cc48a; --radius: 6px;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+a { color: var(--accent); }
+header { padding: 14px 20px 10px; border-bottom: 1px solid var(--line); }
+header h1 { margin: 0 0 4px; font-size: 19px; font-weight: 600; }
+header p { margin: 0; color: var(--dim); max-width: 900px; }
+main { display: grid; grid-template-columns: minmax(420px, 1fr) minmax(380px, 46%); gap: 16px; padding: 16px 20px 40px; }
+@media (max-width: 980px) { main { grid-template-columns: 1fr; } }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; margin-bottom: 14px; }
+.panel h2 { margin: 0 0 10px; font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--dim); font-weight: 600; }
+.row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 6px 0; }
+.row > label.k { width: 130px; color: var(--dim); }
+.hint { color: var(--dim); font-size: 12.5px; margin: 4px 0 0; }
+input[type=text], input[type=number], select, textarea {
+  background: var(--panel2); color: var(--ink); border: 1px solid var(--line); border-radius: 4px; padding: 4px 7px; font: inherit;
+}
+input[type=number] { width: 90px; }
+input[type=text].wide { width: 320px; max-width: 100%; }
+textarea { width: 100%; font-family: var(--mono); font-size: 12.5px; }
+select:focus, input:focus, textarea:focus { outline: 1px solid var(--accent); }
+button { background: var(--panel2); color: var(--ink); border: 1px solid var(--line); border-radius: 4px; padding: 4px 10px; font: inherit; cursor: pointer; }
+button:hover { border-color: var(--accent); }
+button.primary { background: #2c4a75; border-color: #3d6399; }
+button.icon { padding: 2px 7px; color: var(--dim); }
+button.icon:hover { color: var(--ink); }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+.seg button { border: 0; border-radius: 0; }
+.seg button.on { background: #2c4a75; }
+.rule { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); margin-bottom: 14px; }
+.rule-head { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--line); background: var(--panel2); border-radius: var(--radius) var(--radius) 0 0; }
+.rule-head .title { font-weight: 600; flex: 1; }
+.rule-head .cls { color: var(--dim); font-family: var(--mono); font-size: 12px; font-weight: 400; margin-left: 6px; }
+.rule-body { padding: 8px 12px 12px; }
+.summary { color: var(--dim); font-size: 13px; margin: 2px 0 6px; }
+.facts { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+.tag { font-size: 11.5px; border: 1px solid var(--line); border-radius: 10px; padding: 0 8px; color: var(--dim); }
+.field { display: grid; grid-template-columns: 170px 1fr auto; gap: 4px 10px; align-items: start; padding: 6px 0; border-top: 1px solid #2b3038; }
+.field:first-of-type { border-top: 0; }
+.field .name { font-family: var(--mono); font-size: 12.5px; padding-top: 4px; word-break: break-all; }
+.field .name .req { color: var(--warn); font-family: system-ui, sans-serif; font-size: 11px; margin-left: 4px; }
+.field .doc { grid-column: 2 / 4; color: var(--dim); font-size: 12.5px; }
+.field .ctl { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.flags label, .chk { display: inline-flex; gap: 4px; align-items: center; margin-right: 8px; white-space: nowrap; }
+.dflt { color: var(--dim); font-size: 12px; }
+.adder { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+.adder select { max-width: 360px; }
+.override { margin-top: 10px; border: 1px dashed var(--line); border-radius: var(--radius); padding: 6px 10px 8px; }
+.override h3 { margin: 0; font-size: 13px; display: flex; gap: 8px; align-items: center; }
+.override h3 span { flex: 1; }
+.override .hint { margin-bottom: 4px; }
+.out { position: sticky; top: 12px; }
+.out pre { margin: 0; background: #111316; border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; font: 12.5px/1.5 var(--mono); white-space: pre; overflow: auto; max-height: calc(100vh - 260px); min-height: 200px; }
+.warns { margin: 10px 0 0; padding: 0; list-style: none; }
+.warns li { color: var(--warn); font-size: 13px; padding: 2px 0 2px 18px; position: relative; }
+.warns li::before { content: "!"; position: absolute; left: 4px; font-weight: 700; }
+.warns li.bad { color: var(--bad); }
+.ok { color: var(--good); font-size: 13px; margin-top: 10px; }
+.xt { color: #8fb8ff; } .xa { color: #c9a0ff; } .xv { color: #a8d8a0; } .xc { color: #6f7884; }
+.empty { color: var(--dim); padding: 6px 2px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Ability AI rule builder</h1>
+  <p>Build the <code>AbilityAIExtension</code> rules that let Ability AI cast an ability. Add a rule for each situation the ability is for, fill in its fields, and copy the XML on the right. Every field is explained in the <a href="https://github.com/SaintWacko/AbilityAI/blob/main/docs/writing-rules.md">modder's guide</a>. Your work is kept in this browser between visits.</p>
+</header>
+<main>
+  <section>
+    <div class="panel" id="target"></div>
+    <div id="rules"></div>
+    <div class="panel">
+      <div class="row">
+        <label class="k" for="newWorker">Add a rule</label>
+        <select id="newWorker"></select>
+        <button class="primary" id="addRule">Add</button>
+      </div>
+      <p class="hint" id="newWorkerHint"></p>
+      <div class="row" style="margin-top:10px">
+        <label class="k" for="example">Or start from</label>
+        <select id="example"></select>
+        <button id="loadExample">Load</button>
+        <button id="clearAll">Clear all</button>
+      </div>
+    </div>
+  </section>
+  <section>
+    <div class="out">
+      <div class="panel">
+        <div class="row" style="margin:0 0 8px">
+          <h2 style="margin:0;flex:1">XML</h2>
+          <button id="copy" class="primary">Copy</button>
+        </div>
+        <pre id="xml"></pre>
+        <ul class="warns" id="warns"></ul>
+      </div>
+    </div>
+  </section>
+</main>
+<script>
+"use strict";
+
+// ---- Data -------------------------------------------------------------------------------------------------------
+// Kept by hand from Source/AbilityAI/AbilityAI.cs (AbilityAIExtension and its ConfigErrors) and the worker classes.
+// docs/check-rule-builder.py lists any public field of AbilityAIExtension missing from FIELDS.
+
+const ENUMS = {
+  combat: ["InCombat", "OutOfCombat", "Any"],
+  requires: ["None", "Melee", "Ranged"],
+  modes: ["GapClose", "Escape"],
+  skipMode: ["Repel", "Rescue", "Escape"],
+  feedOn: ["DownedEnemies", "Prisoners", "Colony"],
+  kinds: ["Humanlike", "Animal", "Mechanoid", "Other", "Turret", "Shielded", "Psycaster"],
+  corpseKinds: ["Humanlike", "Animal", "Mechanoid", "Other"],
+  npcGate: ["InstantKill", "BaseWrecking"],
+  health: ["Injured", "Disease", "MissingParts", "Bleeding"],
+  zoneTarget: ["QualityItems", "Damaged", "Rechargeable", "PowerConsumers", "Unfinished", "HumanlikeCorpses", "Prisoners",
+    "ConsumableCorpses", "LowMood", "Inspirable", "ColonistsWithout", "Visitors", "LeechHosts"],
+  spotKind: ["Crops", "Trees"],
+  linkSafe: ["Targets", "Enemies", "NonHostile"],
+  bool3: ["true", "false"],
+};
+const ALL_PAWNS = ["Humanlike", "Animal", "Mechanoid", "Other"];
+
+const W = {
+  AoEHostile: { cls: "AoEHostile", label: "AoE hostile", hostile: true,
+    summary: "An area ability aimed at the spot that catches the most enemies (Flashbang, Berserk pulse). Each enemy in range is a candidate centre, scored by the enemies within the radius the ability would affect.",
+    suggest: ["priority", "minTargets", "avoidAllies"] },
+  AoEHostileSelf: { cls: "AoEHostileSelf", label: "AoE hostile around the caster", hostile: true,
+    summary: "An area centred on the caster itself (psychic drone, an animal's roar). Casts when at least minTargets in the radius would be affected. Not while the caster already has the ability's hediff.",
+    suggest: ["priority", "minTargets", "avoidAllies"] },
+  ConeHostile: { cls: "ConeHostile", label: "Cone hostile", hostile: true,
+    summary: "A cone or line from the caster (fire spew, a breath). The cone always reaches its full length; any of the caster's side inside it drops the aim.",
+    suggest: ["priority", "minTargets"] },
+  BeamHostile: { cls: "BeamHostile", label: "Beam hostile", hostile: true,
+    summary: "A straight beam from the caster to the aimed cell, held for a while (VPE's Frost Ray). Cone hostile's rules with the same width all along: an ally anywhere on the way drops the aim.",
+    suggest: ["priority", "coneWidth"] },
+  TargetHostile: { cls: "TargetHostile", label: "Target hostile", hostile: true,
+    summary: "One enemy (Stun, Burden, Berserk). Scored by threat: the caster's own target, enemies aiming at the caster, combat power, distance.",
+    suggest: ["priority"] },
+  Interrupt: { cls: "Interrupt", label: "Interrupt", hostile: true, exclusive: true,
+    summary: "An enemy aiming something dangerous: a hostile ability or psycast, or a weapon with an explosive projectile. Only when more of its aim is left than this ability's own warmup. Usually a high-priority rule beside a Target hostile one.",
+    suggest: ["priority"] },
+  Deploy: { cls: "Deploy", label: "Deploy", hostile: true,
+    summary: "Throw out something that fights on its own (turret pack, drones) to a cell from which it sees the most enemies. Limited by the Turret packs setting to a few near each caster.",
+    suggest: ["priority"] },
+  AoEFriendly: { cls: "AoEFriendly", label: "AoE friendly",
+    summary: "An area buff over allies (Battle Cry). Self-cast abilities centre on the caster, targeted ones on the ally that gathers the most. Casts when at least minTargets allies without the effect would gain it.",
+    suggest: ["priority", "minTargets"] },
+  SelfBuff: { cls: "SelfBuff", label: "Self buff",
+    summary: "Cast on the caster while an enemy is within maxRange (default 30) and the caster doesn't already have the ability's hediff.",
+    suggest: ["priority"] },
+  TargetFriendly: { cls: "TargetFriendly", label: "Target friendly",
+    summary: "A buff on one ally or the caster. By default only allies fighting now; minPain or fireDanger change who counts. Skips allies that already have the hediff.",
+    suggest: ["priority"] },
+  Defensive: { cls: "Defensive", label: "Defensive",
+    summary: "Protect the caster or an ally in trouble (Invisibility): badly hurt with an enemy within 15 tiles, hurt in melee, or aimed at by minThreats shooters.",
+    suggest: ["priority"] },
+  Rescue: { cls: "Rescue", label: "Rescue", combat: "Any",
+    summary: "Help a downed ally (Painblock on a pawn downed by pain alone). Nearest first.",
+    suggest: ["priority"] },
+  Recovery: { cls: "Recovery", label: "Recovery", combat: "OutOfCombat",
+    summary: "Out of combat, get the caster or an ally back to strength: a need under needThreshold (rest unless need says otherwise), and/or the health conditions in health.",
+    suggest: ["priority"] },
+  Calm: { cls: "Calm", label: "Calm", combat: "Any",
+    summary: "End an ally's aggressive mental break (Word of Serenity), or any break with anyMentalState.",
+    suggest: ["priority"] },
+  Movement: { cls: "Movement", label: "Movement",
+    summary: "Close on the enemy (melee pawns) or get away from it (badly hurt, fleeing, or a ranged pawn in melee). Self-cast (Sprint) or targeted at a cell (a jump, a skip).",
+    suggest: ["priority", "modes"] },
+  Cover: { cls: "Cover", label: "Cover",
+    summary: "Under fire from minThreats ranged enemies, put something between the caster and the shooters (smoke, a wall, a shield). Not where it would add nothing.",
+    suggest: ["priority"] },
+  Firefighting: { cls: "Firefighting", label: "Firefighting", combat: "Any",
+    summary: "Put out fire on or next to the caster's side (Waterskip). Burning allies weigh 3, fires near allies 1; the cast needs minTargets of weight.",
+    suggest: ["priority"] },
+  Skip: { cls: "Skip", label: "Skip",
+    summary: "An ability that sends its target to a cell the caster picks (Skip). One rule per skipMode, each behind its own setting: Repel an enemy, Rescue an ally, Escape for the caster.",
+    required: ["skipMode"], suggest: ["priority"] },
+  Bloodfeed: { cls: "Bloodfeed", label: "Bloodfeed", combat: "OutOfCombat",
+    summary: "A sanguophage's bite, out of combat. One rule per feedOn group, tried by priority. Never a bite that would kill. The shipped rules turn it off for other factions with an npc block.",
+    required: ["feedOn"], suggest: ["priority"] },
+  Barrier: { cls: "Barrier", label: "Barrier",
+    summary: "Self-cast a projectile barrier when enough shooters outside it aim at the caster's side inside it (Guardian Skipbarrier). The AI drops it again once the fire stops. The player's pawns only while drafted.",
+    required: ["hediff"], suggest: [] },
+  ShedHeat: { cls: "ShedHeat", label: "Shed heat", combat: "OutOfCombat",
+    summary: "A heat vent that turns neural heat into psyfocus (Heat Focus). Cast only when another psycast was held back by heat and this would remove at least minHeatShed.",
+    required: ["heatVent"], suggest: ["focusPerHeat", "heatFloorStat"] },
+  Recast: { cls: "Recast", label: "Recast", combat: "Any", work: true,
+    summary: "The player's colonists keep up the thing the ability leaves behind (Solar Pinhole), as work. Never cast by the AI driver or by other factions.",
+    required: ["recastThing"], suggest: [] },
+  Zone: { cls: "Zone", label: "Zone", combat: "Any", work: true,
+    summary: "The player's colonists cast it on what a zone the player paints holds (Mend, Enchant), or on colony pawns that want it (Word of Joy), as work.",
+    required: ["zoneTarget"], suggest: [] },
+  Spot: { cls: "Spot", label: "Spot", combat: "Any", work: true,
+    summary: "The player's colonists cast it at markers the player places, once the ground there is ready (Crop Burst, Tree Sprout), as work.",
+    required: ["spotKind", "spotRadius"], suggest: [] },
+  GroupLink: { cls: "GroupLink", label: "Group link", combat: "Any", work: true, linker: true,
+    summary: "Marks a psycast that links the caster to the pawns around it. Never cast for itself: the AI casts it just before a Word of psycast when the link would reach enough of the Word's targets, for other factions too. Needs an ability system that registers its links (VPE's Group Link is built in).",
+    suggest: [] },
+};
+const HOSTILE = ["AoEHostile", "AoEHostileSelf", "ConeHostile", "BeamHostile", "TargetHostile", "Interrupt"];
+const DRIVER = Object.keys(W).filter(k => !W[k].work);
+const TARGETS_PAWNS = HOSTILE.concat(["AoEFriendly", "SelfBuff", "TargetFriendly", "Defensive", "Rescue", "Recovery", "Calm", "Skip", "Bloodfeed"]);
+const RANGED = DRIVER.filter(k => !["Cover", "Barrier", "ShedHeat"].includes(k));
+const WORDS = ["TargetHostile", "TargetFriendly", "Recovery", "Calm", "Zone"];
+const APPROACH = ["AoEHostile", "AoEHostileSelf", "ConeHostile", "BeamHostile", "TargetHostile", "AoEFriendly"];
+
+// t: int, float, bool, bool3 (unset/true/false), enum:<list>, flags:<list>, def, defs
+// d: the default as the game reads it (null = none, shown as unset)
+// w: the workers that read it ("*" every worker)
+const FIELDS = [
+  { n: "priority", t: "int", d: "0", w: "*", g: "Any rule",
+    doc: "Higher is tried first. Every ready ability's rules are tried together in priority order, so this also ranks the ability against the pawn's others. The shipped rules use 1 to 9." },
+  { n: "combat", t: "enum:combat", d: null, w: "*", g: "Any rule",
+    doc: "When the rule applies. Unset uses the worker's default (shown on the rule). A rule that isn't InCombat can also run for the player's undrafted pawns." },
+  { n: "reserveCharges", t: "int", d: "0", w: DRIVER, g: "Any rule",
+    doc: "Charges the AI never spends, for abilities with charges." },
+  { n: "minGapSeconds", t: "float", d: "0", w: DRIVER, g: "Any rule",
+    doc: "Seconds after an AI cast of this ability before the AI considers it again, on top of its cooldown." },
+  { n: "radius", t: "float", d: "-1",
+    w: ["AoEHostile", "AoEHostileSelf", "AoEFriendly", "ConeHostile", "BeamHostile", "TargetHostile", "TargetFriendly", "SelfBuff", "Movement", "Cover", "Firefighting", "Deploy", "Barrier"],
+    doc: "The area the effect reaches around its target. Unset reads it from the ability's effect comps; set it when the area comes from C# or a comp Ability AI can't read. Target hostile: how near the target counts for minTargets, preferGrouped and avoidAllies (default 5). Cone and beam: how near the target an ally may not stand (with avoidAllies). Movement: around the landing cell. Deploy: how far the deployed thing reaches." },
+  { n: "minTargets", t: "int", d: "1", w: ["AoEHostile", "AoEHostileSelf", "AoEFriendly", "ConeHostile", "BeamHostile", "TargetHostile", "Firefighting", "Deploy"],
+    doc: "Pawns the cast must affect: enemies for the hostile workers, allies for AoE friendly. Target hostile: the target's side within radius, itself included. Firefighting: weight of fire covered. Deploy: enemies the deployed thing would see." },
+  { n: "minRange", t: "float", d: "0", w: ["AoEHostile", "ConeHostile", "BeamHostile", "TargetHostile", "Deploy"],
+    doc: "Closest the target may be to the caster." },
+  { n: "maxRange", t: "float", d: "-1", w: RANGED,
+    doc: "Furthest the target may be. Unset is the ability's range. Self buff: how near an enemy must be (default 30). Movement: how far a gap-close looks (default 40). Calm, touch abilities: how far the caster walks (default 20)." },
+  { n: "healthThreshold", t: "float", d: "0.5", w: ["Movement", "Cover", "Defensive", "Skip", "Recovery", "AoEFriendly"].concat(APPROACH),
+    doc: "Summary health (0 to 1) below which a pawn counts as badly hurt: Movement and Skip escape, Defensive's trouble, Recovery and AoE friendly's Injured. A caster below it also stops walking toward targets (approachDistance)." },
+  { n: "need", t: "def", d: null, w: ["Recovery"], defType: "NeedDef",
+    doc: "The need to watch (default Rest), cast for when it is under needThreshold." },
+  { n: "needThreshold", t: "float", d: "0.3", w: ["Recovery"],
+    doc: "The need level (0 to 1) below which to cast." },
+  { n: "hediff", t: "def", d: null, defType: "HediffDef",
+    w: HOSTILE.concat(["AoEFriendly", "SelfBuff", "TargetFriendly", "Defensive", "Rescue", "Recovery", "Zone", "Barrier"]),
+    doc: "Skip pawns that already have this. Unset reads it from the ability's effect comps. Barrier: the barrier's hediff (required). Zone: what the cast gives the target (required for LowMood, ColonistsWithout and LeechHosts)." },
+  { n: "modes", t: "flags:modes", d: "GapClose, Escape", w: ["Movement"],
+    doc: "Which situations to move in: GapClose (a melee pawn closing on its enemy), Escape (badly hurt, fleeing, or a ranged pawn in melee)." },
+  { n: "skipMode", t: "enum:skipMode", d: null, w: ["Skip"],
+    doc: "Which use this rule is (unset reads as Repel). One rule per use. Repel: an enemy next to someone who can't hold it off, sent far away. Rescue: a downed or badly hurt ally brought near the caster. Escape: the caster, away from every enemy." },
+  { n: "minGapDistance", t: "float", d: "6", w: ["Movement", "Deploy"],
+    doc: "Movement: don't close the gap below this distance to the enemy. Deploy: no enemy this close to the cell." },
+  { n: "offsetTowardThreat", t: "float", d: "0", w: ["Cover"],
+    doc: "How far from the caster toward the nearest shooter to place the cover. 0 = on the caster." },
+  { n: "minThreats", t: "int", d: "1", w: ["Cover", "Defensive"],
+    doc: "Ranged enemies aiming at the caster (or the ally) before it counts as under fire. Being shot in the last 10 seconds counts as one." },
+  { n: "avoidAllies", t: "bool", d: "false", w: ["AoEHostile", "AoEHostileSelf", "ConeHostile", "BeamHostile", "TargetHostile", "Movement", "TargetFriendly", "SelfBuff"],
+    doc: "Keep the caster's side out of the area: no centre with an ally inside (AoE), no target with an ally within radius (Target hostile), no landing beside one (Movement). With auraKinds: no ally near the aura's bearer. Downed faction-mates count unless the rule is harmless." },
+  { n: "skipAffected", t: "bool", d: "true", w: HOSTILE,
+    doc: "Leave out pawns the cast would be wasted on: already stunned (by a stunning ability), already have its hediff, already in a mental state (one that gives one), no psychic sensitivity (a psycast). Turn off when the damage makes a stunned pawn still worth hitting." },
+  { n: "approachDistance", t: "float", d: "0", w: APPROACH,
+    doc: "How far past the ability's range the caster walks to cast it in combat, when nothing is in range now. 0 = never. Ranged casters only. AoE friendly: self-cast abilities only, walking toward allies." },
+  { n: "meleeOnly", t: "bool", d: "false", w: ["TargetHostile"],
+    doc: "Only enemies in melee with the caster or an ally." },
+  { n: "preferGrouped", t: "bool", d: "false", w: ["TargetHostile"],
+    doc: "Prefer an enemy with more of its own side around it (within radius, default 5)." },
+  { n: "minPain", t: "float", d: "0", w: ["TargetFriendly"],
+    doc: "Only allies in at least this much pain (0 to 1), whether or not they are fighting." },
+  { n: "painShockOnly", t: "bool", d: "false", w: ["Rescue"],
+    doc: "Only allies downed by pain alone." },
+  { n: "minBleedRate", t: "float", d: "0", w: ["Rescue", "Recovery", "AoEFriendly"],
+    doc: "Only allies bleeding at least this much per day (1 = 100%/day). Recovery and AoE friendly: the rate the Bleeding health condition starts at." },
+  { n: "rangedOnly", t: "bool", d: "false", w: ["Defensive"],
+    doc: "Only shooters count as trouble (minThreats), not melee or low health. For protection that only stops projectiles." },
+  { n: "anyMentalState", t: "bool", d: "false", w: ["Calm"],
+    doc: "Any mental state, not only aggressive ones." },
+  { n: "minBreakSeconds", t: "float", d: "0", w: ["Calm"],
+    doc: "Skip a break that will end by itself within this many seconds." },
+  { n: "minAimSeconds", t: "float", d: "0", w: ["Interrupt"],
+    doc: "Also interrupt any aim with at least this many seconds left. 0 = only abilities and explosive weapons." },
+  { n: "harmless", t: "bool", d: "false", w: HOSTILE.concat(["Skip"]),
+    doc: "The ability disables without lasting harm (stun, slow, blind). It may then be used on an ally in a hostile mental break (the player's setting, Harmless only by default), and avoidAllies doesn't count downed faction-mates." },
+  { n: "exclusive", t: "bool3", d: null, w: DRIVER, g: "Any rule",
+    doc: "Leave a target alone while a faction-mate is casting this ability at it, so a raid doesn't all stabilize one downed pirate. Unset = the worker's default (shown on the rule). Set true on a hostile rule whose effect doesn't stack (a stun keeps the longer of two)." },
+  { n: "enabled", t: "bool", d: "true", w: "*", g: "Any rule",
+    doc: "false: the rule does nothing. Meant for an npc or friendlyNpc block, to keep those casters off a rule the player's pawns keep." },
+  { n: "requires", t: "enum:requires", d: "None", w: DRIVER, g: "Any rule",
+    doc: "Only while the caster fights with this. Melee: no ranged weapon (a melee weapon or fists)." },
+  { n: "targetKinds", t: "flags:kinds", d: ALL_PAWNS.join(", "), w: TARGETS_PAWNS,
+    doc: "Which pawns the rule may target or count. The default is every pawn. Turret (hostile area workers and Target hostile only), Shielded (a raised shield belt) and Psycaster (has a psylink) must be named." },
+  { n: "allyKinds", t: "flags:kinds", d: ALL_PAWNS.join(", "), w: ["AoEHostile", "AoEHostileSelf", "ConeHostile", "BeamHostile", "TargetHostile", "Movement", "TargetFriendly", "SelfBuff"],
+    doc: "Which of the caster's side avoidAllies keeps clear of: those the effect would harm. An EMP: Mechanoid, Turret, Shielded." },
+  { n: "auraKinds", t: "flags:kinds", d: null, w: ["TargetFriendly", "SelfBuff"],
+    doc: "The buff is an aura that hits whatever comes near its bearer. Cast only while at least auraMin enemies of these kinds are within radius of the bearer. Needs radius." },
+  { n: "auraMin", t: "int", d: "1", w: ["TargetFriendly", "SelfBuff"],
+    doc: "Enemies of auraKinds the aura must reach." },
+  { n: "maxLight", t: "float", d: "1", w: DRIVER, g: "Any rule",
+    doc: "Only while the light on the caster's cell is at most this (0 to 1). For abilities that only work in the dark." },
+  { n: "cellMaxLight", t: "float", d: "1", w: ["Movement"],
+    doc: "Targeted: only land on cells with at most this much light (0 to 1), for a jump that only lands in the dark." },
+  { n: "gapCloseOutOfSight", t: "bool", d: "false", w: ["Movement"],
+    doc: "Close the gap only while the caster can't see its target (an ability that walks through walls)." },
+  { n: "escapeInMelee", t: "bool", d: "false", w: ["Movement", "Skip"],
+    doc: "Also get away when caught in melee, whatever the caster's weapon. By default only ranged pawns escape melee." },
+  { n: "wallsIn", t: "bool", d: "false", w: ["Cover"],
+    doc: "Self-cast with a radius: the ability raises a ring that shuts everyone inside in (Ice Wall). Cast only when walling in helps the side inside." },
+  { n: "shieldsAllies", t: "bool", d: "false", w: ["Cover"],
+    doc: "Self-cast with a radius: count shooters outside the radius aiming at anyone of the caster's side inside it, not only at the caster (a shield dome)." },
+  { n: "whileHunting", t: "bool", d: "false", w: ["Movement", "TargetHostile"],
+    doc: "Also act while the caster hunts for food, with its prey as the target: a leap at a fleeing deer. Movement needs the GapClose mode." },
+  { n: "gapCloseJobTarget", t: "bool", d: "false", w: ["Movement"],
+    doc: "With no enemy pawn to close on, take the target of the caster's melee attack: a door, a turret, a downed or non-hostile pawn. Needs the GapClose mode." },
+  { n: "health", t: "flags:health", d: null, w: ["Recovery", "AoEFriendly"],
+    doc: "Recovery: the conditions it treats (none = the need rule alone). AoE friendly: only allies with one of these count. Injured uses healthThreshold, Bleeding uses minBleedRate." },
+  { n: "anchorThings", t: "defs", d: null, w: ["AoEHostile", "AoEFriendly"], defType: "ThingDef",
+    doc: "Centre only on things of these defs, never on a pawn or a cell (a rune circle the ability is cast at). A thing with a faction counts only when it is the caster's." },
+  { n: "anchorCorpses", t: "flags:corpseKinds", d: null, w: ["AoEHostile", "AoEFriendly", "AoEHostileSelf"],
+    doc: "Centre only on corpses of these kinds, of pawns hostile to the caster or of no faction. AoE hostile around the caster reads it only with minCorpses." },
+  { n: "minCorpses", t: "int", d: "0", w: ["AoEHostile", "AoEHostileSelf"],
+    doc: "With anchorCorpses: a centre needs at least this many of those corpses in the radius and is scored by them (an ability that raises the dead). minTargets may then be 0." },
+  { n: "avoidEnemies", t: "bool", d: "false", w: ["AoEFriendly"],
+    doc: "No centre with an enemy inside the radius, for an effect that reaches whoever stands there." },
+  { n: "currentMapOnly", t: "bool", d: "false", w: DRIVER, g: "Any rule",
+    doc: "Only on the map the player is looking at, for an ability whose code lands its effect on Find.CurrentMap." },
+  { n: "waitForGather", t: "bool", d: "false", w: ["AoEHostile"],
+    doc: "Anchored only: hold the cast for a few seconds while more enemies are walking into the area, and skip a spot an ally is walking into." },
+  { n: "coveredBy", t: "defs", d: null, w: ["AoEHostile"], defType: "ThingDef",
+    doc: "Not where at least coveredFraction of the radius already holds one of these defs, for an ability that fills an area with something that lasts (brambles)." },
+  { n: "coveredFraction", t: "float", d: "0.5", w: ["AoEHostile"],
+    doc: "Share of the radius (above 0, at most 1) coveredBy must fill before the spot counts as covered." },
+  { n: "avoidSelf", t: "bool", d: "false", w: ["AoEHostile"],
+    doc: "Never centre the area within its radius of the caster, for an area that hits its caster too." },
+  { n: "avoidBuildings", t: "bool", d: "false", w: ["AoEHostile", "AoEHostileSelf", "ConeHostile", "BeamHostile", "TargetHostile", "Movement"],
+    doc: "Not with a building of the caster's side, or of a faction not hostile to it, in the area (incendiaries near the player's base). Target hostile: within radius of the target (default 5). Movement: around the landing cell." },
+  { n: "coneWidth", t: "float", d: "-1", w: ["ConeHostile", "BeamHostile"],
+    doc: "Cone: width at the far end. Beam: width all along (at least 1.5), the margin kept clear of allies. Unset reads it from the effects, else 1 (a line)." },
+  { n: "feedOn", t: "enum:feedOn", d: null, w: ["Bloodfeed"],
+    doc: "Whom this rule feeds on (unset reads as DownedEnemies). DownedEnemies whenever there's room for the bite; Prisoners and Colony once the caster's hemogen is under its target." },
+  { n: "recastThing", t: "def", d: null, w: ["Recast"], defType: "ThingDef",
+    doc: "The thing the ability leaves behind that the colonists keep up. Its class must hold comps (ThingWithComps)." },
+  { n: "zoneTarget", t: "enum:zoneTarget", d: null, w: ["Zone"],
+    doc: "What the ability is cast at. Each kind has its own filter and settings; see the guide's Zone section." },
+  { n: "sensitivityAbove", t: "float", d: "-1", w: ["Zone"],
+    doc: "Only casters whose psychic sensitivity is above this, for an ability that does nothing below it." },
+  { n: "spotKind", t: "enum:spotKind", d: null, w: ["Spot"],
+    doc: "What a marker waits for: Crops (no crop and enough fertile cells), Trees (no crop and enough cells a wild tree can grow on)." },
+  { n: "spotRadius", t: "float", d: "0", w: ["Spot"],
+    doc: "How far from the marker the cast can reach, at the most any caster's radius can be." },
+  { n: "npcGate", t: "flags:npcGate", d: null, w: DRIVER, g: "Any rule",
+    doc: "Other factions use the rule only while the matching setting is on (both off by default). InstantKill: kills or takes a pawn in one cast. BaseWrecking: wrecks buildings over a wide area (hostile casters only; friendly NPCs never)." },
+  { n: "armedOnly", t: "bool", d: "false", w: ["TargetHostile"],
+    doc: "Only enemies holding a weapon (a disarm)." },
+  { n: "inMentalState", t: "bool", d: "false", w: ["TargetHostile"],
+    doc: "Only enemies in a mental state, for an ability that ends one or only works on one (calming a manhunter)." },
+  { n: "permanentEnemiesOnly", t: "bool", d: "false", w: ["TargetHostile"],
+    doc: "Not a pawn whose home faction is humanlike and not permanently hostile, since killing one costs goodwill even at war." },
+  { n: "pathClearance", t: "float", d: "0", w: ["Movement"],
+    doc: "Targeted: nobody of the caster's side and no friendly building within this many tiles of the line from the caster to where it lands, for a dash that harms what it passes." },
+  { n: "unlessCasterHas", t: "def", d: null, w: "*", defType: "HediffDef", g: "Any rule",
+    doc: "Not while the caster has this hediff: an aura or channel a second cast would only restart." },
+  { n: "startsFires", t: "bool", d: "false", w: DRIVER, g: "Any rule",
+    doc: "The ability sets fires, so an enemy holding it is a fire threat to fireDanger rules. One rule of the ability is enough; its radius is how far the fire spreads past the aim." },
+  { n: "fireDanger", t: "bool", d: "false", w: ["TargetFriendly"],
+    doc: "Only allies in fire danger (burning, a fire within 2.5 tiles, an enemy that can set fires in reach) instead of allies who are fighting." },
+  { n: "heatVent", t: "bool", d: "false", w: DRIVER, g: "Any rule",
+    doc: "A heat vent: tried only when, with nothing else cast, another psycast had a target and neural heat alone held it back." },
+  { n: "focusPerHeat", t: "float", d: "0", w: ["ShedHeat"],
+    doc: "Psyfocus gained per point of heat removed, so it is only cast with room on the psyfocus bar. 0 = every point above the floor goes." },
+  { n: "heatFloorStat", t: "def", d: null, w: ["ShedHeat"], defType: "StatDef",
+    doc: "The stat whose value is heat the cast can't take away." },
+  { n: "minHeatShed", t: "float", d: "10", w: ["ShedHeat"],
+    doc: "The least heat the cast must remove to be worth casting." },
+  { n: "linkSafe", t: "enum:linkSafe", d: "Targets", w: WORDS, g: "Words of psycasts",
+    doc: "A Word of psycast: who besides the rule's own targets may take it through the caster's group link. Targets, Enemies or NonHostile." },
+  { n: "linkFirst", t: "bool", d: "true", w: WORDS, g: "Words of psycasts",
+    doc: "A Word of psycast: the caster's group link may be cast first when it would reach enough of the rule's targets. Off for a Word priced per target." },
+  { n: "verbIndex", t: "int", d: null, w: "*", gear: true, g: "Gear",
+    doc: "Worn gear: which of the item's verbs this rule is for, by position in its verbs list. Left out: the verb of the rule before it (verb 0 for the first rule). Each ruled verb has its own autocast setting." },
+  { n: "deployedThing", t: "def", d: null, w: ["Deploy"], defType: "ThingDef",
+    doc: "What the cast puts on the map, where Ability AI can't read it from the verb or projectile. For a pawn, its race's ThingDef." },
+];
+const FIELD = Object.fromEntries(FIELDS.map(f => [f.n, f]));
+const OWN_GROUP = "This worker";
+
+const DEF_TYPES = [
+  { id: "AbilityDef", label: "AbilityDef (vanilla abilities, psycasts, gene abilities)" },
+  { id: "VEF.Abilities.AbilityDef", label: "VEF.Abilities.AbilityDef (VEF abilities, VPE psycasts)" },
+  { id: "ThingDef", label: "ThingDef (worn gear with a verb: packs, belts, launchers)" },
+  { id: "other", label: "Another def class" },
+];
+
+W.Skip.exclusive = true;
+
+const EXAMPLES = [
+  { label: "Stun (Royalty): interrupt first, otherwise the worst threat", defType: "AbilityDef", defNames: "Stun", rules: [
+    { worker: "Interrupt", fields: { priority: "9", harmless: true } },
+    { worker: "TargetHostile", fields: { priority: "3", approachDistance: "8", harmless: true, exclusive: "true" } } ] },
+  { label: "Berserk pulse (Royalty): an area on 3+ enemies, clear of allies", defType: "AbilityDef", defNames: "BerserkPulse", rules: [
+    { worker: "AoEHostile", fields: { priority: "8", minTargets: "3", avoidAllies: true, approachDistance: "8" } } ] },
+  { label: "Painblock (Royalty): get a downed ally up, or ease one in pain", defType: "AbilityDef", defNames: "Painblock", rules: [
+    { worker: "Rescue", fields: { priority: "7", painShockOnly: true } },
+    { worker: "TargetFriendly", fields: { priority: "3", minPain: "0.4" } } ] },
+  { label: "Skip (Royalty): rescue, repel and escape", defType: "AbilityDef", defNames: "Skip", rules: [
+    { worker: "Skip", fields: { skipMode: "Rescue", priority: "7", healthThreshold: "0.4" } },
+    { worker: "Skip", fields: { skipMode: "Repel", priority: "6", healthThreshold: "0.5", harmless: true } },
+    { worker: "Skip", fields: { skipMode: "Escape", priority: "5", healthThreshold: "0.35" } } ] },
+  { label: "Ice Wall (VPE): wall in under fire, never for friendly NPCs", defType: "VEF.Abilities.AbilityDef", defNames: "VPE_IceWall", rules: [
+    { worker: "Cover", fields: { priority: "5", radius: "5.9", wallsIn: true, minThreats: "2" }, friendlyNpc: { enabled: false } } ] },
+  { label: "Smokepop belt (worn gear): smoke once two shooters aim at the wearer", defType: "ThingDef", defNames: "Apparel_SmokepopBelt", rules: [
+    { worker: "Cover", fields: { priority: "4", minThreats: "2" } } ] },
+];
+
+// ---- State ------------------------------------------------------------------------------------------------------
+
+const STORE = "abilityai-rule-builder-v1";
+let uid = 1;
+
+function blank() {
+  return { mode: "patch", defType: "AbilityDef", defClass: "", defNames: "", findMod: true, conditional: true, rules: [] };
+}
+
+function load() {
+  try {
+    const s = JSON.parse(localStorage.getItem(STORE));
+    if (!s || !Array.isArray(s.rules)) return null;
+    s.rules = s.rules.filter(r => W[r.worker]);
+    for (const r of s.rules) uid = Math.max(uid, (r.id || 0) + 1);
+    for (const r of s.rules) if (!r.id) r.id = uid++;
+    return Object.assign(blank(), s);
+  } catch (e) { return null; }
+}
+
+function save() {
+  try { localStorage.setItem(STORE, JSON.stringify(state)); } catch (e) { }
+}
+
+let state = load() || blank();
+
+function initial(f, worker) {
+  const kind = f.t.split(":")[0];
+  if (kind === "bool") return f.d !== "true";
+  if (kind === "bool3") return "true";
+  if (kind === "enum") {
+    const opts = ENUMS[f.t.split(":")[1]];
+    const d = f.n === "combat" ? (W[worker].combat || "InCombat") : f.d;
+    return opts.find(o => o !== d) || opts[0];
+  }
+  if (kind === "flags") return f.d ? f.d.split(", ") : [];
+  // Numbers start empty, the default shown as a placeholder, so adding a field writes nothing until a value is typed
+  return "";
+}
+
+function newRule(worker) {
+  const r = { id: uid++, worker, fields: {}, npc: null, friendlyNpc: null };
+  for (const n of (W[worker].required || []).concat(W[worker].suggest || [])) r.fields[n] = initial(FIELD[n], worker);
+  if (worker === "ShedHeat") r.fields.heatVent = true;
+  return r;
+}
+
+function applies(f, worker) {
+  if (f.gear && state.defType !== "ThingDef") return false;
+  return f.w === "*" || f.w.includes(worker);
+}
+
+function defaultCombat(rule) {
+  if (rule.worker === "Skip") return rule.fields.skipMode === "Rescue" ? "Any" : "InCombat";
+  return W[rule.worker].combat || "InCombat";
+}
+
+function defaultExclusive(worker) {
+  const w = W[worker];
+  return w.exclusive !== undefined ? w.exclusive : !w.hostile;
+}
+
+// ---- DOM helpers ------------------------------------------------------------------------------------------------
+
+function el(tag, attrs, ...kids) {
+  const e = document.createElement(tag);
+  for (const k in attrs || {}) {
+    const v = attrs[k];
+    if (k === "class") e.className = v;
+    else if (k.startsWith("on")) e.addEventListener(k.slice(2), v);
+    else if (k === "checked" || k === "value" || k === "selected" || k === "disabled") e[k] = v;
+    else if (v !== null && v !== undefined && v !== false) e.setAttribute(k, v);
+  }
+  for (const kid of kids.flat()) if (kid !== null && kid !== undefined && kid !== false) e.append(kid.nodeType ? kid : String(kid));
+  return e;
+}
+
+function select(options, value, onchange, attrs) {
+  const s = el("select", Object.assign({ onchange: e => onchange(e.target.value) }, attrs || {}));
+  for (const o of options) {
+    if (o.group) {
+      const g = el("optgroup", { label: o.group });
+      for (const x of o.items) g.append(el("option", { value: x.value, title: x.title || null }, x.label));
+      s.append(g);
+    } else {
+      const v = typeof o === "string" ? o : o.value;
+      s.append(el("option", { value: v, selected: v === value, title: o.title || null }, typeof o === "string" ? o : o.label));
+    }
+  }
+  if (value !== undefined) s.value = value;
+  return s;
+}
+
+function changed() { save(); refreshOutput(); }
+function rebuilt() { save(); render(); }
+
+// ---- Target panel -----------------------------------------------------------------------------------------------
+
+function renderTarget() {
+  const p = document.getElementById("target");
+  p.replaceChildren();
+  p.append(el("h2", null, "Where the rules go"));
+  const seg = el("div", { class: "seg" },
+    el("button", { class: state.mode === "patch" ? "on" : "", onclick: () => { state.mode = "patch"; rebuilt(); } }, "A patch"),
+    el("button", { class: state.mode === "inline" ? "on" : "", onclick: () => { state.mode = "inline"; rebuilt(); } }, "Inside my def"));
+  p.append(el("div", { class: "row" }, el("label", { class: "k" }, "Output"), seg));
+  p.append(el("p", { class: "hint" }, state.mode === "patch"
+    ? "A patch adds the rules to a def by name: another mod's ability, or your own when Ability AI is optional for your mod. Put the file in your mod's Patches folder."
+    : "The <modExtensions> block goes inside your own def. Only for a mod that requires Ability AI: without it loaded, the game can't find AbilityAI.AbilityAIExtension and logs an error for the def."));
+
+  p.append(el("div", { class: "row" }, el("label", { class: "k" }, "Def class"),
+    select(DEF_TYPES.map(d => ({ value: d.id, label: d.label })), state.defType, v => { state.defType = v; rebuilt(); })));
+  if (state.defType === "other")
+    p.append(el("div", { class: "row" }, el("label", { class: "k" }, "Class name"),
+      el("input", { type: "text", class: "wide", value: state.defClass, placeholder: "e.g. VFEPirates.WarcasketDef",
+        oninput: e => { state.defClass = e.target.value.trim(); changed(); } })));
+  if (state.defType === "ThingDef")
+    p.append(el("p", { class: "hint" }, "Gear rules go on the item's ThingDef. The item needs a verb owner comp (CompApparelVerbOwner or a subclass). With several verbs, verbIndex picks the verb each rule is for."));
+
+  if (state.mode === "patch") {
+    p.append(el("div", { class: "row" }, el("label", { class: "k" }, "defName"),
+      el("input", { type: "text", class: "wide", value: state.defNames, placeholder: "one or more, comma-separated",
+        oninput: e => { state.defNames = e.target.value; changed(); } })));
+    p.append(el("div", { class: "row" }, el("label", { class: "chk" },
+      el("input", { type: "checkbox", checked: state.findMod, onchange: e => { state.findMod = e.target.checked; changed(); } }),
+      "Only when Ability AI is active (PatchOperationFindMod)")));
+    p.append(el("p", { class: "hint", style: "margin-left:22px" }, "Leave this on unless the file sits in a folder that LoadFolders.xml only loads with Ability AI (IfModActive=\"saintwacko.AbilityAI\")."));
+    p.append(el("div", { class: "row" }, el("label", { class: "chk" },
+      el("input", { type: "checkbox", checked: state.conditional, onchange: e => { state.conditional = e.target.checked; changed(); } }),
+      "Skip quietly when the def isn't there (PatchOperationConditional)")));
+    p.append(el("p", { class: "hint", style: "margin-left:22px" }, "Without it, a def that is missing (its mod or DLC not loaded, or renamed) logs a patch failure."));
+  }
+}
+
+// ---- Rules ------------------------------------------------------------------------------------------------------
+
+function renderRules() {
+  const box = document.getElementById("rules");
+  box.replaceChildren();
+  if (!state.rules.length) {
+    box.append(el("div", { class: "panel empty" }, "No rules yet. Pick a worker below, or load an example."));
+    return;
+  }
+  state.rules.forEach((rule, i) => box.append(renderRule(rule, i)));
+}
+
+function move(i, by) {
+  const j = i + by;
+  if (j < 0 || j >= state.rules.length) return;
+  const r = state.rules.splice(i, 1)[0];
+  state.rules.splice(j, 0, r);
+  rebuilt();
+}
+
+function renderRule(rule, i) {
+  const w = W[rule.worker];
+  const head = el("div", { class: "rule-head" },
+    el("div", { class: "title" }, `${i + 1}. ${w.label}`, el("span", { class: "cls" }, "AbilityAI.AbilityAIWorker_" + w.cls)),
+    el("button", { class: "icon", title: "Move up", onclick: () => move(i, -1) }, "\u2191"),
+    el("button", { class: "icon", title: "Move down", onclick: () => move(i, 1) }, "\u2193"),
+    el("button", { class: "icon", title: "Duplicate", onclick: () => {
+      const copy = JSON.parse(JSON.stringify(rule)); copy.id = uid++;
+      state.rules.splice(i + 1, 0, copy); rebuilt();
+    } }, "Copy"),
+    el("button", { class: "icon", title: "Remove", onclick: () => { state.rules.splice(i, 1); rebuilt(); } }, "\u2715"));
+
+  const facts = el("div", { class: "facts" },
+    el("span", { class: "tag" }, "combat: " + defaultCombat(rule)),
+    el("span", { class: "tag" }, w.linker ? "cast before a Word" : w.work ? "cast as colonist work" : "cast by the AI"),
+    w.work ? null : el("span", { class: "tag" }, "exclusive: " + (defaultExclusive(rule.worker) ? "yes" : "no")),
+    w.hostile ? el("span", { class: "tag" }, "aimed at enemies") : null);
+
+  const body = el("div", { class: "rule-body" }, el("div", { class: "summary" }, w.summary), facts);
+  body.append(renderFields(rule.fields, rule, w.required || []));
+  body.append(renderOverride(rule, "npc", "Every caster that isn't one of the player's pawns. Only the fields named here change."));
+  body.append(renderOverride(rule, "friendlyNpc", "On top of npc, for casters not hostile to the player: visitors, traders, allied soldiers, wild animals."));
+  return el("div", { class: "rule" }, head, body);
+}
+
+function renderFields(fields, rule, required) {
+  const wrap = el("div");
+  const names = FIELDS.map(f => f.n).filter(n => n in fields);
+  for (const n of names) wrap.append(fieldRow(fields, n, rule, required.includes(n)));
+  wrap.append(adder(fields, rule));
+  return wrap;
+}
+
+function adder(fields, rule) {
+  const groups = {};
+  for (const f of FIELDS) {
+    if (f.n in fields || !applies(f, rule.worker)) continue;
+    const g = f.g || OWN_GROUP;
+    (groups[g] = groups[g] || []).push({ value: f.n, label: f.n, title: f.doc });
+  }
+  const order = [OWN_GROUP, "Any rule", "Words of psycasts", "Gear"];
+  const opts = [{ value: "", label: "Add a field..." }];
+  for (const g of order) if (groups[g]) opts.push({ group: g, items: groups[g] });
+  if (opts.length === 1) return el("div");
+  return el("div", { class: "adder" }, select(opts, "", v => {
+    if (!v) return;
+    fields[v] = initial(FIELD[v], rule.worker);
+    rebuilt();
+  }));
+}
+
+function fieldRow(fields, n, rule, required) {
+  const f = FIELD[n];
+  const [kind, list] = f.t.split(":");
+  const set = v => { fields[n] = v; changed(); };
+  let ctl;
+  if (kind === "int" || kind === "float") {
+    ctl = el("input", { type: "number", step: kind === "int" ? "1" : "any", value: fields[n], placeholder: f.d === "-1" ? "read" : (f.d || ""),
+      oninput: e => set(e.target.value) });
+  } else if (kind === "bool") {
+    ctl = el("label", { class: "chk" }, el("input", { type: "checkbox", checked: !!fields[n], onchange: e => {
+      set(e.target.checked); e.target.nextSibling.textContent = e.target.checked ? "true" : "false";
+    } }), fields[n] ? "true" : "false");
+  } else if (kind === "bool3" || kind === "enum") {
+    ctl = select(ENUMS[kind === "bool3" ? "bool3" : list], fields[n], v => {
+      set(v);
+      if (n === "skipMode") rebuilt();
+    });
+  } else if (kind === "flags") {
+    ctl = el("span", { class: "flags" });
+    const opts = ENUMS[list];
+    for (const o of opts) {
+      if (o === "Turret" && n === "targetKinds" && !["AoEHostile", "AoEHostileSelf", "TargetHostile"].includes(rule.worker)) continue;
+      ctl.append(el("label", null, el("input", { type: "checkbox", checked: (fields[n] || []).includes(o), onchange: e => {
+        const cur = new Set(fields[n] || []);
+        e.target.checked ? cur.add(o) : cur.delete(o);
+        set(opts.filter(x => cur.has(x)));
+      } }), o));
+    }
+  } else if (kind === "def") {
+    ctl = el("input", { type: "text", value: fields[n], placeholder: (f.defType || "Def") + " defName", oninput: e => set(e.target.value.trim()) });
+  } else if (kind === "defs") {
+    ctl = el("textarea", { rows: 2, placeholder: (f.defType || "Def") + " defNames, one per line or comma-separated", oninput: e => set(e.target.value) });
+    ctl.value = fields[n];
+  }
+  let dflt = "";
+  if (n === "combat") dflt = "default: " + defaultCombat(rule);
+  else if (n === "exclusive") dflt = "default: " + defaultExclusive(rule.worker);
+  else if (f.d === "-1") dflt = "default: read from the ability";
+  else if (f.d !== null) dflt = "default: " + f.d;
+  const remove = required ? el("span") : el("button", { class: "icon", title: "Remove field", onclick: () => { delete fields[n]; rebuilt(); } }, "\u2715");
+  return el("div", { class: "field" },
+    el("div", { class: "name" }, n, required ? el("span", { class: "req" }, "required") : null),
+    el("div", { class: "ctl" }, ctl, dflt ? el("span", { class: "dflt" }, dflt) : null),
+    remove,
+    el("div", { class: "doc" }, f.doc));
+}
+
+function renderOverride(rule, key, hint) {
+  const box = el("div", { class: "override" });
+  if (!rule[key]) {
+    box.append(el("h3", null, el("span", { class: "dflt" }, `<${key}>`),
+      el("button", { onclick: () => { rule[key] = {}; rebuilt(); } }, `Add a ${key} block`)));
+    box.style.borderStyle = "none";
+    box.style.padding = "0";
+    return box;
+  }
+  box.append(el("h3", null, el("span", null, `<${key}>`),
+    el("button", { class: "icon", title: "Remove block", onclick: () => { rule[key] = null; rebuilt(); } }, "\u2715")));
+  box.append(el("p", { class: "hint" }, hint));
+  box.append(renderFields(rule[key], rule, []));
+  return box;
+}
+
+// ---- XML --------------------------------------------------------------------------------------------------------
+
+const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+const defList = v => String(v || "").split(/[\s,]+/).filter(Boolean);
+
+function fieldXml(n, v, pad) {
+  const f = FIELD[n];
+  const kind = f.t.split(":")[0];
+  if (kind === "bool") return [`${pad}<${n}>${v ? "true" : "false"}</${n}>`];
+  if (kind === "flags") return v && v.length ? [`${pad}<${n}>${v.join(", ")}</${n}>`] : [];
+  if (kind === "defs") {
+    const items = defList(v);
+    if (!items.length) return [];
+    return [`${pad}<${n}>`, ...items.map(x => `${pad}  <li>${esc(x)}</li>`), `${pad}</${n}>`];
+  }
+  if (v === "" || v === null || v === undefined) return [];
+  return [`${pad}<${n}>${esc(v)}</${n}>`];
+}
+
+function fieldsXml(fields, pad) {
+  const out = [];
+  for (const f of FIELDS) if (f.n in fields) out.push(...fieldXml(f.n, fields[f.n], pad));
+  return out;
+}
+
+function ruleXml(rule, pad) {
+  const out = [`${pad}<li Class="AbilityAI.AbilityAIExtension">`, `${pad}  <workerClass>AbilityAI.AbilityAIWorker_${W[rule.worker].cls}</workerClass>`];
+  out.push(...fieldsXml(rule.fields, pad + "  "));
+  for (const key of ["npc", "friendlyNpc"]) {
+    if (!rule[key]) continue;
+    const inner = fieldsXml(rule[key], pad + "    ");
+    if (inner.length) out.push(`${pad}  <${key}>`, ...inner, `${pad}  </${key}>`);
+  }
+  out.push(`${pad}</li>`);
+  return out;
+}
+
+function defClass() {
+  return state.defType === "other" ? (state.defClass || "YourDefClass") : state.defType;
+}
+
+function xpath() {
+  const names = defList(state.defNames);
+  const test = (names.length ? names : ["YourDefName"]).map(x => `defName="${x}"`).join(" or ");
+  return `Defs/${defClass()}[${test}]`;
+}
+
+function buildXml() {
+  const rules = n => state.rules.flatMap(r => ruleXml(r, " ".repeat(n)));
+  if (state.mode === "inline") return ["<modExtensions>", ...rules(2), "</modExtensions>"].join("\n");
+
+  const layers = [];
+  if (state.findMod) layers.push("find");
+  if (state.conditional) layers.push("cond");
+  layers.push("add");
+  const xp = esc(xpath()).replace(/&quot;/g, '"');
+  function layer(i, tag, pad) {
+    const kind = layers[i];
+    const p = " ".repeat(pad);
+    if (kind === "find") return [`${p}<${tag} Class="PatchOperationFindMod">`, `${p}  <mods>`, `${p}    <li>Ability AI</li>`, `${p}  </mods>`,
+      ...layer(i + 1, "match", pad + 2), `${p}</${tag}>`];
+    if (kind === "cond") return [`${p}<${tag} Class="PatchOperationConditional">`, `${p}  <xpath>${xp}</xpath>`,
+      ...layer(i + 1, "match", pad + 2), `${p}</${tag}>`];
+    return [`${p}<${tag} Class="PatchOperationAddModExtension">`, `${p}  <xpath>${xp}</xpath>`, `${p}  <value>`,
+      ...rules(pad + 4), `${p}  </value>`, `${p}</${tag}>`];
+  }
+  return ['<?xml version="1.0" encoding="utf-8"?>', "<Patch>", ...layer(0, "Operation", 2), "</Patch>"].join("\n");
+}
+
+function highlight(xml) {
+  return esc(xml).replace(/&lt;(\/?)([\w.:?]+)((?:\s+[\w]+=&quot;.*?&quot;)*)\s*(\/?)&gt;/g, (m, slash, name, attrs, self) => {
+    const a = attrs.replace(/(\w+)=(&quot;.*?&quot;)/g, '<span class="xa">$1</span>=<span class="xv">$2</span>');
+    return `<span class="xt">&lt;${slash}${name}</span>${a}<span class="xt">${self}&gt;</span>`;
+  });
+}
+
+// ---- Checks (the game's own, from AbilityAIExtension.ConfigErrors) -----------------------------------------------
+
+function num(fields, n) {
+  if (!(n in fields) || fields[n] === "" || fields[n] === null) {
+    const d = FIELD[n].d;
+    return d === null ? null : parseFloat(d);
+  }
+  return parseFloat(fields[n]);
+}
+const has = (fields, n) => n in fields && !(fields[n] === "" || (Array.isArray(fields[n]) && !fields[n].length));
+const flags = (fields, n) => has(fields, n) ? fields[n] : (FIELD[n].d ? FIELD[n].d.split(", ") : []);
+const bool = (fields, n) => n in fields ? !!fields[n] : FIELD[n].d === "true";
+
+function ruleChecks(rule, fields) {
+  const out = [];
+  const w = rule.worker;
+  if (fields.enabled === false) return out;
+  for (const n of W[w].required || []) if (!has(fields, n)) out.push(`${n} is required`);
+  for (const n in fields) {
+    const f = FIELD[n];
+    if (!f) continue;
+    const kind = f.t.split(":")[0];
+    if ((kind === "int" || kind === "float") && fields[n] !== "") {
+      const v = Number(fields[n]);
+      if (!isFinite(v)) out.push(`${n} isn't a number`);
+      else if (kind === "int" && !Number.isInteger(v)) out.push(`${n} must be a whole number`);
+    }
+  }
+  for (const n of ["reserveCharges", "approachDistance", "minBleedRate", "verbIndex", "minCorpses", "pathClearance", "focusPerHeat", "maxLight", "cellMaxLight"])
+    if (has(fields, n) && num(fields, n) < 0) out.push(`${n} can't be negative`);
+  const minCorpses = num(fields, "minCorpses") || 0;
+  if (has(fields, "minTargets") && num(fields, "minTargets") < (minCorpses > 0 ? 0 : 1))
+    out.push(minCorpses > 0 ? "minTargets can't be negative" : "minTargets must be at least 1");
+  const anchored = defList(fields.anchorThings).length > 0 || flags(fields, "anchorCorpses").length > 0;
+  if (bool(fields, "waitForGather") && !anchored) out.push("waitForGather is only read by an anchored rule (anchorThings or anchorCorpses)");
+  if (minCorpses > 0 && !flags(fields, "anchorCorpses").length) out.push("minCorpses needs anchorCorpses");
+  if (w === "AoEHostileSelf" && flags(fields, "anchorCorpses").length && minCorpses <= 0) out.push("anchorCorpses is only read here with minCorpses");
+  if (has(fields, "coveredFraction")) { const c = num(fields, "coveredFraction"); if (!(c > 0 && c <= 1)) out.push("coveredFraction must be above 0 and at most 1"); }
+  if (bool(fields, "rangedOnly") && num(fields, "minThreats") < 1) out.push("rangedOnly needs minThreats of at least 1");
+  if (has(fields, "targetKinds") || "targetKinds" in fields) {
+    const k = flags(fields, "targetKinds");
+    if ("targetKinds" in fields && !k.length) out.push("targetKinds has nothing ticked, so it is left out and the rule targets every pawn");
+  }
+  if ("allyKinds" in fields && !flags(fields, "allyKinds").length) out.push("allyKinds has nothing ticked, so it is left out (every pawn)");
+  if ("modes" in fields && !flags(fields, "modes").length) out.push("modes has nothing ticked, so it is left out (both modes)");
+  if (w === "Movement" && !flags(fields, "modes").includes("GapClose")) {
+    if (bool(fields, "whileHunting")) out.push("whileHunting needs the GapClose mode: escape never targets the prey");
+    if (bool(fields, "gapCloseJobTarget")) out.push("gapCloseJobTarget needs the GapClose mode");
+  }
+  if (flags(fields, "auraKinds").length) {
+    if (num(fields, "auraMin") < 1) out.push("auraMin must be at least 1");
+    if (!(num(fields, "radius") >= 0)) out.push("auraKinds needs a radius: the aura's reach is rarely the ability's own");
+  }
+  if (w === "ShedHeat" && !bool(fields, "heatVent")) out.push("a Shed heat rule without heatVent would be cast whenever the caster has heat to shed");
+  if (w === "Zone" && ["LowMood", "ColonistsWithout", "LeechHosts"].includes(fields.zoneTarget) && !has(fields, "hediff"))
+    out.push(`a ${fields.zoneTarget} Zone rule needs the hediff its cast gives the target`);
+  if (w === "Spot" && has(fields, "spotRadius") && !(num(fields, "spotRadius") > 0)) out.push("spotRadius must be above 0");
+  return out;
+}
+
+function checks() {
+  const out = [];
+  if (!state.rules.length) return out;
+  if (state.mode === "patch" && !defList(state.defNames).length) out.push({ bad: true, text: "Fill in the defName the rules go on." });
+  if (state.defType === "other" && !state.defClass) out.push({ bad: true, text: "Fill in the def class name." });
+  state.rules.forEach((rule, i) => {
+    const tag = `Rule ${i + 1} (${W[rule.worker].label}): `;
+    const own = ruleChecks(rule, rule.fields);
+    own.forEach(t => out.push({ bad: true, text: tag + t }));
+    let merged = rule.fields;
+    for (const key of ["npc", "friendlyNpc"]) {
+      if (!rule[key]) continue;
+      merged = Object.assign({}, merged, rule[key]);
+      ruleChecks(rule, merged).filter(t => !own.includes(t)).forEach(t => out.push({ bad: true, text: `${tag}<${key}>: ${t}` }));
+      if (!Object.keys(rule[key]).length) out.push({ text: `${tag}the ${key} block is empty, so it is left out` });
+    }
+    if (rule.worker === "Skip" && rule.fields.skipMode && state.rules.slice(0, i).some(r => r.worker === "Skip" && r.fields.skipMode === rule.fields.skipMode))
+      out.push({ text: `${tag}another Skip rule already has skipMode ${rule.fields.skipMode}` });
+    if (rule.worker === "Bloodfeed" && state.rules.slice(0, i).some(r => r.worker === "Bloodfeed" && r.fields.feedOn === rule.fields.feedOn))
+      out.push({ text: `${tag}another Bloodfeed rule already feeds on ${rule.fields.feedOn}` });
+  });
+  return out;
+}
+
+// ---- Output -----------------------------------------------------------------------------------------------------
+
+function refreshOutput() {
+  const xml = state.rules.length ? buildXml() : "";
+  document.getElementById("xml").innerHTML = xml ? highlight(xml) : '<span class="xc">Add a rule to see its XML here.</span>';
+  const list = document.getElementById("warns");
+  list.replaceChildren();
+  const found = checks();
+  for (const c of found) list.append(el("li", { class: c.bad ? "bad" : "" }, c.text));
+  const ok = list.nextElementSibling;
+  if (ok && ok.classList.contains("ok")) ok.remove();
+  if (state.rules.length && !found.length) list.after(el("div", { class: "ok" }, "No problems found."));
+}
+
+function render() {
+  renderTarget();
+  renderRules();
+  refreshOutput();
+}
+
+// ---- Wiring -----------------------------------------------------------------------------------------------------
+
+(function init() {
+  const pick = document.getElementById("newWorker");
+  const hint = document.getElementById("newWorkerHint");
+  const groups = [
+    ["At enemies", ["AoEHostile", "AoEHostileSelf", "ConeHostile", "BeamHostile", "TargetHostile", "Interrupt", "Deploy"]],
+    ["For allies or the caster", ["AoEFriendly", "SelfBuff", "TargetFriendly", "Defensive", "Rescue", "Recovery", "Calm", "Firefighting"]],
+    ["Moving and cover", ["Movement", "Skip", "Cover", "Barrier"]],
+    ["Special", ["Bloodfeed", "ShedHeat", "GroupLink"]],
+    ["Colonist work (player only)", ["Recast", "Zone", "Spot"]],
+  ];
+  for (const [g, ks] of groups) {
+    const og = el("optgroup", { label: g });
+    for (const k of ks) og.append(el("option", { value: k }, W[k].label));
+    pick.append(og);
+  }
+  const showHint = () => { hint.textContent = W[pick.value].summary; };
+  pick.addEventListener("change", showHint);
+  showHint();
+  document.getElementById("addRule").addEventListener("click", () => { state.rules.push(newRule(pick.value)); rebuilt(); });
+
+  const ex = document.getElementById("example");
+  EXAMPLES.forEach((e, i) => ex.append(el("option", { value: i }, e.label)));
+  document.getElementById("loadExample").addEventListener("click", () => {
+    const e = EXAMPLES[ex.value];
+    if (state.rules.length && !confirm("Replace the current rules with this example?")) return;
+    state = Object.assign(blank(), { defType: e.defType, defNames: e.defNames });
+    state.rules = e.rules.map(r => ({ id: uid++, worker: r.worker, fields: Object.assign({}, r.fields),
+      npc: r.npc ? Object.assign({}, r.npc) : null, friendlyNpc: r.friendlyNpc ? Object.assign({}, r.friendlyNpc) : null }));
+    rebuilt();
+  });
+  document.getElementById("clearAll").addEventListener("click", () => {
+    if (state.rules.length && !confirm("Remove every rule?")) return;
+    const keep = { mode: state.mode, defType: state.defType, defClass: state.defClass, findMod: state.findMod, conditional: state.conditional };
+    state = Object.assign(blank(), keep);
+    rebuilt();
+  });
+  document.getElementById("copy").addEventListener("click", async e => {
+    const text = state.rules.length ? buildXml() : "";
+    if (!text) return;
+    try { await navigator.clipboard.writeText(text); }
+    catch (err) {
+      const t = el("textarea"); t.value = text; document.body.append(t); t.select(); document.execCommand("copy"); t.remove();
+    }
+    e.target.textContent = "Copied";
+    setTimeout(() => { e.target.textContent = "Copy"; }, 1200);
+  });
+  render();
+})();
+</script>
+</body>
+</html>

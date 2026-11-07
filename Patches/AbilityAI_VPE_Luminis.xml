@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ability AI rules for VPE - Luminis. Its psycasts are VPE psycasts (VEF abilities), read by the VEF compat assembly
+     and priced by the VPE one. Most of them run their own C# classes, so the radii below are written out instead of
+     read from the def.
+     Left out: Greater solar pinhole (it never runs out, so there is nothing to recast; it only goes when the player
+     disperses it, and a recast would undo that), Enlighten (a day-long buff, a utility), Solar flare and Solar rift
+     (game conditions on the whole map), and the four world-ending ones (Furari, Apocalypsis, Ultima and Aeterna
+     luminis). -->
+<Patch>
+  <Operation Class="PatchOperationFindMod">
+    <mods>
+      <li>VPE - Luminis</li>
+    </mods>
+    <match Class="PatchOperationSequence">
+      <operations>
+
+        <!-- Blinding flash: a burst at the aimed cell (range 24.9) that stuns every pawn within 5.9 tiles, ally, enemy
+             and the caster alike, for 2 s times psychic sensitivity. 4% psyfocus. Two enemies or more, nobody of the
+             caster's side inside, one caster per group. The stun comes from the ability's own class, so the AI can't
+             tell a stunned pawn from the rest; the cast gap (2.5 s by default) outlasts the stun at sensitivity 1. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_BlindingFlashSTNL"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_BlindingFlashSTNL"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
+                <priority>4</priority>
+                <minTargets>2</minTargets>
+                <avoidAllies>true</avoidAllies>
+                <avoidSelf>true</avoidSelf>
+                <approachDistance>6</approachDistance>
+                <harmless>true</harmless>
+                <exclusive>true</exclusive>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Flash skip: the caster turns to light and lands on the aimed cell (range 30.9), stunning every pawn within
+             5.9 tiles of the landing for 3 s, friend and foe. A melee caster closes on its target this way (landing
+             beside it, stunned), and a badly hurt, fleeing or cornered caster gets away, landing far from enemies.
+             Never with anyone of the caster's side within 5.9 of the landing cell. 6% psyfocus. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_FlashSkipSTNL"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_FlashSkipSTNL"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Movement</workerClass>
+                <priority>4</priority>
+                <avoidAllies>true</avoidAllies>
+                <harmless>true</harmless>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Saving light: tends every wound on the target that can be tended, bleeding ones first, at quality 0.8.
+             Range 14.9, 13% psyfocus. For the caster or an ally, standing or downed, losing at least 10% blood a day,
+             worst first, in a fight or not. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_SavingLightSTNL"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_SavingLightSTNL"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Recovery</workerClass>
+                <priority>5</priority>
+                <combat>Any</combat>
+                <health>Bleeding</health>
+                <minBleedRate>0.1</minBleedRate>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Radiant beacon: for 20 s times psychic sensitivity the caster pulses every half second, each pulse treating
+             the worst wound (a bleeding one first) of every pawn within 5 tiles that isn't hostile to it. Downed allies
+             are reached, enemies are not. 30% psyfocus and 20 heat, so for two hurt or bleeding allies or more within 5
+             tiles (the caster counts when it is hurt), in a fight or not, and not again while the beacon runs. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_RadiantBeaconSTNL"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_RadiantBeaconSTNL"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEFriendly</workerClass>
+                <priority>5</priority>
+                <combat>Any</combat>
+                <minTargets>2</minTargets>
+                <health>Injured, Bleeding</health>
+                <unlessCasterHas>VPE_RadiantBeaconSTNL</unlessCasterHas>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Sun beam: a beam from the sky at the aimed cell (range 50.9) that stays put for 15 seconds. Each tick it sets
+             four random cells within 15 tiles ablaze (more near the centre) and burns everything on them, pawns,
+             buildings and items, for 100 flame damage times psychic sensitivity. 49% psyfocus and 70 heat, so three
+             enemies or more, last among the attacks. Never with anyone of the caster's side or a building of its side
+             within 15 of the aim. The beam's reach is in its code, not the def's radius (14.9), so it is stated. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_SunBeamSTNL"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_SunBeamSTNL"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <startsFires>true</startsFires>
+                <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
+                <priority>2</priority>
+                <radius>15</radius>
+                <minTargets>3</minTargets>
+                <avoidAllies>true</avoidAllies>
+                <avoidBuildings>true</avoidBuildings>
+                <avoidSelf>true</avoidSelf>
+                <npcGate>BaseWrecking</npcGate>
+              </li>
+            </value>
+          </match>
+        </li>
+
+      </operations>
+    </match>
+  </Operation>
+</Patch>

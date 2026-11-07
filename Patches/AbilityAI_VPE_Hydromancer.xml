@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ability AI rules for VPE - Hydromancer. Its psycasts are VPE psycasts (VEF abilities), read by the VEF compat
+     assembly and priced by the VPE one. Most of them are custom ability classes, so the radius and hediff are stated
+     here wherever the real effect comes from that C# rather than from a standard VEF extension.
+     Left out: Salt Wounds, Hydrend (destroys gear), Torrential Rain (a day long game condition), Neural Siphon (a heat
+     sink that costs the caster), Wellspring (a psyfocus utility) and, on 1.7, Sunken Prowl (a passive, given when
+     unlocked and never cast). -->
+<Patch>
+  <Operation Class="PatchOperationFindMod">
+    <mods>
+      <li>VPE - Hydromancer</li>
+    </mods>
+    <match Class="PatchOperationSequence">
+      <operations>
+
+        <!-- Clean: a splash over a circle (5.5 tiles on 1.6; 3.9 times psychic sensitivity on 1.7, read from the
+             ability) that wipes filth and puts out every fire in it. Cheap. Needs a burning ally (3) or three fires
+             near allies. Used as a fire extinguisher: the worker looks for burning allies and fires near allies
+             and picks the spot covering the most, in a fight or not. Visitors and other friendly NPCs leave it alone,
+             since it would be the player's fires and filth. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_CleanSTNL"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_CleanSTNL"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Firefighting</workerClass>
+                <priority>5</priority>
+                <minTargets>3</minTargets>
+                <friendlyNpc>
+                  <enabled>false</enabled>
+                </friendlyNpc>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Hydro shield: one pawn can't catch fire for about 5000 ticks (times psychic sensitivity), and fires within
+             2.5 tiles of it go out every half second. 10% psyfocus, 10 heat. Goes to an ally in fire danger: burning,
+             beside a fire, or in reach of an enemy that can set fires (a flame or incendiary weapon, or an ability
+             whose rule says startsFires). The caster first, last among the casts, never to one that already has it.
+             In a fight or not, so pawns putting out a fire get it too. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_HydromancerHydroShieldSTNL"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_HydromancerHydroShieldSTNL"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetFriendly</workerClass>
+                <priority>1</priority>
+                <hediff>VPE_Hydromancer_HydroshieldSTNL</hediff>
+                <fireDanger>true</fireDanger>
+                <combat>Any</combat>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Scalding strike: boiling water on one pawn for a burn hit (the mod setting's damage), range 22.9, a quarter
+             second to cast. 2% psyfocus, 15 heat. The plain attack. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_ScaldingBurstSTNL"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_ScaldingBurstSTNL"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
+                <priority>2</priority>
+                <approachDistance>6</approachDistance>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Laceraqua: aimed at a cell (range 17.9), it puts a bleeding hediff on every pawn within 1.5 tiles of it,
+             growing with psychic sensitivity up to 3.9, caster and allies included. Every second it cuts a random
+             internal organ for the mod setting's damage, for about 1200 ticks. 7% psyfocus, 30 heat. The radius is
+             left to the ability so it follows the caster's sensitivity. Never with an ally or the caster inside, and
+             pawns that already have it are skipped. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_HydromancerLaceraquaSTNL"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_HydromancerLaceraquaSTNL"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
+                <priority>3</priority>
+                <hediff>VPE_Hydromancer_LaceraquaSTNL</hediff>
+                <avoidAllies>true</avoidAllies>
+                <avoidSelf>true</avoidSelf>
+                <approachDistance>6</approachDistance>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Purifying tide: strips every hediff that makes a sick thought from one pawn (diseases and infections),
+             range 15.5. 30% psyfocus, 25 heat, so only for an ally with a disease it isn't immune to yet, in a fight or
+             not. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_PurifyingTideSTNL"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_PurifyingTideSTNL"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Recovery</workerClass>
+                <priority>6</priority>
+                <combat>Any</combat>
+                <health>Disease</health>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Whirlpool: at a cell (range 20.9) it pulls every pawn hostile to the PLAYER within 5 tiles a cell toward the
+             centre every 45 ticks for 1200 ticks, each pull a blunt hit (the mod setting's damage) and a one second
+             stun. Who it hits is decided by hostility to the player's faction, not to the caster, so a raider casting
+             it would drag its own side: hostile NPCs never, friendly NPCs yes. The 5 is fixed in code. 40% psyfocus
+             and 35 heat on 1.6 (7% and 7 on 1.7); three enemies or more on both, since 20 s of pulls is worth
+             saving for a group. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_HydromancerVortexSTNL"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_HydromancerVortexSTNL"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
+                <priority>4</priority>
+                <radius>5</radius>
+                <minTargets>3</minTargets>
+                <approachDistance>6</approachDistance>
+                <npc>
+                  <enabled>false</enabled>
+                </npc>
+                <friendlyNpc>
+                  <enabled>true</enabled>
+                </friendlyNpc>
+              </li>
+            </value>
+          </match>
+        </li>
+
+      </operations>
+    </match>
+  </Operation>
+</Patch>

@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ability AI rules for Vanilla Psycasts Expanded - Puppeteer (VEF abilities, priced by the VPE compat assembly).
+     Brain Leech is cast as zone work (no zone; Source/AbilityAI/AbilityAIZones.cs). Left out: Puppet, Summon Puppet, Mind Split and Puppet Swarm (making and handling puppets, which is
+     the player's call), and Ascension (it sacrifices one of the caster's puppets). -->
+<Patch>
+  <Operation Class="PatchOperationFindMod">
+    <mods>
+      <li>Vanilla Psycasts Expanded - Puppeteer</li>
+    </mods>
+    <match Class="PatchOperationSequence">
+      <operations>
+
+        <!-- Brain cut: a cut to the brain that ignores armour, and a 2 s stun. Range 21, 2 s to cast. Never at a pawn
+             of the caster's faction (its own check), nor at a mech. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPEP_BrainCut"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPEP_BrainCut"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
+                <priority>3</priority>
+                <approachDistance>6</approachDistance>
+                <targetKinds>Humanlike, Animal</targetKinds>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Degrade: a projectile that makes a humanlike drop its weapon, run wild (it leaves its faction for good)
+             and strip. The projectile can hit whoever is in the way, and on a colonist it costs the colony that
+             colonist, so it is aimed as a beam: no ally of the caster within 0.75 of the line. One caster per target,
+             4 s to cast. NPCs only with "Other factions may use abilities that kill outright" on, since they would turn
+             colonists wild. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPEP_Degrade"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPEP_Degrade"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_BeamHostile</workerClass>
+                <priority>4</priority>
+                <targetKinds>Humanlike</targetKinds>
+                <coneWidth>1.5</coneWidth>
+                <exclusive>true</exclusive>
+                <npcGate>InstantKill</npcGate>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Brain leech: a walk-up leech on a prisoner (or a slave, by setting) that takes up to half its consciousness
+             over two days, a share of it to the caster, then fades. Only while the caster leeches nobody (VPE keeps one
+             leech per caster and a new cast ends the old, which a Puppet cast may be waiting on), and never a host
+             someone else already leeches. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPEP_BrainLeech"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPEP_BrainLeech"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Zone</workerClass>
+                <zoneTarget>LeechHosts</zoneTarget>
+                <hediff>VPEP_BrainLeech</hediff>
+                <unlessCasterHas>VPEP_Leeching</unlessCasterHas>
+              </li>
+            </value>
+          </match>
+        </li>
+
+      </operations>
+    </match>
+  </Operation>
+</Patch>

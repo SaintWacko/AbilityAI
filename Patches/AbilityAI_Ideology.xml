@@ -1,0 +1,142 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ability AI rules for Ideology's role abilities (Source/AbilityAI/). Only applied when Ideology is active. Each rule
+     sits in its own PatchOperationConditional on its def, as in the Royalty file.
+     Role abilities share a cooldown with the pawn's other abilities of their group (Leader: 10 days, Moralist and
+     MultiRole: 3 days), and the autocast tooltip says which ones a cast would put on cooldown.
+     Left out on purpose: the work commands (farming, mining, production, research), Convert, Counsel, Reassure, Work
+     drive, Trial, Leader speech and Conversion ritual: social or work abilities, rituals, or a failed roll that costs
+     mood or certainty. -->
+<Patch>
+  <Operation Class="PatchOperationFindMod">
+    <mods>
+      <li>Ideology</li>
+    </mods>
+    <match Class="PatchOperationSequence">
+      <operations>
+
+        <!-- Combat and marksman command: a day-long aura that buffs colonists within 9.9 tiles of the caster. Once a
+             fight starts with two or more colonists near who lack the buff. The aura only reaches colonists, so other
+             factions never cast it. Combat command shares the Leader group's 10 day cooldown with Leader speech and
+             Trial. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="CombatCommand"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="CombatCommand"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEFriendly</workerClass>
+                <priority>4</priority>
+                <combat>InCombat</combat>
+                <minTargets>3</minTargets>
+                <targetKinds>Humanlike</targetKinds>
+                <hediff>CombatCommandBuff</hediff>
+                <unlessCasterHas>CombatCommand</unlessCasterHas>
+                <npc>
+                  <enabled>false</enabled>
+                </npc>
+              </li>
+            </value>
+          </match>
+        </li>
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="MarksmanCommand"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="MarksmanCommand"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEFriendly</workerClass>
+                <priority>4</priority>
+                <combat>InCombat</combat>
+                <minTargets>3</minTargets>
+                <targetKinds>Humanlike</targetKinds>
+                <hediff>MarksmanCommandBuff</hediff>
+                <unlessCasterHas>MarksmanCommand</unlessCasterHas>
+                <npc>
+                  <enabled>false</enabled>
+                </npc>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Berserk trance: the caster charges the enemies near it in melee for about two minutes, out of the player's
+             control. It attacks only enemies. A melee pawn with two or more enemies within 6 tiles. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="BerserkTrance"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="BerserkTrance"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_SelfBuff</workerClass>
+                <priority>5</priority>
+                <maxRange>6</maxRange>
+                <radius>6</radius>
+                <auraKinds>All</auraKinds>
+                <auraMin>2</auraMin>
+                <requires>Melee</requires>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Animal calm: ends a manhunter's rage with a touch. The most dangerous enraged animal within 20 tiles, which
+             the caster walks up to. Vanilla refuses an animal of a hostile faction. 20 day cooldown. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="AnimalCalm"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="AnimalCalm"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
+                <priority>6</priority>
+                <combat>Any</combat>
+                <targetKinds>Animal</targetKinds>
+                <inMentalState>true</inMentalState>
+                <maxRange>20</maxRange>
+                <harmless>true</harmless>
+                <exclusive>true</exclusive>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Immunity drive: faster immunity for a day, by touch. Someone of the caster's side with a disease they
+             aren't immune to yet, within 20 tiles. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="ImmunityDrive"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="ImmunityDrive"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Recovery</workerClass>
+                <priority>3</priority>
+                <health>Disease</health>
+                <maxRange>20</maxRange>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Preach health: faster healing and immunity for a day, after a 12 second sermon. Someone of the caster's
+             side and ideoligion who is sick, or under 80% health with wounds still healing, within 20 tiles. Out of a
+             fight. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="PreachHealth"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="PreachHealth"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Recovery</workerClass>
+                <priority>3</priority>
+                <health>Injured, Disease</health>
+                <healthThreshold>0.8</healthThreshold>
+                <maxRange>20</maxRange>
+              </li>
+            </value>
+          </match>
+        </li>
+
+      </operations>
+    </match>
+  </Operation>
+</Patch>

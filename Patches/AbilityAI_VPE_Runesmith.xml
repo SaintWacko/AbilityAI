@@ -1,0 +1,254 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ability AI rules for Vanilla Psycasts Expanded - Runesmith (VEF abilities, priced by the VPE compat assembly).
+     Every Invoke is cast at a runecircle of the caster's faction within 62.5 tiles (no sight line needed) and acts
+     around that circle, so the rules are anchored on the three circle defs. A circle must be charged (the Invokes' own
+     check); a standard or greater one then recharges for 10 or 15 days and a crude one breaks, which is the price of
+     turning autocast on. The effects reach everyone around the circle, friend or foe, so the attacks keep clear of the
+     caster's side and the buffs and the heal of its enemies. Ehwaz, Algiz, Teiwaz, Hagalaz and Berkana put their
+     effect on the map the player is looking at rather than the caster's, so they only run there. One caster per
+     circle at a time. The attacks work like traps: an enemy group at a circle sets them off, whether or not the
+     caster is fighting or drafted. Hagalaz and Sowilo wait while more enemies are walking into the circle
+     (waitForGather), up to 5 s.
+     Etch Runecircle and Etch Greater Runecircle are Recast rules: a circle a colonist etched is etched again where
+     it stood once it is destroyed (an Isa invoke with no free tile beside the circle destroys it too; a circle the
+     player deconstructs is let go). Circles never expire, so nothing is recast while one stands. Recasting is Basic
+     work, never combat and never NPCs (41 and 125 s to cast, 60 and 90% psyfocus). -->
+<Patch>
+  <Operation Class="PatchOperationFindMod">
+    <mods>
+      <li>Vanilla Psycasts Expanded - Runesmith</li>
+    </mods>
+    <match Class="PatchOperationSequence">
+      <operations>
+
+        <!-- Invoke Hagalaz: stuns everyone within 4.8 of the circle. Two enemies there and none of the caster's side. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPER_Invoke_Stun"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPER_Invoke_Stun"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
+                <priority>6</priority>
+                <combat>Any</combat>
+                <anchorThings>
+                  <li>VPER_Runecircle_Constructible</li>
+                  <li>VPER_Runecircle_Standard</li>
+                  <li>VPER_Runecircle_Greater</li>
+                </anchorThings>
+                <minTargets>2</minTargets>
+                <avoidAllies>true</avoidAllies>
+                <harmless>true</harmless>
+                <exclusive>true</exclusive>
+                <currentMapOnly>true</currentMapOnly>
+                <waitForGather>true</waitForGather>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Invoke Sowilo: a flame explosion over 6.3 tiles around the circle. Three enemies there, none of the
+             caster's side and no building of its own or a friend's. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPER_Invoke_Explosion"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPER_Invoke_Explosion"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
+                <priority>5</priority>
+                <combat>Any</combat>
+                <anchorThings>
+                  <li>VPER_Runecircle_Constructible</li>
+                  <li>VPER_Runecircle_Standard</li>
+                  <li>VPER_Runecircle_Greater</li>
+                </anchorThings>
+                <minTargets>3</minTargets>
+                <avoidAllies>true</avoidAllies>
+                <avoidBuildings>true</avoidBuildings>
+                <exclusive>true</exclusive>
+                <waitForGather>true</waitForGather>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Invoke Isa: a frost obelisk of the caster's faction beside the circle, for 40 to 80 s (range 23 to 39 by
+             the caster's sensitivity). Two enemies within 20 tiles of the circle. With no free tile beside the
+             circle the Invoke destroys it instead, a risk the AI doesn't check. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPER_Invoke_Turret"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPER_Invoke_Turret"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
+                <priority>4</priority>
+                <combat>Any</combat>
+                <anchorThings>
+                  <li>VPER_Runecircle_Constructible</li>
+                  <li>VPER_Runecircle_Standard</li>
+                  <li>VPER_Runecircle_Greater</li>
+                </anchorThings>
+                <radius>20</radius>
+                <minTargets>2</minTargets>
+                <exclusive>true</exclusive>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Invoke Mannaz: warrior spirits of the caster's faction at the circle, for half a day. Three enemies within
+             20 tiles of the circle. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPER_Invoke_Summon"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPER_Invoke_Summon"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
+                <priority>4</priority>
+                <combat>Any</combat>
+                <anchorThings>
+                  <li>VPER_Runecircle_Constructible</li>
+                  <li>VPER_Runecircle_Standard</li>
+                  <li>VPER_Runecircle_Greater</li>
+                </anchorThings>
+                <radius>20</radius>
+                <minTargets>3</minTargets>
+                <exclusive>true</exclusive>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Invoke Ehwaz: faster movement for everyone within 4.8 of the circle. In a fight, two of the caster's side
+             there without it and no enemy. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPER_Invoke_Speed"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPER_Invoke_Speed"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEFriendly</workerClass>
+                <priority>3</priority>
+                <anchorThings>
+                  <li>VPER_Runecircle_Constructible</li>
+                  <li>VPER_Runecircle_Standard</li>
+                  <li>VPER_Runecircle_Greater</li>
+                </anchorThings>
+                <minTargets>2</minTargets>
+                <hediff>VPER_Runecircle_Speed</hediff>
+                <avoidEnemies>true</avoidEnemies>
+                <currentMapOnly>true</currentMapOnly>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Invoke Algiz: less damage taken for everyone within 4.8 of the circle. As Ehwaz. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPER_Invoke_Defense"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPER_Invoke_Defense"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEFriendly</workerClass>
+                <priority>3</priority>
+                <anchorThings>
+                  <li>VPER_Runecircle_Constructible</li>
+                  <li>VPER_Runecircle_Standard</li>
+                  <li>VPER_Runecircle_Greater</li>
+                </anchorThings>
+                <minTargets>2</minTargets>
+                <hediff>VPER_Runecircle_Defense</hediff>
+                <avoidEnemies>true</avoidEnemies>
+                <currentMapOnly>true</currentMapOnly>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Invoke Teiwaz: better melee for everyone within 4.8 of the circle. As Ehwaz. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPER_Invoke_Wrath"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPER_Invoke_Wrath"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEFriendly</workerClass>
+                <priority>3</priority>
+                <anchorThings>
+                  <li>VPER_Runecircle_Constructible</li>
+                  <li>VPER_Runecircle_Standard</li>
+                  <li>VPER_Runecircle_Greater</li>
+                </anchorThings>
+                <minTargets>2</minTargets>
+                <hediff>VPER_Runecircle_Melee</hediff>
+                <avoidEnemies>true</avoidEnemies>
+                <currentMapOnly>true</currentMapOnly>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Invoke Berkana: heals injuries of everyone within 4.8 of the circle, after which a pawn can't be healed by
+             it again for 15 days. In a fight or not, once one of the caster's side there (downed ones included) is
+             under 50% health and hasn't been healed by it lately; no enemy there. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPER_Invoke_Heal"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPER_Invoke_Heal"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEFriendly</workerClass>
+                <priority>5</priority>
+                <combat>Any</combat>
+                <anchorThings>
+                  <li>VPER_Runecircle_Constructible</li>
+                  <li>VPER_Runecircle_Standard</li>
+                  <li>VPER_Runecircle_Greater</li>
+                </anchorThings>
+                <health>Injured</health>
+                <healthThreshold>0.5</healthThreshold>
+                <hediff>VPER_Healing_Ban</hediff>
+                <avoidEnemies>true</avoidEnemies>
+                <currentMapOnly>true</currentMapOnly>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Etch Runecircle / Etch Greater Runecircle: each keeps up its own circle; the two don't stand in for
+             each other, since a greater circle holds three times the charge. Range 1.7, so the caster walks next
+             to the spot first. Better Autocasting for VPE raises the range to 999999 and gives the etch its own
+             walk-then-cast job; the recast then casts from anywhere and that job does the walking. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPER_Etch_Runecircle"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPER_Etch_Runecircle"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Recast</workerClass>
+                <recastThing>VPER_Runecircle_Standard</recastThing>
+              </li>
+            </value>
+          </match>
+        </li>
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPER_Etch_Runecircle_Greater"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPER_Etch_Runecircle_Greater"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Recast</workerClass>
+                <recastThing>VPER_Runecircle_Greater</recastThing>
+              </li>
+            </value>
+          </match>
+        </li>
+
+      </operations>
+    </match>
+  </Operation>
+</Patch>

@@ -5,11 +5,18 @@
      Each rule sits in its own PatchOperationConditional on its def, so a psycast another mod removed or renamed
      costs only its own rule: a conditional with no nomatch succeeds when its xpath finds nothing, and the sequence
      goes on to the next one.
-     Left out on purpose: Skip (needs a second target), Beckon, Flashstorm, Neuroquake, manhunter pulse, mass chaos
-     skip, farskip, chunkskip, solar pinhole, neural heat dump and the social Word of psycasts other than serenity.
+     Left out on purpose: Beckon, Flashstorm, Neuroquake, manhunter pulse, mass chaos
+     skip, farskip, chunkskip, neural heat dump, throne speech and Word of love.
+     Word of joy, inspiration and trust are zone work without a zone, as VPE's are (AbilityAIZones): Basic work for
+     the player's colonists set to autocast them, never other factions.
      approachDistance (how far a ranged NPC, or a player pawn set to "Full Autocast", walks to get a target into
      range) is only on the enemy-targeted rules: their workers are the ones that can pick a target to walk toward.
-     Chaos skip is left without one, since its target is an enemy already in melee. -->
+     Chaos skip is left without one, since its target is an enemy already in melee.
+     harmless marks the rules that disable without lasting harm: with the "allies in a mental break" setting on
+     its default, those may also be used on a berserk ally.
+     exclusive on an enemy-targeted rule keeps two casters of one faction off the same enemy: for effects that don't
+     stack (a stun keeps the longer of two, a second burden or berserk does nothing). The other workers have it on by
+     default. -->
 <Patch>
   <Operation Class="PatchOperationFindMod">
     <mods>
@@ -27,11 +34,14 @@
               <li Class="AbilityAI.AbilityAIExtension">
                 <workerClass>AbilityAI.AbilityAIWorker_Interrupt</workerClass>
                 <priority>9</priority>
+                <harmless>true</harmless>
               </li>
               <li Class="AbilityAI.AbilityAIExtension">
                 <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
                 <priority>3</priority>
                 <approachDistance>8</approachDistance>
+                <harmless>true</harmless>
+                <exclusive>true</exclusive>
               </li>
             </value>
           </match>
@@ -46,6 +56,8 @@
                 <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
                 <priority>2</priority>
                 <approachDistance>8</approachDistance>
+                <harmless>true</harmless>
+                <exclusive>true</exclusive>
               </li>
             </value>
           </match>
@@ -65,6 +77,7 @@
                 <radius>6</radius>
                 <avoidAllies>true</avoidAllies>
                 <approachDistance>8</approachDistance>
+                <exclusive>true</exclusive>
               </li>
             </value>
           </match>
@@ -80,6 +93,7 @@
                 <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
                 <priority>4</priority>
                 <meleeOnly>true</meleeOnly>
+                <harmless>true</harmless>
               </li>
             </value>
           </match>
@@ -98,6 +112,7 @@
                 <minTargets>2</minTargets>
                 <avoidAllies>true</avoidAllies>
                 <approachDistance>8</approachDistance>
+                <harmless>true</harmless>
               </li>
             </value>
           </match>
@@ -240,6 +255,118 @@
               </li>
             </value>
           </match>
+        </li>
+
+        <!-- Word of trust: the colony's prisoners set to recruit or reduce resistance, with resistance left -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="WordOfTrust"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="WordOfTrust"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Zone</workerClass>
+                <zoneTarget>Prisoners</zoneTarget>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Word of joy: colonists awake whose mood is heading below the setting, without joyfuzz already -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="WordOfJoy"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="WordOfJoy"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Zone</workerClass>
+                <zoneTarget>LowMood</zoneTarget>
+                <hediff>Joyfuzz</hediff>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Word of inspiration: colonists awake, not inspired and able to be -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="WordOfInspiration"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="WordOfInspiration"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Zone</workerClass>
+                <zoneTarget>Inspirable</zoneTarget>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Skip: one rule per use, each behind its own setting. Rescue first (a downed ally next to an enemy is
+             about to die or be carried off), then sending an enemy away from someone who can't fight it off (which
+             keeps the caster in place), then the caster's own escape. Skipping only stuns for a moment, so repel is
+             harmless: with the default setting it may move a berserk pawn of the caster's own faction off a downed
+             friend. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="Skip"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="Skip"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Skip</workerClass>
+                <skipMode>Rescue</skipMode>
+                <priority>7</priority>
+                <healthThreshold>0.4</healthThreshold>
+              </li>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Skip</workerClass>
+                <skipMode>Repel</skipMode>
+                <priority>6</priority>
+                <healthThreshold>0.5</healthThreshold>
+                <harmless>true</harmless>
+              </li>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Skip</workerClass>
+                <skipMode>Escape</skipMode>
+                <priority>5</priority>
+                <healthThreshold>0.35</healthThreshold>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Solar pinhole: kept up by the player's colonists (Recast: Basic work, never NPCs). A new pinhole wipes
+             the old one on its cell, so it is recast in place. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="SolarPinhole"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="SolarPinhole"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Recast</workerClass>
+                <recastThing>SolarPinhole</recastThing>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- The pinhole itself selectable, so it shows its recast toggle (vanilla's can't be clicked at all).
+             Shared with VPE's Solar Pinhole, which leaves the same thing. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/ThingDef[defName="SolarPinhole"]/selectable</xpath>
+          <match Class="PatchOperationReplace">
+            <xpath>Defs/ThingDef[defName="SolarPinhole"]/selectable</xpath>
+            <value>
+              <selectable>true</selectable>
+            </value>
+          </match>
+          <nomatch Class="PatchOperationConditional">
+            <xpath>Defs/ThingDef[defName="SolarPinhole"]</xpath>
+            <match Class="PatchOperationAdd">
+              <xpath>Defs/ThingDef[defName="SolarPinhole"]</xpath>
+              <value>
+                <selectable>true</selectable>
+              </value>
+            </match>
+          </nomatch>
         </li>
 
       </operations>

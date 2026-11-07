@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Cast markers (Source/AbilityAI/AbilityAISpots.cs, AbilityAISpotWork.cs). The marker draws the psycast's icon and is
+     never saved: the map's markers make it again on load. Basic work, so the Work tab orders it against everything else
+     a colonist does; it needs Royalty, as every psycast does. -->
+<Defs>
+
+  <ThingDef>
+    <defName>AAI_CastSpotMarker</defName>
+    <label>cast marker</label>
+    <description>Marks where a psycast is to be cast whenever the ground around it is ready. A colonist with that psycast set to autocast comes and casts it here, as Basic work.</description>
+    <thingClass>AbilityAI.CastSpotMarker</thingClass>
+    <category>Ethereal</category>
+    <altitudeLayer>Blueprint</altitudeLayer>
+    <drawerType>RealtimeOnly</drawerType>
+    <tickerType>Never</tickerType>
+    <selectable>true</selectable>
+    <useHitPoints>false</useHitPoints>
+    <rotatable>false</rotatable>
+    <isSaveable>false</isSaveable>
+  </ThingDef>
+
+  <JobDef>
+    <defName>AAI_CastSpotWalk</defName>
+    <driverClass>AbilityAI.JobDriver_CastSpotWalk</driverClass>
+    <reportString>going to cast a psycast.</reportString>
+    <casualInterruptible>true</casualInterruptible>
+  </JobDef>
+
+  <WorkGiverDef MayRequire="Ludeon.RimWorld.Royalty">
+    <defName>AAI_CastSpot</defName>
+    <label>cast psycasts at markers</label>
+    <giverClass>AbilityAI.WorkGiver_CastSpot</giverClass>
+    <workType>BasicWorker</workType>
+    <verb>cast</verb>
+    <gerund>casting psycasts</gerund>
+    <priorityInType>9</priorityInType>
+  </WorkGiverDef>
+
+</Defs>

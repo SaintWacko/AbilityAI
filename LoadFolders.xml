@@ -1,13 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <loadFolders>
   <!-- Patches and Languages are shared from the root. Each version loads only its own Assemblies: the 1.6 and 1.7
-       DLLs are compiled against different game assemblies. -->
+       DLLs are compiled against different game assemblies. The VEF folders hold the Vanilla Expanded Framework compat
+       assembly, which references VEF's types and so is only loaded when VEF is active; the VPE folders likewise hold
+       the Vanilla Psycasts Expanded compat assembly, built on the VEF one (VPE requires VEF). -->
   <v1.6>
     <li>/</li>
     <li>1.6</li>
+    <li IfModActive="OskarPotocki.VanillaFactionsExpanded.Core">1.6/VEF</li>
+    <li IfModActive="VanillaExpanded.VPsycastsE">1.6/VPE</li>
   </v1.6>
   <v1.7>
     <li>/</li>
     <li>1.7</li>
+    <li IfModActive="OskarPotocki.VanillaFactionsExpanded.Core">1.7/VEF</li>
+    <li IfModActive="VanillaExpanded.VPsycastsE">1.7/VPE</li>
   </v1.7>
 </loadFolders>

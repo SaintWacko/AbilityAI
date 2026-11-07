@@ -249,7 +249,8 @@ namespace AbilityAI
     /// <summary>
     /// Target friendly: a buff on one ally or the caster (Focus, Painblock on someone hurting). Allies in range
     /// without the ability's hediff; with fireDanger only those in fire danger (AbilityAIFire), with minPain only
-    /// those in at least that much pain, otherwise only allies fighting now; with auraKinds, only allies whose aura
+    /// those in at least that much pain, otherwise only allies fighting now; with avoidFireDanger none in fire danger;
+    /// with auraKinds, only allies whose aura
     /// would reach enough enemies (AbilityAIUtility.AuraWorthIt). Scored by (1 + pain + fire danger), the caster
     /// x1.5, divided by distance over range. Cost: a checks, and for an aura or fireDanger rule a pass over the
     /// enemies per ally that gets that far.
@@ -292,6 +293,7 @@ namespace AbilityAI
                 if (fire <= 0f) return false;
             }
             else if (ext.minPain > 0f ? pain < ext.minPain : !TargetingUtil.Fighting(ctx, a)) return false;
+            if (ext.avoidFireDanger && AbilityAIFire.Danger(ctx, a) > 0f) return false;
             return AbilityAIUtility.AuraWorthIt(ctx, ability, ext, a);
         }
 

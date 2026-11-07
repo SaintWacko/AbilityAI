@@ -85,7 +85,7 @@ namespace AbilityAI
                 if (rule.verbIndex >= 0) current = rule.verbIndex;
                 if (!groups.TryGetValue(current, out var list)) groups[current] = list = new List<AbilityAIExtension>();
                 list.Add(rule);
-                if (rule.workerClass != null && typeof(AbilityAIWorker_Deploy).IsAssignableFrom(rule.workerClass)) AbilityAIWorker_Deploy.Used = true;
+                if (rule.workerClass != null && typeof(AbilityAIWorker_Deploy).IsAssignableFrom(rule.workerClass)) AbilityAIWorker_Deploy.UsedByGear = true;
             }
             var verbs = def.Verbs;
             var keys = new List<RuledVerb>();

@@ -187,6 +187,7 @@ namespace AbilityAI
         public static bool WouldAffect(AIAbility ability, AbilityAIExtension ext, Pawn p)
         {
             if (!Fits(ext, p)) return false;
+            if (ext.targetPart != null && !HasPart(p, ext.targetPart)) return false;
             var e = ability.Effects;
             // Psycast.CanApplyPsycastTo, without the uncached stat read; plain Ability copies of psycasts skip it
             // in vanilla too
@@ -252,6 +253,19 @@ namespace AbilityAI
                 case AbilityAIBrokenAllies.HarmlessOnly: return ext.harmless;
                 default: return false;
             }
+        }
+
+        /// <summary>The pawn has at least one part of this def that isn't missing. Cost: the body's cached list of
+        /// those parts, and a pass over the hediffs per part until one is found.</summary>
+        public static bool HasPart(Pawn pawn, BodyPartDef def)
+        {
+            var set = pawn.health?.hediffSet;
+            var body = pawn.RaceProps?.body;
+            if (set == null || body == null) return false;
+            var parts = body.GetPartsWithDef(def);
+            for (int i = 0; i < parts.Count; i++)
+                if (!set.PartIsMissing(parts[i])) return true;
+            return false;
         }
 
         public static bool Has(Pawn pawn, HediffDef hediff) => hediff != null && pawn.health?.hediffSet?.HasHediff(hediff) == true;

@@ -11,8 +11,9 @@ namespace AbilityAI
     /// within 60 degrees either side of the nearest enemy's direction. A cell counts the enemies within reach (radius,
     /// else the deployed turret's gun range, else 20) that it has a line of sight to; it needs minTargets of them, no
     /// enemy within minGapDistance, and no enemy as near the cell as the caster is (the caster's side of the fight).
-    /// Not while AbilityAISettings.MaxDeployedNear of the caster's faction's deployed things stand within reach of the
-    /// caster or are being cast there by faction-mates; a cell within Spacing of one of those is left out, so two mates
+    /// Not while AbilityAISettings.MaxDeployedNear (gear) or MaxSummonedNear (an ability: Alpha Animals' summons) of the
+    /// caster's faction's deployed things, downed pawns left out, stand within reach of the caster or are being cast
+    /// there by faction-mates; a cell within Spacing of one of those is left out, so two mates
     /// never pick one cell. Most enemies seen first, then the nearest the caster. A self-cast deployer (the thing
     /// appears at the caster) only needs minTargets enemies in sight within reach of the caster, under the same limit.
     /// What is deployed is the rule's deployedThing, else what the effects reader found.
@@ -29,8 +30,10 @@ namespace AbilityAI
         private const float FallbackReach = 20f, Spacing = 4f;
         private static readonly List<IntVec3> taken = new List<IntVec3>();
 
-        /// <summary>Some def's rule uses this worker (ApparelAIAbility.Note): shows the setting.</summary>
-        internal static bool Used;
+        /// <summary>Some gear's rule uses this worker (ApparelAIAbility.Note): shows the turret packs' limit.</summary>
+        internal static bool UsedByGear;
+        /// <summary>Some ability's rule uses this worker (AbilityAINpcGates.Note): shows the summons' limit.</summary>
+        internal static bool UsedByAbilities;
 
         public override bool TryFindTarget(AbilityAIContext ctx, AIAbility ability, out LocalTargetInfo target, out LocalTargetInfo dest)
         {
@@ -51,7 +54,7 @@ namespace AbilityAI
             int from = taken.Count;
             AbilityAIDriver.MateCastCellsNear(ability.Def, pawn.Position, Mathf.Max(reach, spread), taken);
             int incoming = CountWithin(pawn.Position, reach, from);
-            int max = AbilityAISettings.MaxDeployedNear;
+            int max = ability is ApparelAIAbility ? AbilityAISettings.MaxDeployedNear : AbilityAISettings.MaxSummonedNear;
             if (standing + incoming >= max)
             {
                 if (AbilityAISettings.DebugLog)
@@ -143,7 +146,7 @@ namespace AbilityAI
             int n = 0;
             for (int i = 0; i < list.Count; i++)
             {
-                if (list[i].Faction != f) continue;
+                if (list[i].Faction != f || (list[i] is Pawn p && p.Downed)) continue;
                 IntVec3 c = list[i].Position;
                 if (c.InHorDistOf(at, spread)) taken.Add(c);
                 if (c.InHorDistOf(at, radius)) n++;

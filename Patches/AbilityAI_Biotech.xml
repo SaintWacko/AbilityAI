@@ -257,8 +257,9 @@
           </match>
         </li>
 
-        <!-- Mechanitor's remote repair: a mech of the caster's side under 75% health with a wound to mend, out of a
-             fight. The mechanitor stands and channels until the mech is whole. Not in a fight: vanilla ends the repair
+        <!-- Mechanitor's remote repair: a mech of the caster's side with any wound or missing part, out of a fight.
+             It costs only the mechanitor's time, and a mech's summary health is spread over many parts, so a few
+             bullet wounds barely move it: no threshold. The mechanitor stands and channels until the mech is whole. Not in a fight: vanilla ends the repair
              the moment the mech attacks, and ends the mech's own job when the repair stops. -->
         <li Class="PatchOperationConditional">
           <xpath>Defs/AbilityDef[defName="RemoteRepair"]</xpath>
@@ -268,8 +269,8 @@
               <li Class="AbilityAI.AbilityAIExtension">
                 <workerClass>AbilityAI.AbilityAIWorker_Recovery</workerClass>
                 <priority>4</priority>
-                <health>Injured</health>
-                <healthThreshold>0.75</healthThreshold>
+                <health>Injured, MissingParts</health>
+                <healthThreshold>1</healthThreshold>
                 <targetKinds>Mechanoid</targetKinds>
               </li>
             </value>

@@ -403,7 +403,7 @@ namespace AbilityAI
         public override object Raw => ability;
         public override Ability Vanilla => ability;
 
-        public override bool CanCastNow => ability.verb != null && ability.CanCast && PsycastAffordable();
+        public override bool CanCastNow => ability.verb != null && ability.CanCast && PsycastAffordable() && CompsAllowCast(out _);
 
         public override string NotReadyReason
         {
@@ -416,8 +416,36 @@ namespace AbilityAI
                     if (!report.Reason.NullOrEmpty()) return report.Reason;
                     return ability.OnCooldown ? "on cooldown" : "vanilla refused it";
                 }
-                return "not enough psyfocus";
+                if (!PsycastAffordable()) return "not enough psyfocus";
+                CompsAllowCast(out string reason);
+                return reason.NullOrEmpty() ? "a comp refused it" : reason;
             }
+        }
+
+        // Ability.CanCast never asks the comps' GizmoDisabled; only Command_Ability does, so a cost a comp checks there
+        // and nowhere else is free to any AI: The Force's Force points (CompAbilityEffect_ForcePower casts with too
+        // few, skipping only its own spending while the ability's other comps still apply), hemogen, a mech's
+        // capacities. Ability.GizmoDisabled as a whole is not asked: it refuses undrafted pawns, lord members and
+        // queued casts. ShouldHideGizmo only gates the player's pawns: a hidden gizmo is the player's loadout choice
+        // (The Force's inactive presets), while vanilla's RequiresTrainable hides it from an untrained animal yet
+        // lets other factions' animals cast without the trick (aiCanCastWithoutTrainable).
+        private bool CompsAllowCast(out string reason)
+        {
+            reason = null;
+            var comps = ability.comps;
+            if (comps == null) return true;
+            bool player = ability.pawn.Faction != null && ability.pawn.Faction.IsPlayer;
+            for (int i = 0; i < comps.Count; i++)
+            {
+                if (comps[i].GizmoDisabled(out reason)) return false;
+                if (player && comps[i] is CompAbilityEffect effect && effect.ShouldHideGizmo)
+                {
+                    reason = "its gizmo is hidden";
+                    return false;
+                }
+            }
+            reason = null;
+            return true;
         }
 
         // Checked up front because Verb_CastPsycast.ValidateTarget posts its "not enough psyfocus" and similar

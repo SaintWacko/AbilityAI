@@ -123,7 +123,7 @@ const ENUMS = {
   feedOn: ["DownedEnemies", "Prisoners", "Colony"],
   kinds: ["Humanlike", "Animal", "Mechanoid", "Other", "Turret", "Shielded", "Psycaster"],
   corpseKinds: ["Humanlike", "Animal", "Mechanoid", "Other"],
-  npcGate: ["InstantKill", "BaseWrecking"],
+  npcGate: ["InstantKill", "Maiming", "BaseWrecking"],
   health: ["Injured", "Disease", "MissingParts", "Bleeding"],
   zoneTarget: ["QualityItems", "Damaged", "Rechargeable", "PowerConsumers", "Unfinished", "HumanlikeCorpses", "Prisoners",
     "ConsumableCorpses", "LowMood", "Inspirable", "ColonistsWithout", "Visitors", "LeechHosts"],
@@ -153,7 +153,7 @@ const W = {
     summary: "An enemy aiming something dangerous: a hostile ability or psycast, or a weapon with an explosive projectile. Only when more of its aim is left than this ability's own warmup. Usually a high-priority rule beside a Target hostile one.",
     suggest: ["priority"] },
   Deploy: { cls: "Deploy", label: "Deploy", hostile: true,
-    summary: "Throw out something that fights on its own (turret pack, drones) to a cell from which it sees the most enemies. Limited by the Turret packs setting to a few near each caster.",
+    summary: "Throw out or summon something that fights on its own (turret pack, drones, a summoned creature) to a cell from which it sees the most enemies. Limited to a few of each near the caster, by the Turret packs setting for gear and the Summons setting for abilities.",
     suggest: ["priority"] },
   AoEFriendly: { cls: "AoEFriendly", label: "AoE friendly",
     summary: "An area buff over allies (Battle Cry). Self-cast abilities centre on the caster, targeted ones on the ally that gathers the most. Casts when at least minTargets allies without the effect would gain it.",
@@ -231,7 +231,7 @@ const FIELDS = [
     doc: "Seconds after an AI cast of this ability before the AI considers it again, on top of its cooldown." },
   { n: "radius", t: "float", d: "-1",
     w: ["AoEHostile", "AoEHostileSelf", "AoEFriendly", "ConeHostile", "BeamHostile", "TargetHostile", "TargetFriendly", "SelfBuff", "Movement", "Cover", "Firefighting", "Deploy", "Barrier"],
-    doc: "The area the effect reaches around its target. Unset reads it from the ability's effect comps; set it when the area comes from C# or a comp Ability AI can't read. Target hostile: how near the target counts for minTargets, preferGrouped and avoidAllies (default 5). Cone and beam: how near the target an ally may not stand (with avoidAllies). Movement: around the landing cell. Deploy: how far the deployed thing reaches." },
+    doc: "The area the effect reaches around its target. Unset reads it from the ability's effect comps; set it when the area comes from C# or a comp Ability AI can't read. Target hostile: how near the target counts for minTargets, preferGrouped and avoidAllies (default 5). Cone and beam: how near the target an ally may not stand (with avoidAllies). Movement: around the landing cell. Deploy: how far the deployed thing reaches, and how near the caster the ones already standing count against the limit." },
   { n: "minTargets", t: "int", d: "1", w: ["AoEHostile", "AoEHostileSelf", "AoEFriendly", "ConeHostile", "BeamHostile", "TargetHostile", "Firefighting", "Deploy"],
     doc: "Pawns the cast must affect: enemies for the hostile workers, allies for AoE friendly. Target hostile: the target's side within radius, itself included. Firefighting: weight of fire covered. Deploy: enemies the deployed thing would see." },
   { n: "minRange", t: "float", d: "0", w: ["AoEHostile", "ConeHostile", "BeamHostile", "TargetHostile", "Deploy"],
@@ -261,6 +261,8 @@ const FIELDS = [
     doc: "Keep the caster's side out of the area: no centre with an ally inside (AoE), no target with an ally within radius (Target hostile), no landing beside one (Movement). With auraKinds: no ally near the aura's bearer. Downed faction-mates count unless the rule is harmless." },
   { n: "skipAffected", t: "bool", d: "true", w: HOSTILE,
     doc: "Leave out pawns the cast would be wasted on: already stunned (by a stunning ability), already have its hediff, already in a mental state (one that gives one), no psychic sensitivity (a psycast). Turn off when the damage makes a stunned pawn still worth hitting." },
+  { n: "targetPart", t: "def", d: null, w: HOSTILE, defType: "BodyPartDef",
+    doc: "Only pawns with at least one part of this def left, for an ability that works on that part alone (Alpha Animals' Destroy eyes: Eye, Leg skip: Leg). A pawn with all of them gone is skipped, and so is a body that has none (a mech has no Eye)." },
   { n: "approachDistance", t: "float", d: "0", w: APPROACH,
     doc: "How far past the ability's range the caster walks to cast it in combat, when nothing is in range now. 0 = never. Ranged casters only. AoE friendly: self-cast abilities only, walking toward allies." },
   { n: "meleeOnly", t: "bool", d: "false", w: ["TargetHostile"],
@@ -350,7 +352,7 @@ const FIELDS = [
   { n: "spotRadius", t: "float", d: "0", w: ["Spot"],
     doc: "How far from the marker the cast can reach, at the most any caster's radius can be." },
   { n: "npcGate", t: "flags:npcGate", d: null, w: DRIVER, g: "Any rule",
-    doc: "Other factions use the rule only while the matching setting is on (both off by default). InstantKill: kills or takes a pawn in one cast. BaseWrecking: wrecks buildings over a wide area (hostile casters only; friendly NPCs never)." },
+    doc: "Other factions use the rule only while the matching setting is on (all off by default). InstantKill: kills or takes a pawn in one cast. Maiming: destroys body parts for good without killing. BaseWrecking: wrecks buildings over a wide area (hostile casters only; friendly NPCs never)." },
   { n: "armedOnly", t: "bool", d: "false", w: ["TargetHostile"],
     doc: "Only enemies holding a weapon (a disarm)." },
   { n: "inMentalState", t: "bool", d: "false", w: ["TargetHostile"],
@@ -365,6 +367,8 @@ const FIELDS = [
     doc: "The ability sets fires, so an enemy holding it is a fire threat to fireDanger rules. One rule of the ability is enough; its radius is how far the fire spreads past the aim." },
   { n: "fireDanger", t: "bool", d: "false", w: ["TargetFriendly"],
     doc: "Only allies in fire danger (burning, a fire within 2.5 tiles, an enemy that can set fires in reach) instead of allies who are fighting." },
+  { n: "avoidFireDanger", t: "bool", d: "false", w: ["TargetFriendly"],
+    doc: "Never an ally in fire danger (as for fireDanger), for a buff that makes its bearer burn worse (Alpha Animals' Fungal skin)." },
   { n: "heatVent", t: "bool", d: "false", w: DRIVER, g: "Any rule",
     doc: "A heat vent: tried only when, with nothing else cast, another psycast had a target and neural heat alone held it back." },
   { n: "focusPerHeat", t: "float", d: "0", w: ["ShedHeat"],
@@ -810,6 +814,7 @@ function ruleChecks(rule, fields) {
     if (num(fields, "auraMin") < 1) out.push("auraMin must be at least 1");
     if (!(num(fields, "radius") >= 0)) out.push("auraKinds needs a radius: the aura's reach is rarely the ability's own");
   }
+  if (bool(fields, "fireDanger") && bool(fields, "avoidFireDanger")) out.push("fireDanger and avoidFireDanger together leave no ally to target");
   if (w === "ShedHeat" && !bool(fields, "heatVent")) out.push("a Shed heat rule without heatVent would be cast whenever the caster has heat to shed");
   if (w === "Zone" && ["LowMood", "ColonistsWithout", "LeechHosts"].includes(fields.zoneTarget) && !has(fields, "hediff"))
     out.push(`a ${fields.zoneTarget} Zone rule needs the hediff its cast gives the target`);

@@ -252,8 +252,8 @@ namespace AbilityAI
     /// those in at least that much pain, otherwise only allies fighting now; with avoidFireDanger none in fire danger;
     /// with auraKinds, only allies whose aura
     /// would reach enough enemies (AbilityAIUtility.AuraWorthIt). Scored by (1 + pain + fire danger), the caster
-    /// x1.5, divided by distance over range. Cost: a checks, and for an aura or fireDanger rule a pass over the
-    /// enemies per ally that gets that far.
+    /// x1.5, divided by distance over range. Cost: a checks, and for an aura, fireDanger or avoidFireDanger rule a
+    /// pass over the enemies per ally that gets that far.
     /// </summary>
     public class AbilityAIWorker_TargetFriendly : AbilityAIWorker
     {

@@ -553,6 +553,10 @@ namespace AbilityAI
         /// <summary>Target hostile: only enemies in a mental state, for an ability that ends one or only works on one
         /// (Animal calm on a manhunter).</summary>
         public bool inMentalState;
+        /// <summary>Target hostile: not a pawn whose home faction is humanlike and not permanently hostile to the player.
+        /// Killing one of theirs costs goodwill even at war (Psychic slaughter: 100), so it is kept for pirates,
+        /// animals, entities and the like.</summary>
+        public bool permanentEnemiesOnly;
         /// <summary>Movement, targeted: nobody of the caster's side, and no building of its side or a friendly faction's,
         /// within this many tiles of the straight line from the caster to where it lands, for a dash that burns and
         /// smashes what it passes (Pyromancer's Blazing dash). 0 = no check.</summary>
@@ -696,6 +700,8 @@ namespace AbilityAI
                 yield return "minCorpses is only read by an AoE hostile or AoE hostile around the caster rule with anchorCorpses";
             if (inMentalState && workerClass != null && !typeof(AbilityAIWorker_TargetHostile).IsAssignableFrom(workerClass))
                 yield return $"inMentalState is only read by Target hostile, not {workerClass.Name}";
+            if (permanentEnemiesOnly && workerClass != null && !typeof(AbilityAIWorker_TargetHostile).IsAssignableFrom(workerClass))
+                yield return $"permanentEnemiesOnly is only read by Target hostile, not {workerClass.Name}";
             if (coveredBy != null && workerClass != null && !typeof(AbilityAIWorker_AoEHostile).IsAssignableFrom(workerClass))
                 yield return $"coveredBy is only read by AoE hostile, not {workerClass.Name}";
             if (coveredBy != null && coveredBy.Count == 0) yield return "coveredBy names no def that exists, so it checks nothing";

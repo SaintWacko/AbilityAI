@@ -4,7 +4,8 @@
      (aiCanUse) then stands down for them. Each rule sits in its own PatchOperationConditional on its def, as in the
      Royalty file.
      Unique-weapon abilities: vanilla lists a weapon's ability among the wielder's own, so these are cast like any
-     other. Their radius is the shell's blast plus how far off the aimed cell it may land, read from the comp.
+     other. Their radius is the shell's blast, read from the comp: the comp fires straight at the aimed cell, so the
+     miss circle the targeter draws never applies.
      Left out on purpose: Call mechanoids (it drops mechs hostile to everyone near) and Call drop pods (travel). -->
 <Patch>
   <Operation Class="PatchOperationFindMod">
@@ -69,7 +70,8 @@
           </match>
         </li>
 
-        <!-- Smoke shell: cover once two shooters are on the caster, landed two tiles toward the nearest -->
+        <!-- Smoke shell: cover once two shooters are on the caster, aimed a tile toward the nearest, so the 2.4 tile
+             cloud covers the caster and the line of fire. -->
         <li Class="PatchOperationConditional">
           <xpath>Defs/AbilityDef[defName="LaunchSmokeShell"]</xpath>
           <match Class="PatchOperationAddModExtension">
@@ -78,7 +80,7 @@
               <li Class="AbilityAI.AbilityAIExtension">
                 <workerClass>AbilityAI.AbilityAIWorker_Cover</workerClass>
                 <priority>4</priority>
-                <offsetTowardThreat>2</offsetTowardThreat>
+                <offsetTowardThreat>1</offsetTowardThreat>
                 <minThreats>2</minThreats>
               </li>
             </value>

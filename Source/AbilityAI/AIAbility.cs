@@ -533,7 +533,9 @@ namespace AbilityAI
         // subclass that declares its own AICanTargetNow is asked as usual, since its author's rule may be real.
         // RequiresTrainable says no once the trick is learned (the trained animal's own think tree casts it then),
         // which is the only time the player can set it to autocast at all: the gizmo is hidden until then. A mode
-        // saved before the trick was lost goes back to the comp's own rule.
+        // saved before the trick was lost goes back to the comp's own rule. Psychic slaughter refuses every AI target
+        // outright; its Valid already holds the real rule (flesh, not too big), so the player's pawns go by that.
+        // Other factions still get vanilla's no.
         private enum PlayerAIRule : byte { Ask, TargetIsPawn, TargetAimsAtCaster, TrickLearned }
         private static readonly Dictionary<Type, PlayerAIRule> playerAIRules = new Dictionary<Type, PlayerAIRule>();
 
@@ -547,6 +549,7 @@ namespace AbilityAI
                 rule = declaring == typeof(CompAbilityEffect_GiveHediff) ? PlayerAIRule.TargetIsPawn
                      : declaring == typeof(CompAbilityEffect_FireBurst) ? PlayerAIRule.TargetAimsAtCaster
                      : declaring == typeof(CompAbilityEffect_RequiresTrainable) ? PlayerAIRule.TrickLearned
+                     : declaring == typeof(CompAbilityEffect_PsychicSlaughter) ? PlayerAIRule.TargetIsPawn
                      : PlayerAIRule.Ask;
                 playerAIRules[type] = rule;
             }
@@ -638,22 +641,21 @@ namespace AbilityAI
                         // Psycast.CanApplyPsycastTo: once any comp is psychic, any comp not for mechs rules them out
                         if (!ae.applicableToMechs) e.notOnMechs = true;
                     }
-                    // Odyssey's unique-weapon launchers: the shell's blast, widened by how far off the aimed cell it may
-                    // land, as the gear rules state it by hand
+                    // Odyssey's unique-weapon launchers: the shell's blast. The comp launches straight at the target
+                    // (IntendedTarget), so the verb's forcedMissRadius only draws on the targeting circle
                     if (c is CompProperties_AbilityLaunchProjectile launch && launch.projectileDef?.projectile is ProjectileProperties proj)
                     {
                         if (proj.explosionRadius > 0f && !e.hasEffectRadius)
                         {
                             e.hasEffectRadius = true;
-                            e.effectRadius = proj.explosionRadius + (def.verbProperties?.ForcedMissRadius ?? 0f);
+                            e.effectRadius = proj.explosionRadius;
                         }
                         if (proj.damageDef == DamageDefOf.Smoke || proj.postExplosionGasType == GasType.BlindSmoke) e.smoke = true;
                         if (proj.damageDef != null && proj.damageDef.causeStun) e.stuns = true;
                     }
-                    if (c is CompProperties_AbilityExplosion boom && boom.explosionRadius > 0f && !e.hasEffectRadius)
+                    if (c is CompProperties_AbilityExplosion boom)
                     {
-                        e.hasEffectRadius = true;
-                        e.effectRadius = boom.explosionRadius;
+                        if (boom.explosionRadius > 0f && !e.hasEffectRadius) { e.hasEffectRadius = true; e.effectRadius = boom.explosionRadius; }
                         if (boom.damageDef != null && boom.damageDef.causeStun) e.stuns = true;
                     }
                     if (c is CompProperties_AbilityFireBurst burst && !e.hasEffectRadius) { e.hasEffectRadius = true; e.effectRadius = burst.radius; }

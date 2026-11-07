@@ -84,7 +84,9 @@
         </li>
 
         <!-- Creepjoiner's psychic slaughter: kills a flesh creature outright within 4.9 tiles, once a day. The most
-             dangerous enemy, walking up to 8 tiles closer. -->
+             dangerous enemy, walking up to 8 tiles closer. Vanilla refuses it to every AI; Ability AI lets the player's
+             pawns past that, never other factions. Never a pawn of a humanlike faction that isn't permanently hostile:
+             the kill costs 100 goodwill with it even at war. -->
         <li Class="PatchOperationConditional">
           <xpath>Defs/AbilityDef[defName="PsychicSlaughter"]</xpath>
           <match Class="PatchOperationAddModExtension">
@@ -94,6 +96,7 @@
                 <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
                 <priority>6</priority>
                 <targetKinds>Humanlike, Animal, Other</targetKinds>
+                <permanentEnemiesOnly>true</permanentEnemiesOnly>
                 <approachDistance>8</approachDistance>
                 <exclusive>true</exclusive>
                 <npcGate>InstantKill</npcGate>
@@ -122,8 +125,8 @@
 
         <!-- Release deadlife dust: the dust raises the corpses around the caster as shamblers. As the deadlife pack,
              only in a fight, with two or more enemy or factionless corpses within reach of the dust and none of the
-             caster's own dead or a friend's, which it would raise too. The dust fills 15 cells and drifts, so the
-             reach is the pack's 3.9. -->
+             caster's own dead or a friend's, which it would raise too. The dust fills 15 cells (about 2.2 tiles) and
+             drifts a little, so corpses count out to 2.9. -->
         <li Class="PatchOperationConditional">
           <xpath>Defs/AbilityDef[defName="ReleaseDeadlifeDust"]</xpath>
           <match Class="PatchOperationAddModExtension">
@@ -133,7 +136,7 @@
                 <workerClass>AbilityAI.AbilityAIWorker_AoEHostileSelf</workerClass>
                 <priority>5</priority>
                 <combat>InCombat</combat>
-                <radius>3.9</radius>
+                <radius>2.9</radius>
                 <minTargets>0</minTargets>
                 <minCorpses>2</minCorpses>
                 <anchorCorpses>Humanlike, Animal</anchorCorpses>

@@ -132,6 +132,7 @@ namespace AbilityAI
             if (ctx.IsBrokenAlly(p) && !AbilityAIUtility.MayHitBrokenAllies(ext)) return false;
             if (ext.armedOnly && p.equipment?.Primary == null) return false;
             if (ext.inMentalState && !p.InMentalState) return false;
+            if (ext.permanentEnemiesOnly && CostsGoodwill(p)) return false;
             return !ext.meleeOnly || AbilityAIUtility.InMeleeWithSide(ctx, p);
         }
 
@@ -186,6 +187,14 @@ namespace AbilityAI
             cands.Add(new Cand { thing = t, score = score });
         }
 
+        // As CompAbilityEffect_PsychicSlaughter.Apply decides when a kill costs the player goodwill
+        private static bool CostsGoodwill(Pawn p)
+        {
+            Faction home = p.HomeFaction;
+            return p.Faction != null && home != null && home != Faction.OfPlayer && home.def.humanlikeFaction
+                && !p.Faction.def.PermanentlyHostileTo(FactionDefOf.PlayerColony);
+        }
+
         // The rest of the target's side within near2 of it: enemy pawns, and enemy turrets when the rule names them
         private int CountNear(AbilityAIContext ctx, Thing t, float near2, bool spareBroken)
         {
@@ -211,6 +220,7 @@ namespace AbilityAI
             if (!AbilityAIUtility.WouldAffect(ability, ext, e)) return;
             if (ext.armedOnly && e.equipment?.Primary == null) return;
             if (ext.inMentalState && !e.InMentalState) return;
+            if (ext.permanentEnemiesOnly && CostsGoodwill(e)) return;
             if (ext.meleeOnly && !AbilityAIUtility.InMeleeWithSide(ctx, e)) return;
             float score = 1f;
             if (isCurrent) score += 1f;

@@ -2,7 +2,7 @@
 
 This guide covers how to make Ability AI cast an ability: which worker to pick, what its fields do, how to change a rule for other factions, and how to add rules to worn gear. Everything here is XML. The C# side (claiming abilities, plugging in another ability system, writing your own worker) is in [csharp-api.md](csharp-api.md).
 
-The [rule builder](rule-builder.html) writes the XML for you: pick a worker, fill in its fields and copy the result. This guide explains what the fields mean.
+The [rule builder](https://saintwacko.github.io/AbilityAI/rule-builder.html) writes the XML for you: pick a worker, fill in its fields and copy the result. This guide explains what the fields mean.
 
 The rules Ability AI ships for Royalty, Biotech, Anomaly, Odyssey, Vanilla Psycasts Expanded and its addons, and worn gear are all in `Patches/`, and they are the best examples of each worker. Each one has a comment saying why it is set up the way it is.
 
@@ -16,7 +16,7 @@ Every check the game makes for a player's cast still applies: cooldown, charges,
 
 Who uses a rule:
 - **Other factions** (raiders, visitors, allied soldiers, animals, mechs) cast with it, each kind behind a setting. A player setting, "Also use abilities no mod claims" (on by default), lets them use any ability with a rule; with it off, only abilities a mod claims in C#.
-- **The player's pawns** get an autocast menu on the ability's gizmo (right-click): Off, Stationary Autocast (cast from where it stands) and, for rules that can walk into range, Full Autocast. Rules that aren't combat-only also run while the pawn is undrafted.
+- **The player's pawns** get an autocast menu on the ability's gizmo (right-click): "Don't autocast", "Stationary Autocast" (cast from where it stands) and "Full Autocast" (walk into range, cast, walk back). Full is only offered for a rule with `approachDistance` on a pawn that can be drafted; touch abilities, abilities that move the caster and the rest get a plain "Autocast". Rules that aren't combat-only also run while the pawn is undrafted.
 
 While Ability AI handles an ability, vanilla's own NPC ability AI (`aiCanUse`) and VEF's autocast are stood down for that pawn and ability, so two systems never cast it. You can leave `aiCanUse` on as a fallback for players who don't have Ability AI.
 
@@ -116,9 +116,9 @@ Give each ability its own operation (one `PatchOperationConditional` each, insid
 
 Workers read the ability's area, the hediff it gives, and whether it stuns from its effect comps, once per def. You only need `radius` or `hediff` in a rule when these can't be read or are wrong for the AI's purpose.
 
-Vanilla comps that are read: `CompProperties_AbilityGiveHediff` (the hediff), `CompProperties_AbilityGiveMentalState` (mental state, psychic), `CompProperties_AbilityEffect` stun fields, `CompProperties_AbilityExplosion`, `CompProperties_AbilityFireBurst` and `CompProperties_AbilityFirefoampop` (radius), `CompProperties_AbilityLaunchProjectile` (the projectile's explosion radius), `CompProperties_AbilitySmokepop`, `CompProperties_AbilitySpawn`, `CompProperties_AbilityWallraise`, `CompProperties_AbilityFireSpew` and `CompProperties_AbilitySprayLiquid` (cone length and width). The verb's `targetParams` decide whether it is cast on the caster.
+Vanilla comps that are read: `CompProperties_AbilityGiveHediff` (the hediff), `CompProperties_AbilityGiveMentalState` (mental state, psychic), `CompProperties_AbilityEffect` stun fields, `CompProperties_AbilityExplosion`, `CompProperties_AbilityFireBurst` and `CompProperties_AbilityFirefoampop` (radius), `CompProperties_AbilityLaunchProjectile` (the projectile's explosion radius), `CompProperties_AbilitySmokepop`, `CompProperties_AbilitySpawn`, `CompProperties_AbilityWallraise`, `CompProperties_AbilityFireSpew` and `CompProperties_AbilitySprayLiquid` (cone length and width). With none of those, the radius is the AbilityDef's own effect radius. The verb's `targetParams` decide whether it is cast on the caster.
 
-For VEF abilities the radius comes from the def's radius stat and range from its range stat; the VPE compat reads VPE's own extensions too. For gear, from the verb's projectile (explosion radius, smoke, stun), the smokepop and broadshield packs, `CompExplosive` and gas releases.
+For VEF abilities the range and radius are the def's own, for the caster; the VPE compat reads VPE's own extensions too. For gear, from the verb's projectile (explosion radius, smoke, stun), the smokepop and broadshield packs, `CompExplosive` and gas releases.
 
 Set `radius` when the area comes from C# or a comp of your own. A mod with its own comp class can also tell Ability AI how to read it in C# (`AbilityAIInfo.Register`, see csharp-api.md).
 
@@ -182,6 +182,8 @@ An area cast at the spot that catches the most enemies (Flashbang, Berserk pulse
 | `anchorCorpses` | | Kinds of corpse to centre on instead (Corpse Explosion): corpses of pawns hostile to the caster or of no faction. |
 | `minCorpses` | 0 | With `anchorCorpses`: a centre needs this many of those corpses in the radius and is scored by them. `minTargets` may then be 0. |
 | `waitForGather` | false | Anchored only: hold the cast for up to 5 seconds while more enemies are walking into the area, and skip a spot an ally is walking into. |
+
+An anchored rule validates up to 20 centres instead of five.
 | `coveredBy`, `coveredFraction` | , 0.5 | Not where `coveredFraction` of the radius already holds one of these ThingDefs, for an ability that fills an area with something that lasts (Bramble Maze). |
 
 ```xml
@@ -284,6 +286,7 @@ Throw out something that fights on its own (Anomaly's turret pack, drone packs) 
 | Field | Default | What it does |
 |---|---|---|
 | `minTargets` | 1 | Enemies the deployed thing must see from the cell. |
+| `minRange` | 2 | The nearest ring of cells tried around the caster (never under 2). |
 | `radius` | the turret's range, else 20 | How far the deployed thing reaches. |
 | `minGapDistance` | 6 | No enemy this close to the cell. |
 | `deployedThing` | read | What the cast puts down, when Ability AI can't read it from the verb or projectile. For a pawn, its race's ThingDef. |
@@ -364,7 +367,7 @@ Get the caster or an ally back to strength. Two kinds of rule, either or both: a
 
 #### Calm
 
-End an ally's aggressive mental break (Word of Serenity). Nearest first. Touch abilities look within `maxRange` (default 20) and walk there. Combat: Any.
+End an ally's aggressive mental break (Word of Serenity). Nearest first. Touch abilities look within `maxRange` (default 20) and walk there; an undrafted player pawn walks as far as the player's "Undrafted, walk up to N tiles to calm or feed on someone" setting. Combat: Any.
 
 `anyMentalState`: any break, not only aggressive ones. `minBreakSeconds`: skip a break that will end by itself within this many seconds.
 
@@ -396,10 +399,10 @@ A drafted player pawn's interrupted attack resumes after the cast (for a jump, o
 
 #### Skip
 
-An ability that sends its target to a cell the caster picks (Royalty's Skip, VPE's Skip). One rule per use, chosen by `skipMode` (required), each behind its own player setting. Exclusive by default.
+An ability that sends its target to a cell the caster picks (Royalty's Skip, VPE's Skip). One rule per use, chosen by `skipMode`, each behind its own player setting. Always set `skipMode`: unset reads as `Repel`. Exclusive by default.
 
-- `Repel`: an enemy next to someone of the caster's side who can't hold it off (downed, hurt, or a ranged fighter) goes at least 10 tiles from that side. Combat: InCombat.
-- `Rescue`: a downed or badly hurt (`healthThreshold`) ally under attack comes near the caster, behind cover. Combat: Any.
+- `Repel`: an enemy next to someone of the caster's side who can't hold it off (downed, hurt, or a ranged fighter) goes at least 10 tiles from that side, toward its own. Never a prisoner or an enemy carrying someone, never into the player's home area when the caster isn't hostile to the player, and for a player caster never a pawn whose faction would lose goodwill over it. Combat: InCombat.
+- `Rescue`: an ally of the caster's faction that is downed with an enemy within 10 tiles, or under `healthThreshold` and in melee or shot at, comes near the caster, behind cover. A drafted pawn still standing stays where the player put it. Combat: Any.
 - `Escape`: the caster itself, away from every enemy, when Movement's escape would apply. Combat: InCombat. `escapeInMelee` as for Movement.
 
 ```xml
@@ -431,13 +434,13 @@ Under fire, put something between the caster and the shooters (Smokepop, Wallrai
 
 #### Barrier
 
-Self-cast a projectile barrier (VPE's Guardian Skipbarrier) when enough ranged enemies and turrets outside the radius aim at the caster's side inside it; the player's settings say how many. Not while it is already up on the caster or an ally nearby. Ability AI drops the barrier again (removes its hediff) once the fire stops. The player's pawns only while drafted. `hediff` (required) is the barrier's hediff. Combat: InCombat.
+Self-cast a projectile barrier (VPE's Guardian Skipbarrier) when enough ranged enemies and turrets outside the radius aim at the caster's side inside it; the player's settings say how many. Not while it is already up on the caster or an ally nearby. Ability AI drops the barrier again (removes its hediff) once the fire stops. The player's pawns only while drafted. `hediff` (required) is the barrier's hediff. The barrier needs a radius: read from the ability, else set `radius`. Combat: InCombat.
 
 ### Special
 
 #### Bloodfeed
 
-A sanguophage's bite, out of combat. One rule per `feedOn` (required), tried by priority: `DownedEnemies` whenever there is room for the bite's hemogen, `Prisoners` and `Colony` once the caster's hemogen is under the target its owner set. Never a bite that would kill, a pawn in a mental state, or one with a standing enemy within 15 tiles. Prisoners are only the player's own. The shipped rules turn Bloodfeed off for other factions with an `npc` block. Combat: OutOfCombat.
+A sanguophage's bite, out of combat. One rule per `feedOn`, tried by priority (always set it: unset reads as `DownedEnemies`). `DownedEnemies` (downed hostile humanlikes and wild men) whenever there is room for the bite's hemogen; `Prisoners` (the colony's, for the player's own casters only) and `Colony` (the caster's faction-mates) once the caster's hemogen is under the target its owner set. Never a bite that would kill, a pawn in a mental state, or one with a standing enemy within 15 tiles. The shipped rules turn Bloodfeed off for other factions with an `npc` block. Combat: OutOfCombat.
 
 #### Heat vents
 
@@ -461,7 +464,7 @@ A self-cast heat vent that turns neural heat into psyfocus (VPE's Heat Focus). N
 
 ### Colonist work
 
-These workers are never run by the AI that casts in a fight, and other factions never use them. The player's colonists do them as Basic work, for abilities set to autocast. They respect the pawn's psycast limits.
+These workers are never run by the AI that casts in a fight, and other factions never use them. The player's colonists do them as Basic work, for abilities set to autocast. They respect the pawn's psycast limits. `npcGate` and `heatVent` do nothing on them.
 
 #### Recast
 
@@ -494,7 +497,7 @@ Colonists cast it on what a zone the player paints holds, or on colony pawns tha
 | `Visitors` | Non-hostile pawns of factions below the goodwill setting (Word of Alliance). No zone. |
 | `LeechHosts` | Prisoners (and slaves, by setting) without `hediff`. No zone; needs `hediff`. |
 
-`sensitivityAbove`: only casters whose psychic sensitivity is above this (VPE's Mend restores nothing at 100% or below).
+`sensitivityAbove`: only casters whose psychic sensitivity is above this (VPE's Mend restores nothing at 100% or below). `unlessCasterHas`: not while the caster has this hediff (Brain Leech keeps one leech per caster).
 
 ```xml
 <!-- VPE's Mend (Patches/AbilityAI_VPE_Zones.xml) -->
@@ -509,9 +512,9 @@ Colonists cast it on what a zone the player paints holds, or on colony pawns tha
 
 Colonists cast it at markers the player places from the autocast menu, once the ground there is ready. `spotKind` (required): `Crops` (no crop within the radius and enough fertile open cells; Crop Burst) or `Trees` (no crop and enough cells a wild tree of the biome can grow on; Tree Sprout). `spotRadius` (required): how far from the marker the cast reaches at most.
 
-#### GroupLink
+## Group links
 
-Marks a psycast that links the caster to the pawns around it (VPE's Group Link), so Words of psycasts on autocast can be cast through it. Never cast for itself. Only ability systems that tell Ability AI how to read their links in C# can use it; VPE's is built in.
+`AbilityAI.AbilityAIWorker_GroupLink` marks a psycast that links the caster to the pawns around it (VPE's Group Link). It is never cast for itself: the AI casts it just before a Word of psycast when the link would reach enough of that Word's targets, for other factions too, and Word of Trust's zone work does the same for the player. Only ability systems that tell Ability AI how to read their links in C# can use it; VPE's is built in. Combat: Any.
 
 On the Words themselves (Target hostile, Target friendly, Recovery, Calm and Zone rules): `linkSafe` (`Targets`, `Enemies` or `NonHostile`) says who besides the rule's own targets may take the Word through a link, and `linkFirst` (default true) lets the link be cast first when it would reach enough targets. Turn `linkFirst` off for a Word priced per target.
 

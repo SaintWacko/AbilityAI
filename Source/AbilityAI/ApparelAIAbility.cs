@@ -7,8 +7,10 @@ using Verse;
 using Verse.AI;
 
 // Verbs on worn gear (packs, belts, lances, armour launchers: CompApparelVerbOwner), as the AI sees them. Their rules
-// are AbilityAIExtensions on the item's ThingDef, which is also the def the player's autocast mode is kept under. One
-// wrapper per verb, made the first time the AI looks at it and kept while the verb lives. Vanilla's own AI only uses
+// are AbilityAIExtensions on the item's ThingDef, which is also the def the player's autocast mode is kept under. An
+// item with rules for more than one verb keeps that for the lowest one; each other one gets a GearVerbDef, made at
+// startup, with its rules moved onto it, since rules, modes, claims and effects are all kept per def. One wrapper per
+// verb, made the first time the AI looks at it and kept while the verb lives. Vanilla's own AI only uses
 // four of these items, from their own triggers (AbilityAIApparel.cs stands those down where this mod decides); every
 // other one is onlyManualCast, so NPCs never use it without this.
 namespace AbilityAI
@@ -20,10 +22,14 @@ namespace AbilityAI
 
         private static readonly ConditionalWeakTable<Verb, ApparelAIAbility> wrappers = new ConditionalWeakTable<Verb, ApparelAIAbility>();
 
+        // The def this verb is known by (the item's, or its GearVerbDef); null for a verb with no rules
+        private readonly Def key;
+
         private ApparelAIAbility(Verb verb, CompApparelVerbOwner owner)
         {
             this.verb = verb;
             this.owner = owner;
+            key = KeyOf(owner.parent.def, owner.AllVerbs?.IndexOf(verb) ?? -1);
         }
 
         public static ApparelAIAbility Of(Verb verb, CompApparelVerbOwner owner)
@@ -34,9 +40,16 @@ namespace AbilityAI
             return w;
         }
 
-        // Item defs that carry a rule, filled at startup (Note). The source's per-pawn checks are a set lookup per worn item.
+        private struct RuledVerb
+        {
+            public int index;
+            public Def key;
+        }
+
+        // Item defs that carry a rule, filled at startup (Note). The source's per-pawn checks are a set lookup per worn
+        // item; ruled holds each one's ruled verbs, lowest index first.
         private static readonly HashSet<ThingDef> ruleDefs = new HashSet<ThingDef>();
-        private static readonly Dictionary<ThingDef, int> verbIndex = new Dictionary<ThingDef, int>();
+        private static readonly Dictionary<ThingDef, RuledVerb[]> ruled = new Dictionary<ThingDef, RuledVerb[]>();
 
         internal static bool Any => ruleDefs.Count > 0;
 
@@ -45,14 +58,15 @@ namespace AbilityAI
         internal static IEnumerable<ThingDef> RuleDefs => ruleDefs;
 
         /// <summary>Called at startup for every ThingDef: an item with a verb owner comp and a rule becomes one the AI
-        /// can use.</summary>
+        /// can use. A rule is for the verb its verbIndex names, else the verb of the rule before it (the first: verb 0),
+        /// so rules written when only the first rule's verbIndex was read mean what they did.</summary>
         internal static void Note(ThingDef def)
         {
             var exts = def.modExtensions;
             if (exts == null || def.comps == null) return;
-            AbilityAIExtension first = null;
-            for (int i = 0; i < exts.Count && first == null; i++) first = exts[i] as AbilityAIExtension;
-            if (first == null) return;
+            bool any = false;
+            for (int i = 0; i < exts.Count && !any; i++) any = exts[i] is AbilityAIExtension;
+            if (!any) return;
             bool owns = false;
             for (int i = 0; i < def.comps.Count && !owns; i++)
                 owns = def.comps[i].compClass != null && typeof(CompApparelVerbOwner).IsAssignableFrom(def.comps[i].compClass);
@@ -61,35 +75,73 @@ namespace AbilityAI
                 Log.Warning($"[Ability AI] {def.defName} has an Ability AI rule but no verb owner comp (CompProperties_ApparelVerbOwner or a subclass): the rule is ignored.");
                 return;
             }
-            int index = Mathf.Max(0, first.verbIndex);
-            if (index >= def.Verbs.Count)
-            {
-                Log.Warning($"[Ability AI] {def.defName}'s rule names verb {index}, but it has {def.Verbs.Count}: the rule is ignored.");
-                return;
-            }
-            ruleDefs.Add(def);
-            verbIndex[def] = index;
+            var groups = new SortedDictionary<int, List<AbilityAIExtension>>();
+            int current = 0;
             for (int i = 0; i < exts.Count; i++)
-                if (exts[i] is AbilityAIExtension e && e.workerClass != null && typeof(AbilityAIWorker_Deploy).IsAssignableFrom(e.workerClass))
-                    AbilityAIWorker_Deploy.Used = true;
+            {
+                if (!(exts[i] is AbilityAIExtension rule)) continue;
+                if (rule.verbIndex >= 0) current = rule.verbIndex;
+                if (!groups.TryGetValue(current, out var list)) groups[current] = list = new List<AbilityAIExtension>();
+                list.Add(rule);
+                if (rule.workerClass != null && typeof(AbilityAIWorker_Deploy).IsAssignableFrom(rule.workerClass)) AbilityAIWorker_Deploy.Used = true;
+            }
+            var verbs = def.Verbs;
+            var keys = new List<RuledVerb>();
+            foreach (var g in groups)
+            {
+                if (g.Key >= verbs.Count)
+                {
+                    Log.Warning($"[Ability AI] {def.defName} has rules for verb {g.Key}, but it has {verbs.Count}: those rules are ignored.");
+                    for (int i = 0; i < g.Value.Count; i++) exts.Remove(g.Value[i]);
+                    continue;
+                }
+                if (keys.Count == 0)
+                {
+                    keys.Add(new RuledVerb { index = g.Key, key = def });
+                    continue;
+                }
+                var key = new GearVerbDef
+                {
+                    defName = $"{def.defName}_AAIVerb{g.Key}",
+                    label = verbs[g.Key].label.NullOrEmpty() ? $"{def.label} ({g.Key + 1})" : (string)"AAI_GearVerbLabel".Translate(def.label, verbs[g.Key].label),
+                    item = def,
+                    verbIndex = g.Key,
+                    modExtensions = new List<DefModExtension>(g.Value),
+                };
+                for (int i = 0; i < g.Value.Count; i++) exts.Remove(g.Value[i]);
+                DefDatabase<GearVerbDef>.Add(key);
+                AbilityAINpcGates.Note(key);
+                keys.Add(new RuledVerb { index = g.Key, key = key });
+            }
+            if (keys.Count == 0) return;
+            ruleDefs.Add(def);
+            ruled[def] = keys.ToArray();
         }
 
-        /// <summary>The verb the rules are for on an item with several (DMS's Stugna: missile and launcher drop).</summary>
-        private static Verb RuledVerb(Apparel apparel, out CompApparelVerbOwner comp)
+        private static Def KeyOf(ThingDef item, int index)
         {
-            comp = apparel.GetComp<CompApparelVerbOwner>();
+            if (index < 0 || !ruled.TryGetValue(item, out var keys)) return null;
+            for (int i = 0; i < keys.Length; i++)
+                if (keys[i].index == index) return keys[i].key;
+            return null;
+        }
+
+        /// <summary>The wrapper for a worn item's k-th ruled verb (from 0), or null past the last.</summary>
+        internal static ApparelAIAbility Ruled(Apparel apparel, int k)
+        {
+            if (apparel == null || !ruled.TryGetValue(apparel.def, out var keys) || k >= keys.Length) return null;
+            var comp = apparel.GetComp<CompApparelVerbOwner>();
             var verbs = comp?.AllVerbs;
-            if (verbs == null) return null;
-            int i = verbIndex.TryGetValue(apparel.def, out int v) ? v : 0;
-            return i < verbs.Count ? verbs[i] : null;
+            int i = keys[k].index;
+            return verbs != null && i < verbs.Count ? Of(verbs[i], comp) : null;
         }
 
-        /// <summary>The wrapper for a worn item's ruled verb, or null.</summary>
-        internal static ApparelAIAbility For(Apparel apparel)
+        /// <summary>The wrapper for one of a worn item's verbs, or null when that verb has no rules.</summary>
+        internal static ApparelAIAbility For(Verb verb)
         {
-            if (apparel == null || !ruleDefs.Contains(apparel.def)) return null;
-            Verb v = RuledVerb(apparel, out var comp);
-            return v == null ? null : Of(v, comp);
+            if (!(verb?.DirectOwner is CompApparelVerbOwner comp) || !ruleDefs.Contains(comp.parent.def)) return null;
+            var a = Of(verb, comp);
+            return a.key != null ? a : null;
         }
 
         internal static readonly IAIAbilitySource Source = new ApparelSource();
@@ -118,8 +170,7 @@ namespace AbilityAI
                 for (int i = 0; i < worn.Count; i++)
                 {
                     if (!ruleDefs.Contains(worn[i].def)) continue;
-                    Verb v = RuledVerb(worn[i], out var comp);
-                    if (v != null) into.Add(Of(v, comp));
+                    for (int k = 0; Ruled(worn[i], k) is ApparelAIAbility a; k++) into.Add(a);
                 }
             }
 
@@ -129,8 +180,9 @@ namespace AbilityAI
                 warmupTicksLeft = -1;
                 Job job = pawn.CurJob;
                 Verb v = job?.verbToUse;
-                if (v == null || !IsCastJob(job.def) || !(v.DirectOwner is CompApparelVerbOwner comp)) return false;
-                ability = Of(v, comp);
+                if (v == null || !IsCastJob(job.def)) return false;
+                ability = For(v);
+                if (ability == null) return false;
                 warmupTicksLeft = pawn.stances?.curStance is Stance_Warmup w && w.verb == v ? w.ticksLeft : -1;
                 return true;
             }
@@ -140,7 +192,7 @@ namespace AbilityAI
             || def == JobDefOf.UseVerbOnThingStaticReserve || def == JobDefOf.CastJump || ApparelVerbJobs.IsCastJob(def);
 
         public override Pawn Pawn => owner.Wearer;
-        public override Def Def => owner.parent.def;
+        public override Def Def => key;
         public override object Raw => verb;
 
         private VerbProperties Props => verb.verbProps;
@@ -201,13 +253,13 @@ namespace AbilityAI
         public override bool CanTargetSelf => IsSelfCast || Props.targetParams?.canTargetSelf == true;
         public override float WarmupSeconds => Props.warmupTime * (owner.Wearer?.GetStatValue(StatDefOf.AimingDelayFactor) ?? 1f);
         public override Verb Verb => verb;
-        public override AIAbilityEffects Effects => EffectsOf(owner.parent.def, Props);
+        public override AIAbilityEffects Effects => EffectsOf(key ?? owner.parent.def, owner.parent.def, Props);
         // A non-violent verb aimed at enemies (the disruptor flare) is hostile too, by its rules
-        public override bool Hostile => Props.targetable && (Props.violent || RulesTargetEnemies(owner.parent.def));
+        public override bool Hostile => Props.targetable && (Props.violent || (key != null && RulesTargetEnemies(key)));
 
-        private static readonly Dictionary<ThingDef, bool> rulesTargetEnemies = new Dictionary<ThingDef, bool>();
+        private static readonly Dictionary<Def, bool> rulesTargetEnemies = new Dictionary<Def, bool>();
 
-        private static bool RulesTargetEnemies(ThingDef def)
+        private static bool RulesTargetEnemies(Def def)
         {
             if (rulesTargetEnemies.TryGetValue(def, out bool hostile)) return hostile;
             var exts = def.modExtensions;
@@ -281,14 +333,14 @@ namespace AbilityAI
             return job;
         }
 
-        private static readonly Dictionary<ThingDef, AIAbilityEffects> effects = new Dictionary<ThingDef, AIAbilityEffects>();
+        private static readonly Dictionary<Def, AIAbilityEffects> effects = new Dictionary<Def, AIAbilityEffects>();
 
         internal static void ClearEffectsCache() => effects.Clear();
 
-        // What the verb's projectile, the item's own comps and its target effects do, read once per item def
-        private static AIAbilityEffects EffectsOf(ThingDef def, VerbProperties vp)
+        // What the verb's projectile, the item's own comps and its target effects do, read once per ruled verb (key)
+        private static AIAbilityEffects EffectsOf(Def key, ThingDef def, VerbProperties vp)
         {
-            if (effects.TryGetValue(def, out var e)) return e;
+            if (effects.TryGetValue(key, out var e)) return e;
             e = new AIAbilityEffects();
             var proj = vp.defaultProjectile?.projectile;
             if (proj != null)
@@ -330,9 +382,18 @@ namespace AbilityAI
                 if (typeof(CompTargetEffect_PsychicShock).IsAssignableFrom(cc)) e.stuns = true;
                 else if (typeof(CompTargetEffect_Berserk).IsAssignableFrom(cc)) e.mentalState = true;
             }
-            effects[def] = e;
+            effects[key] = e;
             return e;
         }
+    }
+
+    /// <summary>The def a worn item's second (third...) ruled verb is known by: its rules, the player's autocast mode
+    /// for it (saved by name, so it has a database of its own), claims and the dev log. Made at startup by
+    /// ApparelAIAbility.Note, never written in XML.</summary>
+    public sealed class GearVerbDef : Def
+    {
+        public ThingDef item;
+        public int verbIndex;
     }
 
     /// <summary>

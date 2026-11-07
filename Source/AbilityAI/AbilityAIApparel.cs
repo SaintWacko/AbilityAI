@@ -16,17 +16,13 @@ namespace AbilityAI
         {
             Pawn wearer = apparel?.Wearer;
             if (wearer == null || !ApparelAIAbility.Any) return false;
-            var a = ApparelAIAbility.For(apparel);
-            return a != null && AbilityAIDriver.Handles(wearer, a);
+            for (int k = 0; ApparelAIAbility.Ruled(apparel, k) is ApparelAIAbility a; k++)
+                if (AbilityAIDriver.Handles(wearer, a)) return true;
+            return false;
         }
 
-        // Only the verb the rules are for (verbIndex): an item's other verbs keep their plain gizmo
-        internal static ApparelAIAbility Of(Command_VerbOwner command)
-        {
-            if (!(command.verb?.DirectOwner is CompApparelVerbOwner comp) || !(comp.parent is Apparel apparel)) return null;
-            var a = ApparelAIAbility.For(apparel);
-            return a != null && a.verb == command.verb ? a : null;
-        }
+        // Only verbs with rules: an item's other verbs keep their plain gizmo
+        internal static ApparelAIAbility Of(Command_VerbOwner command) => ApparelAIAbility.For(command.verb);
 
         private static readonly AccessTools.FieldRef<Command_VerbTarget, List<Verb>> groupedVerbs =
             AccessTools.FieldRefAccess<Command_VerbTarget, List<Verb>>("groupedVerbs");
@@ -38,8 +34,8 @@ namespace AbilityAI
             var grouped = groupedVerbs(command);
             if (grouped != null)
                 for (int i = 0; i < grouped.Count; i++)
-                    if (grouped[i].DirectOwner is CompApparelVerbOwner comp && comp.Wearer is Pawn p && !pawns.Contains(p)
-                        && AbilityAIAutocast.Offers(ApparelAIAbility.Of(grouped[i], comp))) pawns.Add(p);
+                    if (ApparelAIAbility.For(grouped[i]) is ApparelAIAbility other && other.Pawn is Pawn p && !pawns.Contains(p)
+                        && AbilityAIAutocast.Offers(other)) pawns.Add(p);
             AbilityAIAutocast.OpenMenu(clicked.Pawn, clicked.Def, false, pawns, command.LabelCap);
         }
 

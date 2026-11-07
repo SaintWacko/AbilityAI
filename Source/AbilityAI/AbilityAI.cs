@@ -589,9 +589,10 @@ namespace AbilityAI
         /// <summary>A Word of psycast: the caster's Group link may go first when it would reach GroupLinkMinTargets of
         /// the rule's targets. Off for a Word priced per target (Word of Serenity), where a link saves nothing.</summary>
         public bool linkFirst = true;
-        /// <summary>Gear (ApparelAIAbility): which of the item's verbs its rules are for, by position in its verbs list.
-        /// Read from the def's first rule.</summary>
-        public int verbIndex;
+        /// <summary>Gear (ApparelAIAbility): which of the item's verbs this rule is for, by position in its verbs list.
+        /// Left out (-1): the verb of the rule before it, and verb 0 for the first, so an item whose first rule names a
+        /// verb keeps all its rules on that verb.</summary>
+        public int verbIndex = -1;
         /// <summary>AoE hostile anchored on corpses (anchorCorpses): only a centre with at least this many of those corpses
         /// within the radius, scored by them rather than by enemies (Anomaly's deadlife pack raises every corpse its
         /// dust reaches). 0 = enemies decide, as usual.</summary>
@@ -691,7 +692,7 @@ namespace AbilityAI
             if (anchorThings != null && anchorThings.Count == 0) yield return "anchorThings names no def that exists, so the rule would centre on pawns instead";
             if (waitForGather && (!anchored || workerClass == null || !typeof(AbilityAIWorker_AoEHostile).IsAssignableFrom(workerClass)))
                 yield return "waitForGather is only read by an anchored AoE hostile rule (anchorThings or anchorCorpses)";
-            if (verbIndex < 0) yield return "verbIndex can't be negative";
+            if (verbIndex < -1) yield return "verbIndex can't be negative";
             if (deployedThing != null && workerClass != null && !typeof(AbilityAIWorker_Deploy).IsAssignableFrom(workerClass))
                 yield return $"deployedThing is only read by Deploy, not {workerClass.Name}";
             if (minCorpses < 0) yield return "minCorpses can't be negative";

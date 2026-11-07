@@ -74,7 +74,7 @@ button.icon:hover { color: var(--ink); }
 <body>
 <header>
   <h1>Ability AI rule builder</h1>
-  <p>Build the <code>AbilityAIExtension</code> rules that let Ability AI cast an ability. Add a rule for each situation the ability is for, fill in its fields, and copy the XML on the right. Every field is explained in the <a href="writing-rules.md">modder's guide</a>. Your work is kept in this browser between visits.</p>
+  <p>Build the <code>AbilityAIExtension</code> rules that let Ability AI cast an ability. Add a rule for each situation the ability is for, fill in its fields, and copy the XML on the right. Every field is explained in the <a href="https://github.com/SaintWacko/AbilityAI/blob/main/docs/writing-rules.md">modder's guide</a>. Your work is kept in this browser between visits.</p>
 </header>
 <main>
   <section>
@@ -189,7 +189,7 @@ const W = {
     summary: "An ability that sends its target to a cell the caster picks (Skip). One rule per skipMode, each behind its own setting: Repel an enemy, Rescue an ally, Escape for the caster.",
     required: ["skipMode"], suggest: ["priority"] },
   Bloodfeed: { cls: "Bloodfeed", label: "Bloodfeed", combat: "OutOfCombat",
-    summary: "A sanguophage's bite, out of combat. One rule per feedOn group, tried by priority. Never a bite that would kill. Other factions never use it.",
+    summary: "A sanguophage's bite, out of combat. One rule per feedOn group, tried by priority. Never a bite that would kill. The shipped rules turn it off for other factions with an npc block.",
     required: ["feedOn"], suggest: ["priority"] },
   Barrier: { cls: "Barrier", label: "Barrier",
     summary: "Self-cast a projectile barrier when enough shooters outside it aim at the caster's side inside it (Guardian Skipbarrier). The AI drops it again once the fire stops. The player's pawns only while drafted.",
@@ -206,8 +206,8 @@ const W = {
   Spot: { cls: "Spot", label: "Spot", combat: "Any", work: true,
     summary: "The player's colonists cast it at markers the player places, once the ground there is ready (Crop Burst, Tree Sprout), as work.",
     required: ["spotKind", "spotRadius"], suggest: [] },
-  GroupLink: { cls: "GroupLink", label: "Group link", combat: "Any", work: true,
-    summary: "Marks a psycast that links the caster to the pawns around it, so Words of psycasts can go through it. Never cast for itself. Needs an ability system that registers its links (VPE's Group Link is built in).",
+  GroupLink: { cls: "GroupLink", label: "Group link", combat: "Any", work: true, linker: true,
+    summary: "Marks a psycast that links the caster to the pawns around it. Never cast for itself: the AI casts it just before a Word of psycast when the link would reach enough of the Word's targets, for other factions too. Needs an ability system that registers its links (VPE's Group Link is built in).",
     suggest: [] },
 };
 const HOSTILE = ["AoEHostile", "AoEHostileSelf", "ConeHostile", "BeamHostile", "TargetHostile", "Interrupt"];
@@ -250,7 +250,7 @@ const FIELDS = [
   { n: "modes", t: "flags:modes", d: "GapClose, Escape", w: ["Movement"],
     doc: "Which situations to move in: GapClose (a melee pawn closing on its enemy), Escape (badly hurt, fleeing, or a ranged pawn in melee)." },
   { n: "skipMode", t: "enum:skipMode", d: null, w: ["Skip"],
-    doc: "Which use this rule is. One rule per use. Repel: an enemy next to someone who can't hold it off, sent far away. Rescue: a downed or badly hurt ally brought near the caster. Escape: the caster, away from every enemy." },
+    doc: "Which use this rule is (unset reads as Repel). One rule per use. Repel: an enemy next to someone who can't hold it off, sent far away. Rescue: a downed or badly hurt ally brought near the caster. Escape: the caster, away from every enemy." },
   { n: "minGapDistance", t: "float", d: "6", w: ["Movement", "Deploy"],
     doc: "Movement: don't close the gap below this distance to the enemy. Deploy: no enemy this close to the cell." },
   { n: "offsetTowardThreat", t: "float", d: "0", w: ["Cover"],
@@ -338,7 +338,7 @@ const FIELDS = [
   { n: "coneWidth", t: "float", d: "-1", w: ["ConeHostile", "BeamHostile"],
     doc: "Cone: width at the far end. Beam: width all along (at least 1.5), the margin kept clear of allies. Unset reads it from the effects, else 1 (a line)." },
   { n: "feedOn", t: "enum:feedOn", d: null, w: ["Bloodfeed"],
-    doc: "Whom this rule feeds on. DownedEnemies whenever there's room for the bite; Prisoners and Colony once the caster's hemogen is under its target." },
+    doc: "Whom this rule feeds on (unset reads as DownedEnemies). DownedEnemies whenever there's room for the bite; Prisoners and Colony once the caster's hemogen is under its target." },
   { n: "recastThing", t: "def", d: null, w: ["Recast"], defType: "ThingDef",
     doc: "The thing the ability leaves behind that the colonists keep up. Its class must hold comps (ThingWithComps)." },
   { n: "zoneTarget", t: "enum:zoneTarget", d: null, w: ["Zone"],
@@ -581,7 +581,7 @@ function renderRule(rule, i) {
 
   const facts = el("div", { class: "facts" },
     el("span", { class: "tag" }, "combat: " + defaultCombat(rule)),
-    el("span", { class: "tag" }, w.work ? "cast as colonist work" : "cast by the AI"),
+    el("span", { class: "tag" }, w.linker ? "cast before a Word" : w.work ? "cast as colonist work" : "cast by the AI"),
     w.work ? null : el("span", { class: "tag" }, "exclusive: " + (defaultExclusive(rule.worker) ? "yes" : "no")),
     w.hostile ? el("span", { class: "tag" }, "aimed at enemies") : null);
 
@@ -871,8 +871,8 @@ function render() {
     ["At enemies", ["AoEHostile", "AoEHostileSelf", "ConeHostile", "BeamHostile", "TargetHostile", "Interrupt", "Deploy"]],
     ["For allies or the caster", ["AoEFriendly", "SelfBuff", "TargetFriendly", "Defensive", "Rescue", "Recovery", "Calm", "Firefighting"]],
     ["Moving and cover", ["Movement", "Skip", "Cover", "Barrier"]],
-    ["Special", ["Bloodfeed", "ShedHeat"]],
-    ["Colonist work (player only)", ["Recast", "Zone", "Spot", "GroupLink"]],
+    ["Special", ["Bloodfeed", "ShedHeat", "GroupLink"]],
+    ["Colonist work (player only)", ["Recast", "Zone", "Spot"]],
   ];
   for (const [g, ks] of groups) {
     const og = el("optgroup", { label: g });

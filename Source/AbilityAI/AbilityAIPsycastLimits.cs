@@ -91,7 +91,8 @@ namespace AbilityAI
                 cachedUntilFrame = frame + CacheFrames;
                 Refresh(pawn);
             }
-            return showPsycast || shownResources.Count > 0;
+            shared.pawn = pawn;
+            return shared.RowCount > 0;
         }
 
         private static readonly List<AIAbility> collected = new List<AIAbility>();

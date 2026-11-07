@@ -711,9 +711,6 @@ namespace AbilityAI
             for (int i = 0; i < allies.Count; i++)
                 if (allies[i] != ctx.pawn && allies[i].IsBurning() && (allies[i].Position - from).LengthHorizontalSquared <= reachSq)
                     spots.Add(new Spot { cell = allies[i].Position, weight = 3f });
-            // A self-cast pack covers its wearer: vanilla's own trigger (CompFirefoamPack) pops it for a burning wearer
-            // and stands down where this rule decides, so the wearer counts as a burning ally here
-            if (self && ctx.pawn.IsBurning()) spots.Add(new Spot { cell = from, weight = 3f });
             // A downed ally on fire can't put itself out: the case that needs the water most
             var downed = ctx.DownedAllies;
             for (int i = 0; i < downed.Count; i++)

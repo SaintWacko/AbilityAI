@@ -243,8 +243,9 @@ namespace AbilityAI
         Other = 8,
         /// <summary>Every kind of pawn. Turrets are not in it: a rule that should hit them names Turret.</summary>
         All = Humanlike | Animal | Mechanoid | Other,
-        /// <summary>Turrets (Haywire). Only the hostile area workers (AoE hostile, AoE hostile around the caster)
-        /// target and count them; in allyKinds, avoidAllies also keeps clear of friendly turrets.</summary>
+        /// <summary>Turrets (Haywire, Enable self-destruct). Only the hostile area workers (AoE hostile, AoE hostile
+        /// around the caster) and Target hostile target and count them; in allyKinds, avoidAllies also keeps clear of
+        /// friendly turrets.</summary>
         Turret = 16,
         /// <summary>A pawn whose worn shield (a shield belt) is up, whatever its race: EMP breaks it. Not in All.
         /// Matching it reads the pawn's apparel, so only rules that name it pay for that.</summary>
@@ -373,7 +374,8 @@ namespace AbilityAI
         public AbilityAIMoveModes modes = AbilityAIMoveModes.Both;
         /// <summary>Skip: which use this rule is. One rule per use; each has its own setting.</summary>
         public AbilityAISkipMode skipMode;
-        /// <summary>Movement gap-close: don't bother below this distance to the enemy.</summary>
+        /// <summary>Movement gap-close: don't bother below this distance to the enemy. Deploy: no cell with an enemy
+        /// this close.</summary>
         public float minGapDistance = 6f;
         /// <summary>Cover: how far from the caster toward the threat to place the cover; 0 = on the caster.</summary>
         public float offsetTowardThreat;
@@ -706,7 +708,8 @@ namespace AbilityAI
             if (rangedOnly && minThreats < 1) yield return "rangedOnly needs minThreats of at least 1";
             if (targetKinds == AbilityAITargetKinds.None) yield return "targetKinds is empty: the rule could never target anyone";
             else if (targetKinds == AbilityAITargetKinds.Turret && workerClass != null
-                && !typeof(AbilityAIWorker_AoEHostile).IsAssignableFrom(workerClass) && !typeof(AbilityAIWorker_AoEHostileSelf).IsAssignableFrom(workerClass))
+                && !typeof(AbilityAIWorker_AoEHostile).IsAssignableFrom(workerClass) && !typeof(AbilityAIWorker_AoEHostileSelf).IsAssignableFrom(workerClass)
+                && !typeof(AbilityAIWorker_TargetHostile).IsAssignableFrom(workerClass))
                 yield return $"targetKinds names only Turret, which {workerClass.Name} never targets: the rule could never target anyone";
             if (avoidAllies && allyKinds == AbilityAITargetKinds.None) yield return "allyKinds is empty: avoidAllies would avoid nobody";
             if (maxLight < 0f) yield return "maxLight can't be negative";

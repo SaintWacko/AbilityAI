@@ -768,9 +768,11 @@ namespace AbilityAI
                 int corpses = 0;
                 if (ext.minCorpses > 0)
                 {
-                    // The anchors are those corpses within reach; one just past it but inside the radius isn't counted
+                    // The anchors are those corpses within reach; one just past it but inside the radius isn't counted,
+                    // nor one the dust can't raise (a dead shambler, an unnatural corpse, one indoors)
                     for (int k = 0; k < anchors.Count; k++)
-                        if ((anchors[k].Position - c).LengthHorizontalSquared <= r2) corpses++;
+                        if ((anchors[k].Position - c).LengthHorizontalSquared <= r2 && anchors[k] is Corpse raisable
+                            && MutantUtility.CanResurrectAsShambler(raisable)) corpses++;
                     if (corpses < ext.minCorpses) { fewCorpses++; continue; }
                     // The dust raises every corpse it reaches: not over one of the caster's own dead or a friend's
                     if (FriendlyCorpseWithin(ctx, c, radius)) { friendlyCorpse++; continue; }
@@ -1581,6 +1583,8 @@ namespace AbilityAI
                 if ((corpse.Position - c).LengthHorizontalSquared > r2 || !AbilityAIUtility.IsOfKind(ext.anchorCorpses, corpse.InnerPawn)) continue;
                 Faction f = corpse.InnerPawn.Faction;
                 if (f != null && (own == null || !f.HostileTo(own))) continue;
+                // Dead shamblers, unnatural corpses and corpses indoors never rise
+                if (!MutantUtility.CanResurrectAsShambler(corpse)) continue;
                 n++;
             }
             if (n < ext.minCorpses)

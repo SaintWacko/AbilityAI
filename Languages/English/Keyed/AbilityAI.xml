@@ -228,6 +228,7 @@
   <AAI_HeatVent_Hint>On autocast, this pawn casts it only when neural heat is what stops it casting another psycast on autocast: the heat cap or your Max heat limit.</AAI_HeatVent_Hint>
   <AAI_Barrier_Hint>On autocast, this pawn raises it while drafted once {0} or more shooters aim in from outside, and drops it once fewer than {2} are left for {1} seconds.</AAI_Barrier_Hint>
   <AAI_GroupCooldown_Hint>Casting it, by hand or on autocast, also puts {0} on cooldown for {1}.</AAI_GroupCooldown_Hint>
+  <AAI_GroupCooldownUpTo_Hint>Casting it, by hand or on autocast, also puts {0} on cooldown for up to {1}.</AAI_GroupCooldownUpTo_Hint>
   <AAI_GroupLink_Hint>On autocast, this pawn casts it just before a Word on autocast when the link would reach {0} or more of that Word's targets and nobody the Word shouldn't touch.</AAI_GroupLink_Hint>
   <AAI_SpotPlace>Place {0} markers</AAI_SpotPlace>
   <AAI_SpotPlace_Desc>Click to put down markers for {0}, as many as you like; right-click or Escape to stop. Colonists with the psycast on autocast cast it at each marker whenever the ground around it is ready, as Basic work.</AAI_SpotPlace_Desc>

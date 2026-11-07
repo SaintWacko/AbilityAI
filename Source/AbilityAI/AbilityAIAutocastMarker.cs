@@ -145,13 +145,17 @@ namespace AbilityAI
         {
             var group = ability.def.groupDef;
             if (group == null) return null;
+            // An override rolls its own range: the hint gives the longest it can be
             int ticks = ability.def.overrideGroupCooldown ? ability.def.cooldownTicksRange.max : group.cooldownTicks;
             var all = ability.pawn.abilities?.AllAbilitiesForReading;
             if (ticks <= 0 || all == null) return null;
             List<string> others = null;
             for (int i = 0; i < all.Count; i++)
                 if (all[i] != ability && all[i].def.groupDef == group) (others ?? (others = new List<string>())).Add(all[i].def.label);
-            return others == null ? null : (string)"AAI_GroupCooldown_Hint".Translate(others.ToCommaList(true), ticks.ToStringTicksToPeriod());
+            if (others == null) return null;
+            return ability.def.overrideGroupCooldown && ability.def.cooldownTicksRange.min != ability.def.cooldownTicksRange.max
+                ? (string)"AAI_GroupCooldownUpTo_Hint".Translate(others.ToCommaList(true), ticks.ToStringTicksToPeriod())
+                : (string)"AAI_GroupCooldown_Hint".Translate(others.ToCommaList(true), ticks.ToStringTicksToPeriod());
         }
     }
 }

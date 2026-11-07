@@ -491,8 +491,9 @@ namespace AbilityAI
                         AddWanted(t.things, rule, map.mapPawns.AllHumanlikeSpawned);
                         break;
                     default:
+                        // FreeColonistsSpawned already holds the slaves (their host faction is null); OfColony applies
+                        // the slaves setting
                         AddWanted(t.things, rule, map.mapPawns.FreeColonistsSpawned);
-                        AddWanted(t.things, rule, map.mapPawns.SlavesOfColonySpawned);
                         break;
                 }
                 return t.things;

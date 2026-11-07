@@ -141,6 +141,9 @@ namespace AbilityAI
             Pawn wearer = apparel?.Wearer;
             int interval = (__instance.props as CompProperties_AIUSablePack)?.checkInterval ?? 60;
             if (wearer == null || !wearer.IsHashIntervalTick(interval)) return true;
+            // The driver never casts for a burning pawn (CanActNow), so a burning wearer is left to vanilla's trigger,
+            // which pops the firefoam pack for one (CompFirefoamPack.ChanceToUse)
+            if (wearer.IsBurning()) return true;
             return !AbilityAIApparel.Handled(apparel);
         }
     }

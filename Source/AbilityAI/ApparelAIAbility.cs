@@ -156,11 +156,12 @@ namespace AbilityAI
                 // The item's own check and the registered ones first: they answer quietly, while some modded verbs'
                 // Available() post a message on every refusal (More Hunter Drones' Verb_LaunchDrone with no charge,
                 // Anomalies Expected's beam with no beam target)
-                if (!owner.CanBeUsed(out _) || !ApparelVerbJobs.Ready(verb)) return false;
+                if (!owner.CanBeUsed(out _)) return false;
                 // Only the reloadable subclass counts charges in CanBeUsed; a plain charged owner kept after its last
                 // charge (More Hunter Drones' packs, destroyOnEmpty false) passed it and reached the messaging
                 // Available() on every check (test run of build 0234)
                 if (owner is CompApparelVerbOwner_Charged charged && charged.RemainingCharges <= 0) return false;
+                if (!ApparelVerbJobs.Ready(verb)) return false;
                 return verb.Available();
             }
         }

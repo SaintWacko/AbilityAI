@@ -608,7 +608,11 @@ namespace AbilityAI
             for (int i = 0; i < centres.Count && i < tries; i++)
             {
                 Thing centre = centres[i].thing;
-                if (ext.avoidBuildings && AbilityAIUtility.FriendlyBuildingWithin(ctx, centre.Position, radius, centre)) continue;
+                if (ext.avoidBuildings && AbilityAIUtility.FriendlyBuildingWithin(ctx, centre.Position, radius, centre))
+                {
+                    if (AbilityAISettings.DebugLog) ctx.NoTargetWhy = $"a friendly building is near {centre.LabelShort}";
+                    continue;
+                }
                 if (AbilityAIUtility.Covered(ctx, ability, ext, centre.Position, radius))
                 {
                     if (AbilityAISettings.DebugLog)
@@ -700,6 +704,8 @@ namespace AbilityAI
 
         private static bool FriendlyCorpseWithin(AbilityAIContext ctx, IntVec3 c, float radius)
         {
+            // NumCellsInRadius logs an error past the pattern; a rule that big can't be checked, so it is taken as clear
+            if (radius >= GenRadial.MaxRadialPatternRadius) return false;
             Faction own = ctx.pawn.Faction;
             int n = GenRadial.NumCellsInRadius(radius);
             for (int i = 0; i < n; i++)

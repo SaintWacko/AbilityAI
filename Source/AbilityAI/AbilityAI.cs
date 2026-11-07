@@ -2785,6 +2785,18 @@ namespace AbilityAI
         /// <summary>Zone casting: Consume Bodies is cast only where at least this many corpses of its zone are in reach.</summary>
         public const int DefaultZoneConsumeMinCorpses = 3;
         public static int ZoneConsumeMinCorpses = DefaultZoneConsumeMinCorpses;
+        /// <summary>Zone casting: Word of Joy goes to colonists whose mood is heading below this share.</summary>
+        public const float DefaultZoneJoyBelowMood = 0.3f;
+        public static float ZoneJoyBelowMood = DefaultZoneJoyBelowMood;
+        /// <summary>Zone casting: the colony Words (Joy, Inspiration, Productivity) go to slaves as well as colonists.</summary>
+        public static bool ZoneWordsOnSlaves = true;
+        /// <summary>Zone casting: Word of Alliance goes to visitors whose faction's goodwill is below this.</summary>
+        public const int DefaultZoneAllianceBelowGoodwill = 75;
+        public static int ZoneAllianceBelowGoodwill = DefaultZoneAllianceBelowGoodwill;
+        /// <summary>Zone casting: Brain Leech goes to the colony's prisoners, and to its slaves (whose work suffers from
+        /// the lost consciousness, so off by default).</summary>
+        public static bool ZoneLeechPrisoners = true;
+        public static bool ZoneLeechSlaves;
         /// <summary>Cast markers (AbilityAISpots): a crop marker is cast at only with at least this many open cells in
         /// reach, a tree marker with at least this many cells a tree can take.</summary>
         public const int DefaultSpotCropMinCells = 20;
@@ -2881,6 +2893,10 @@ namespace AbilityAI
                     ZoneTimeskipMaxAge = DefaultZoneTimeskipMaxAge;
                     ZoneEnthrallOnlyWithEnemies = true;
                     ZoneConsumeMinCorpses = DefaultZoneConsumeMinCorpses;
+                    ZoneJoyBelowMood = DefaultZoneJoyBelowMood;
+                    ZoneWordsOnSlaves = ZoneLeechPrisoners = true;
+                    ZoneLeechSlaves = false;
+                    ZoneAllianceBelowGoodwill = DefaultZoneAllianceBelowGoodwill;
                     SpotCropMinCells = DefaultSpotCropMinCells;
                     SpotTreeMinCells = DefaultSpotTreeMinCells;
                     UndraftedIntervalTicks = DefaultUndraftedIntervalTicks;
@@ -2939,6 +2955,13 @@ namespace AbilityAI
             Scribe_Values.Look(ref ZoneEnthrallOnlyWithEnemies, "abilityAI_zoneEnthrallOnlyWithEnemies", true);
             Scribe_Values.Look(ref ZoneConsumeMinCorpses, "abilityAI_zoneConsumeMinCorpses", DefaultZoneConsumeMinCorpses);
             ZoneConsumeMinCorpses = Mathf.Clamp(ZoneConsumeMinCorpses, 1, 20);
+            Scribe_Values.Look(ref ZoneJoyBelowMood, "abilityAI_zoneJoyBelowMood", DefaultZoneJoyBelowMood);
+            ZoneJoyBelowMood = Mathf.Clamp(ZoneJoyBelowMood, 0.05f, 0.9f);
+            Scribe_Values.Look(ref ZoneWordsOnSlaves, "abilityAI_zoneWordsOnSlaves", true);
+            Scribe_Values.Look(ref ZoneAllianceBelowGoodwill, "abilityAI_zoneAllianceBelowGoodwill", DefaultZoneAllianceBelowGoodwill);
+            ZoneAllianceBelowGoodwill = Mathf.Clamp(ZoneAllianceBelowGoodwill, -75, 100);
+            Scribe_Values.Look(ref ZoneLeechPrisoners, "abilityAI_zoneLeechPrisoners", true);
+            Scribe_Values.Look(ref ZoneLeechSlaves, "abilityAI_zoneLeechSlaves", false);
             Scribe_Values.Look(ref SpotCropMinCells, "abilityAI_spotCropMinCells", DefaultSpotCropMinCells);
             SpotCropMinCells = Mathf.Clamp(SpotCropMinCells, 1, 100);
             Scribe_Values.Look(ref SpotTreeMinCells, "abilityAI_spotTreeMinCells", DefaultSpotTreeMinCells);
@@ -3207,6 +3230,24 @@ namespace AbilityAI
             {
                 list.Label("AAI_ZoneConsumeMinCorpses".Translate(ZoneConsumeMinCorpses), -1f, "AAI_ZoneConsumeMinCorpses_Tip".Translate());
                 ZoneConsumeMinCorpses = Mathf.RoundToInt(list.Slider(ZoneConsumeMinCorpses, 1f, 20f));
+            }
+            if (AbilityAIZones.Uses(AbilityAIZoneTarget.LowMood))
+            {
+                list.Label("AAI_ZoneJoyBelowMood".Translate(Mathf.RoundToInt(ZoneJoyBelowMood * 100f)), -1f, "AAI_ZoneJoyBelowMood_Tip".Translate());
+                ZoneJoyBelowMood = Mathf.Round(list.Slider(ZoneJoyBelowMood, 0.05f, 0.9f) * 20f) / 20f;
+            }
+            if (AbilityAIZones.Uses(AbilityAIZoneTarget.LowMood) || AbilityAIZones.Uses(AbilityAIZoneTarget.Inspirable)
+                || AbilityAIZones.Uses(AbilityAIZoneTarget.ColonistsWithout))
+                list.CheckboxLabeled("AAI_ZoneWordsOnSlaves".Translate(), ref ZoneWordsOnSlaves, "AAI_ZoneWordsOnSlaves_Tip".Translate());
+            if (AbilityAIZones.Uses(AbilityAIZoneTarget.Visitors))
+            {
+                list.Label("AAI_ZoneAllianceBelowGoodwill".Translate(ZoneAllianceBelowGoodwill), -1f, "AAI_ZoneAllianceBelowGoodwill_Tip".Translate());
+                ZoneAllianceBelowGoodwill = Mathf.RoundToInt(list.Slider(ZoneAllianceBelowGoodwill, -75f, 100f) / 5f) * 5;
+            }
+            if (AbilityAIZones.Uses(AbilityAIZoneTarget.LeechHosts))
+            {
+                list.CheckboxLabeled("AAI_ZoneLeechPrisoners".Translate(), ref ZoneLeechPrisoners, "AAI_ZoneLeechPrisoners_Tip".Translate());
+                list.CheckboxLabeled("AAI_ZoneLeechSlaves".Translate(), ref ZoneLeechSlaves, "AAI_ZoneLeechSlaves_Tip".Translate());
             }
             if (AbilityAISpots.Uses(AbilityAISpotKind.Crops))
             {

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Ability AI rules for Vanilla Psycasts Expanded - Puppeteer (VEF abilities, priced by the VPE compat assembly).
-     Left out: Brain Leech, Puppet, Summon Puppet, Mind Split and Puppet Swarm (making and handling puppets, which is
+     Brain Leech is cast as zone work (no zone; Source/AbilityAI/AbilityAIZones.cs). Left out: Puppet, Summon Puppet, Mind Split and Puppet Swarm (making and handling puppets, which is
      the player's call), and Ascension (it sacrifices one of the caster's puppets). -->
 <Patch>
   <Operation Class="PatchOperationFindMod">
@@ -44,6 +44,25 @@
                 <coneWidth>1.5</coneWidth>
                 <exclusive>true</exclusive>
                 <npcGate>InstantKill</npcGate>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Brain leech: a walk-up leech on a prisoner (or a slave, by setting) that takes up to half its consciousness
+             over two days, a share of it to the caster, then fades. Only while the caster leeches nobody (VPE keeps one
+             leech per caster and a new cast ends the old, which a Puppet cast may be waiting on), and never a host
+             someone else already leeches. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPEP_BrainLeech"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPEP_BrainLeech"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Zone</workerClass>
+                <zoneTarget>LeechHosts</zoneTarget>
+                <hediff>VPEP_BrainLeech</hediff>
+                <unlessCasterHas>VPEP_Leeching</unlessCasterHas>
               </li>
             </value>
           </match>

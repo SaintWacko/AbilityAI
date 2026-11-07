@@ -156,7 +156,7 @@ namespace AbilityAI
             // A Word of Trust from zone work: no other colonist heads for a prisoner this cast reaches
             if (rule.Worker is AbilityAIWorker_Zone && PsycastZones.Of(pawn.Map) is PsycastZones zones)
                 for (int i = 0; i < linked.Count; i++)
-                    if (linked[i] != null && AbilityAIZones.Wants(rule.zoneTarget, linked[i])) zones.Claim(linked[i], pawn, cast.loadID);
+                    if (linked[i] != null && AbilityAIZones.Wants(rule, linked[i])) zones.Claim(linked[i], pawn, cast.loadID);
             if (AbilityAISettings.DebugLog && Prefs.DevMode)
                 Log.Message($"[Ability AI] {pawn.LabelShort} casts {word.Label} on {target.LabelShort} through its group link ({linked.Count} linked)");
             AbilityAIHooks.NotifyCast(pawn, word, target, target);

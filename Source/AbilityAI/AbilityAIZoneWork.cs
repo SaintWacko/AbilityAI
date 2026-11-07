@@ -131,7 +131,7 @@ namespace AbilityAI
                 {
                     AIAbility a = ready[r].ability;
                     AbilityAIZoneTarget kind = ready[r].rule.zoneTarget;
-                    var targets = zones.TargetsFor(a.Def, kind, tick);
+                    var targets = zones.TargetsFor(a.Def, ready[r].rule, tick);
                     if (targets.Count == 0) continue;
                     if (kind == AbilityAIZoneTarget.ConsumableCorpses)
                     {
@@ -143,7 +143,7 @@ namespace AbilityAI
                     for (int i = 0; i < targets.Count; i++)
                     {
                         Thing t = targets[i];
-                        if (t.Map != pawn.Map || zones.Waiting(pawn, t, tick) || zones.ClaimedByOther(t, pawn)) continue;
+                        if (t == pawn || t.Map != pawn.Map || zones.Waiting(pawn, t, tick) || zones.ClaimedByOther(t, pawn)) continue;
                         candidates.Add(t);
                     }
                     sortFrom = pawn.Position;
@@ -165,7 +165,7 @@ namespace AbilityAI
                     for (int i = 0; i < candidates.Count && i < MaxTargetsTried; i++)
                     {
                         Thing t = candidates[i];
-                        if (!AbilityAIZones.Wants(kind, t)) continue;
+                        if (!AbilityAIZones.Wants(ready[r].rule, t)) continue;
                         if (!Available(pawn, a, t, kind))
                         {
                             zones.Wait(pawn, t, tick + RetryTicks);
@@ -218,7 +218,7 @@ namespace AbilityAI
             {
                 AIAbility a = heatBlocked[r].ability;
                 AbilityAIZoneTarget kind = heatBlocked[r].rule.zoneTarget;
-                var targets = zones.TargetsFor(a.Def, kind, tick);
+                var targets = zones.TargetsFor(a.Def, heatBlocked[r].rule, tick);
                 // Consume Bodies is cast at the caster: worth it with the setting's corpses, and not while this pawn waits
                 // out a failed heap search
                 if (kind == AbilityAIZoneTarget.ConsumableCorpses)
@@ -231,7 +231,7 @@ namespace AbilityAI
                 for (int i = 0; i < targets.Count && tried < MaxTargetsTried; i++)
                 {
                     Thing t = targets[i];
-                    if (t.Map != pawn.Map || zones.Waiting(pawn, t, tick) || zones.ClaimedByOther(t, pawn) || !AbilityAIZones.Wants(kind, t)) continue;
+                    if (t == pawn || t.Map != pawn.Map || zones.Waiting(pawn, t, tick) || zones.ClaimedByOther(t, pawn) || !AbilityAIZones.Wants(heatBlocked[r].rule, t)) continue;
                     tried++;
                     if (!Free(pawn, a, t, kind) || !ValidIgnoringHeat(a, t)) continue;
                     // Which vent qualifies depends on the pawn alone, so a miss here is a miss for every psycast
@@ -276,7 +276,7 @@ namespace AbilityAI
                             Log.Message($"[Ability AI] {pawn.LabelShort} casts {a.Label} at {pawn.Position} on {consumed.Count} corpses (zone work)");
                         return consume;
                     }
-                    if (!AbilityAIZones.Wants(ready[r].rule.zoneTarget, target) || !Available(pawn, a, target, ready[r].rule.zoneTarget) || !a.ValidInRange(target)) continue;
+                    if (!AbilityAIZones.Wants(ready[r].rule, target) || !Available(pawn, a, target, ready[r].rule.zoneTarget) || !a.ValidInRange(target)) continue;
                     if (!AbilityAIGroupLink.LinkedMayTake(null, pawn, a, ready[r].rule, out _)) continue;
                     Job cast = a.MakeCastJob(target, target);
                     if (cast == null) continue;
@@ -318,7 +318,7 @@ namespace AbilityAI
             try
             {
                 for (int i = 0; i < candidates.Count && linkable.Count < MaxLinkCandidates; i++)
-                    if (candidates[i] is Pawn p && AbilityAIZones.Wants(rule.zoneTarget, p) && Available(pawn, word, p, rule.zoneTarget))
+                    if (candidates[i] is Pawn p && AbilityAIZones.Wants(rule, p) && Available(pawn, word, p, rule.zoneTarget))
                         linkable.Add(p);
                 if (linkable.Count < need) return null;
                 int reach = GenRadial.NumCellsInRadius(radius);
@@ -386,7 +386,7 @@ namespace AbilityAI
                 {
                     AIAbility word = ready[r].ability;
                     var rule = ready[r].rule;
-                    if (!rule.linkFirst || !AbilityAIGroupLink.IsWord(word.Def) || !AbilityAIZones.Wants(rule.zoneTarget, target)) continue;
+                    if (!rule.linkFirst || !AbilityAIGroupLink.IsWord(word.Def) || !AbilityAIZones.Wants(rule, target)) continue;
                     if (!LinkTargetsAt(pawn, word, rule, zones, pawn.Position, radius, out Pawn nearest)) continue;
                     if (AbilityAIGroupLink.WhyNotWorth(pawn, linker, word, nearest, linkTargets.Count, true) != null) continue;
                     Job cast = linker.MakeCastJob(pawn, pawn);

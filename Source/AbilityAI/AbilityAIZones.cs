@@ -10,8 +10,9 @@ using Verse.AI;
 // work (WorkGiver_PsycastZone in AbilityAIZoneWork.cs). One area per psycast def per map, shared by every caster. It
 // overlaps every vanilla zone and area, is not one of the map's Areas (so it is in no allowed-area picker and not in
 // Manage Areas), and is drawn only while one of its designators is selected; those open from the psycast's autocast
-// menu, never the Architect menu. A rule whose targets need no area (Word of Trust: the prisoners the wardens are
-// recruiting) runs through the same work without one.
+// menu, never the Architect menu. A rule whose targets are pawns needs no area (Word of Trust: the prisoners the wardens
+// are recruiting; the colony Words; Word of Alliance's visitors; Brain Leech's prisoners) and runs through the same work
+// without one.
 namespace AbilityAI
 {
     /// <summary>What a zone rule casts at. Each kind's own filter (AbilityAIZones.Wants) reads the Zone casting
@@ -37,6 +38,18 @@ namespace AbilityAI
         /// <summary>The same corpses as HumanlikeCorpses, consumed in heaps by a self-cast area (Consume Bodies): the
         /// caster walks to the cell with the most of them in reach (AbilityAIZoneWork.TryFindConsumeCell).</summary>
         ConsumableCorpses,
+        /// <summary>The colony's pawns, awake and below the "Word of Joy below" mood, without the rule's hediff (Joyfuzz).
+        /// No zone.</summary>
+        LowMood,
+        /// <summary>The colony's pawns, awake, not inspired and able to be (Word of Inspiration). No zone.</summary>
+        Inspirable,
+        /// <summary>The colony's pawns without the rule's hediff (Word of Productivity). No zone.</summary>
+        ColonistsWithout,
+        /// <summary>Pawns of other factions that aren't hostile, whose faction's goodwill is below the setting (Word of
+        /// Alliance). No zone.</summary>
+        Visitors,
+        /// <summary>The colony's prisoners (and slaves, by setting) without the rule's hediff (Brain Leech). No zone.</summary>
+        LeechHosts,
     }
 
     /// <summary>Zone: casts the ability on what its zone holds (zoneTarget). Not run by the driver: zone casting is
@@ -55,7 +68,7 @@ namespace AbilityAI
         }
 
         // Word of Trust: the prisoners its zone work would cast at
-        protected internal override bool IsLinkTarget(AbilityAIContext ctx, AIAbility ability, Pawn p) => AbilityAIZones.Wants(ext.zoneTarget, p);
+        protected internal override bool IsLinkTarget(AbilityAIContext ctx, AIAbility ability, Pawn p) => AbilityAIZones.Wants(ext, p);
     }
 
     [DefOf]
@@ -84,7 +97,12 @@ namespace AbilityAI
         /// <summary>Some rule casts at this kind: its setting is shown.</summary>
         internal static bool Uses(AbilityAIZoneTarget kind) => kindsUsed[(int)kind];
 
-        internal static bool NeedsZone(AbilityAIZoneTarget kind) => kind != AbilityAIZoneTarget.Prisoners;
+        internal static bool NeedsZone(AbilityAIZoneTarget kind) => !TargetsPawns(kind);
+
+        // Kinds whose targets are pawns found on the map rather than things in a painted zone
+        internal static bool TargetsPawns(AbilityAIZoneTarget kind) =>
+            kind == AbilityAIZoneTarget.Prisoners || kind == AbilityAIZoneTarget.LowMood || kind == AbilityAIZoneTarget.Inspirable
+            || kind == AbilityAIZoneTarget.ColonistsWithout || kind == AbilityAIZoneTarget.Visitors || kind == AbilityAIZoneTarget.LeechHosts;
 
         internal static Def DefNamed(string defName) => defName != null && byName.TryGetValue(defName, out Def def) ? def : null;
 
@@ -132,7 +150,11 @@ namespace AbilityAI
 
         /// <summary>The kind's own rule for a thing, from the Zone casting settings. Read when the zone's target list is
         /// built and again for the target a colonist is about to take, since the list is up to 250 ticks old.</summary>
-        internal static bool Wants(AbilityAIZoneTarget kind, Thing t)
+        internal static bool Wants(AbilityAIExtension rule, Thing t) => Wants(rule.zoneTarget, rule.hediff, t);
+
+        internal static bool Wants(AbilityAIZoneTarget kind, Thing t) => Wants(kind, null, t);
+
+        private static bool Wants(AbilityAIZoneTarget kind, HediffDef hediff, Thing t)
         {
             if (t == null || t.Destroyed || !t.Spawned) return false;
             switch (kind)
@@ -206,8 +228,44 @@ namespace AbilityAI
                     return p.guest.IsInteractionEnabled(PrisonerInteractionModeDefOf.AttemptRecruit)
                         || p.guest.IsInteractionEnabled(PrisonerInteractionModeDefOf.ReduceResistance);
                 }
+                case AbilityAIZoneTarget.LowMood:
+                {
+                    // Awake: VEF's social-interaction check refuses a sleeper, as for Word of Trust. The mood it is
+                    // heading for, not where it stands now, so a pawn already recovering isn't fuzzed for five days.
+                    if (!(t is Pawn p) || !OfColony(p) || p.Downed || p.InMentalState || !p.Awake() || AbilityAIUtility.Has(p, hediff)) return false;
+                    var mood = p.needs?.mood;
+                    return mood != null && mood.CurInstantLevelPercentage < AbilityAISettings.ZoneJoyBelowMood;
+                }
+                case AbilityAIZoneTarget.Inspirable:
+                {
+                    if (!(t is Pawn p) || !OfColony(p) || p.Downed || p.InMentalState || !p.Awake() || p.mindState?.inspirationHandler == null) return false;
+                    return AbilityUtility.ValidateNoInspiration(p, false, null) && AbilityUtility.ValidateCanGetInspiration(p, false, null);
+                }
+                case AbilityAIZoneTarget.ColonistsWithout:
+                    return t is Pawn p && OfColony(p) && !p.Downed && !p.InMentalState && !AbilityAIUtility.Has(p, hediff);
+                case AbilityAIZoneTarget.Visitors:
+                {
+                    if (!(t is Pawn p) || !p.RaceProps.Humanlike || p.Downed || p.InMentalState || p.IsPrisoner || p.IsSlave) return false;
+                    Faction f = p.Faction;
+                    if (f == null || f.IsPlayer || !f.HasGoodwill || f.def.permanentEnemy || p.HostileTo(Faction.OfPlayer)) return false;
+                    return f.PlayerGoodwill < AbilityAISettings.ZoneAllianceBelowGoodwill;
+                }
+                case AbilityAIZoneTarget.LeechHosts:
+                {
+                    // A pawn leeched by anyone: VPE's cast takes the old leech off it, so another caster would lose theirs
+                    if (!(t is Pawn p) || p.InMentalState || AbilityAIUtility.Has(p, hediff)) return false;
+                    if (p.IsPrisonerOfColony) return AbilityAISettings.ZoneLeechPrisoners;
+                    return p.IsSlaveOfColony && AbilityAISettings.ZoneLeechSlaves;
+                }
                 default: return false;
             }
+        }
+
+        // The colony's free pawns, and its slaves while the Words setting lets them in
+        private static bool OfColony(Pawn p)
+        {
+            if (p.Faction != Faction.OfPlayer || !p.RaceProps.Humanlike || p.IsPrisoner) return false;
+            return !p.IsSlave || AbilityAISettings.ZoneWordsOnSlaves;
         }
 
         /// <summary>Whether this colonist may cast the rule now, before any target is looked at: the settings that are
@@ -215,6 +273,8 @@ namespace AbilityAI
         internal static bool CasterMay(AbilityAIExtension rule, Pawn pawn)
         {
             if (rule.sensitivityAbove >= 0f && pawn.GetStatValue(StatDefOf.PsychicSensitivity, true, 250) <= rule.sensitivityAbove) return false;
+            // Brain Leech: VPE keeps one leech per caster and a new cast ends the old one
+            if (rule.unlessCasterHas != null && AbilityAIUtility.Has(pawn, rule.unlessCasterHas)) return false;
             switch (rule.zoneTarget)
             {
                 case AbilityAIZoneTarget.Unfinished:
@@ -405,17 +465,32 @@ namespace AbilityAI
 
         /// <summary>What the rule casts at on this map now, at most TargetsRefreshTicks old. Things in the zone that
         /// Wants accepts, or for a rule without a zone the pawns it is for.</summary>
-        internal List<Thing> TargetsFor(Def def, AbilityAIZoneTarget kind, int tick)
+        internal List<Thing> TargetsFor(Def def, AbilityAIExtension rule, int tick)
         {
             if (!targets.TryGetValue(def, out var t)) targets[def] = t = new Targets();
             if (tick - t.builtTick < TargetsRefreshTicks) return t.things;
             t.builtTick = tick;
             t.things.Clear();
-            if (kind == AbilityAIZoneTarget.Prisoners)
+            AbilityAIZoneTarget kind = rule.zoneTarget;
+            if (AbilityAIZones.TargetsPawns(kind))
             {
-                var prisoners = map.mapPawns.PrisonersOfColonySpawned;
-                for (int i = 0; i < prisoners.Count; i++)
-                    if (AbilityAIZones.Wants(kind, prisoners[i])) t.things.Add(prisoners[i]);
+                switch (kind)
+                {
+                    case AbilityAIZoneTarget.Prisoners:
+                        AddWanted(t.things, rule, map.mapPawns.PrisonersOfColonySpawned);
+                        break;
+                    case AbilityAIZoneTarget.LeechHosts:
+                        AddWanted(t.things, rule, map.mapPawns.PrisonersOfColonySpawned);
+                        AddWanted(t.things, rule, map.mapPawns.SlavesOfColonySpawned);
+                        break;
+                    case AbilityAIZoneTarget.Visitors:
+                        AddWanted(t.things, rule, map.mapPawns.AllHumanlikeSpawned);
+                        break;
+                    default:
+                        AddWanted(t.things, rule, map.mapPawns.FreeColonistsSpawned);
+                        AddWanted(t.things, rule, map.mapPawns.SlavesOfColonySpawned);
+                        break;
+                }
                 return t.things;
             }
             var zone = ZoneFor(def, false);
@@ -431,12 +506,18 @@ namespace AbilityAI
                         Thing thing = list[j];
                         // A building larger than a cell is listed on each of its cells
                         if ((thing.def.size.x > 1 || thing.def.size.z > 1) && !seen.Add(thing)) continue;
-                        if (AbilityAIZones.Wants(kind, thing)) t.things.Add(thing);
+                        if (AbilityAIZones.Wants(rule, thing)) t.things.Add(thing);
                     }
                 }
             }
             finally { seen.Clear(); }
             return t.things;
+        }
+
+        private static void AddWanted(List<Thing> into, AbilityAIExtension rule, IReadOnlyList<Pawn> pawns)
+        {
+            for (int i = 0; i < pawns.Count; i++)
+                if (AbilityAIZones.Wants(rule, pawns[i])) into.Add(pawns[i]);
         }
 
         /// <summary>Some rule has something to cast at on this map. JobGiver_Work asks this (through
@@ -450,7 +531,7 @@ namespace AbilityAI
                 if (rule == null) continue;
                 if (AbilityAIZones.NeedsZone(rule.zoneTarget) && !HasCells(defs[i])) continue;
                 int need = rule.zoneTarget == AbilityAIZoneTarget.ConsumableCorpses ? AbilityAISettings.ZoneConsumeMinCorpses : 1;
-                if (TargetsFor(defs[i], rule.zoneTarget, tick).Count >= need) return true;
+                if (TargetsFor(defs[i], rule, tick).Count >= need) return true;
             }
             return false;
         }

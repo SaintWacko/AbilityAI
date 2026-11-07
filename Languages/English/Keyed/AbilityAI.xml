@@ -198,6 +198,21 @@
   <AAI_Zone_Hint_HumanlikeCorpses>On autocast, this pawn enthralls the corpses of enemies and strangers in this psycast's zone, as Basic work.</AAI_Zone_Hint_HumanlikeCorpses>
   <AAI_Zone_Hint_Prisoners>On autocast, this pawn casts it on prisoners set to recruit or reduce resistance, as Basic work.</AAI_Zone_Hint_Prisoners>
   <AAI_Zone_Hint_ConsumableCorpses>On autocast, this pawn consumes heaps of enemy and stranger corpses in this psycast's zone, as Basic work. It casts only where no other corpse is in reach.</AAI_Zone_Hint_ConsumableCorpses>
+  <AAI_Zone_Hint_LowMood>On autocast, this pawn speaks it to colonists whose mood is heading below the level in the mod settings, as Basic work. Only those awake and without joyfuzz.</AAI_Zone_Hint_LowMood>
+  <AAI_Zone_Hint_Inspirable>On autocast, this pawn speaks it to awake colonists who aren't inspired and can be, as Basic work.</AAI_Zone_Hint_Inspirable>
+  <AAI_Zone_Hint_ColonistsWithout>On autocast, this pawn speaks it to colonists who don't have its effect yet, as Basic work.</AAI_Zone_Hint_ColonistsWithout>
+  <AAI_Zone_Hint_Visitors>On autocast, this pawn speaks it to visitors and traders whose faction's goodwill is below the level in the mod settings, as Basic work.</AAI_Zone_Hint_Visitors>
+  <AAI_Zone_Hint_LeechHosts>On autocast, while it leeches nobody, this pawn leeches a prisoner (or a slave, if the mod settings allow it) that nobody else leeches, as Basic work.</AAI_Zone_Hint_LeechHosts>
+  <AAI_ZoneJoyBelowMood>Word of joy: colonists heading below {0}% mood</AAI_ZoneJoyBelowMood>
+  <AAI_ZoneJoyBelowMood_Tip>Word of Joy gives five days of joyfuzz (more with high psychic sensitivity), which raises mood and lowers consciousness. It goes to colonists whose mood is heading below this share, not where it stands now, so a colonist already recovering is left alone.</AAI_ZoneJoyBelowMood_Tip>
+  <AAI_ZoneWordsOnSlaves>Colony words reach slaves too</AAI_ZoneWordsOnSlaves>
+  <AAI_ZoneWordsOnSlaves_Tip>On: Word of Joy, Word of Inspiration and Word of Productivity go to slaves as well as colonists. Off: colonists only.</AAI_ZoneWordsOnSlaves_Tip>
+  <AAI_ZoneAllianceBelowGoodwill>Word of alliance: factions below {0} goodwill</AAI_ZoneAllianceBelowGoodwill>
+  <AAI_ZoneAllianceBelowGoodwill_Tip>Word of Alliance raises a faction's goodwill by at least 10 (more with high psychic sensitivity). It goes to visitors, traders and other non-hostile pawns whose faction's goodwill is below this. Hostile factions can't be reached.</AAI_ZoneAllianceBelowGoodwill_Tip>
+  <AAI_ZoneLeechPrisoners>Brain leech: prisoners</AAI_ZoneLeechPrisoners>
+  <AAI_ZoneLeechPrisoners_Tip>Brain Leech takes up to half of its host's consciousness over two days and gives a share of it to the caster, then fades. A caster keeps one leech at a time and is sent again once it has faded. On: the colony's prisoners can be hosts.</AAI_ZoneLeechPrisoners_Tip>
+  <AAI_ZoneLeechSlaves>Brain leech: slaves</AAI_ZoneLeechSlaves>
+  <AAI_ZoneLeechSlaves_Tip>On: the colony's slaves can be hosts too. They work more slowly while leeched.</AAI_ZoneLeechSlaves_Tip>
   <AAI_ZoneConsumeMinCorpses>Consume bodies: at least {0} corpses per cast</AAI_ZoneConsumeMinCorpses>
   <AAI_ZoneConsumeMinCorpses_Tip>Consume Bodies takes every humanlike corpse within its radius of the caster. A colonist casts it only at a spot in its zone with at least this many corpses of enemies or strangers in reach, and none of anyone else's.</AAI_ZoneConsumeMinCorpses_Tip>
   <AAI_SpotCropMinCells>Crop markers: at least {0} open cells</AAI_SpotCropMinCells>

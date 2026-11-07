@@ -174,6 +174,72 @@
           </match>
         </li>
 
+        <!-- Word of Joy: no zone. Colonists (and slaves, by setting) awake, not in a break, whose mood is heading below
+             the setting, without joyfuzz already. Joyfuzz lowers consciousness and costs another faction's pawn 25
+             goodwill, so a group link goes first only where everyone it reaches is a target. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_WordofJoy"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_WordofJoy"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Zone</workerClass>
+                <zoneTarget>LowMood</zoneTarget>
+                <hediff>Joyfuzz</hediff>
+                <linkSafe>Targets</linkSafe>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Word of Inspiration: no zone. Colonists (and slaves, by setting) awake, not in a break, not inspired and able
+             to be. Through a link, anyone not hostile: an inspiration hurts nobody, and VPE skips one who can't have it. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_WordofInspiration"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_WordofInspiration"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Zone</workerClass>
+                <zoneTarget>Inspirable</zoneTarget>
+                <linkSafe>NonHostile</linkSafe>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Word of Productivity: no zone. Colonists (and slaves, by setting) not downed or in a break, without the buff.
+             It costs another faction's pawn 10 goodwill, so a link goes first only where everyone it reaches is a target. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_WordofProductivity"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_WordofProductivity"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Zone</workerClass>
+                <zoneTarget>ColonistsWithout</zoneTarget>
+                <hediff>VPE_Productivity</hediff>
+                <linkSafe>Targets</linkSafe>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Word of Alliance: no zone. Visitors, traders and other pawns of factions that aren't hostile, whose goodwill
+             is below the setting. Not one of VPE's Word class, so no group link reaches past its target. -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_WordofAlliance"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_WordofAlliance"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Zone</workerClass>
+                <zoneTarget>Visitors</zoneTarget>
+              </li>
+            </value>
+          </match>
+        </li>
+
       </operations>
     </match>
   </Operation>

@@ -76,13 +76,13 @@ namespace AbilityAI.Vpe
                 {
                     var path = DefDatabase<VefAbilityDef>.GetNamedSilentFail("AAVPE_SummonBlackScarab")
                         ?.GetModExtension<AbilityExtension_Psycast>()?.path;
-                    Faction enemy = Find.FactionManager.RandomEnemyFaction(allowNonHumanlike: false);
-                    if (path == null || enemy == null)
+                    if (path == null)
                     {
-                        Messages.Message(path == null ? "Perf: Black Hive summoners need Alpha Animals" : "Perf: no humanlike enemy faction on this world",
-                            MessageTypeDefOf.RejectInput, false);
+                        Messages.Message("Perf: Black Hive summoners need Alpha Animals", MessageTypeDefOf.RejectInput, false);
                         return;
                     }
+                    Faction enemy = AbilityAIPerfDebug.EnemyFaction();
+                    if (enemy == null) return;
                     var defs = DefDatabase<VefAbilityDef>.AllDefsListForReading
                         .Where(d => d.HasModExtension<AbilityAIExtension>() && d.GetModExtension<AbilityExtension_Psycast>()?.path == path)
                         .ToList();

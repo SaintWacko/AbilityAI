@@ -72,7 +72,7 @@ namespace AbilityAI
             return nodes;
         }
 
-        private static Faction EnemyFaction()
+        internal static Faction EnemyFaction()
         {
             Faction f = Find.FactionManager.RandomEnemyFaction(allowNonHumanlike: false, minTechLevel: TechLevel.Industrial)
                 ?? Find.FactionManager.RandomEnemyFaction(allowNonHumanlike: false);
@@ -85,6 +85,8 @@ namespace AbilityAI
         internal static List<Pawn> SpawnFighters(Map map, IntVec3 near, Faction faction, Faction kindsFrom, int count)
         {
             var pawns = new List<Pawn>();
+            // The debug tool fires on a click off the map too, and RandomClosewalkCellNear then hands the cell back
+            if (!near.InBounds(map)) return pawns;
             bool player = faction.IsPlayer;
             for (int i = 0; i < count; i++)
             {
@@ -119,8 +121,9 @@ namespace AbilityAI
             return given.Count;
         }
 
-        /// <summary>Every ability and ruled item of a player pawn the menu would offer, set to the walking mode where the
-        /// pawn can be drafted (as the menu does); returns how many.</summary>
+        /// <summary>Every ability and ruled item of a player pawn the menu would offer, set to Full where the pawn can be
+        /// drafted; returns how many. The menu offers Full only with an approach rule, but the driver reads Full only on
+        /// the approach path, so a self-cast belt badged Full casts as Stationary.</summary>
         internal static int AutocastAll(Pawn p)
         {
             var abilities = new List<AIAbility>();

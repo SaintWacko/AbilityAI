@@ -454,6 +454,10 @@ namespace AbilityAI
         /// out (VPE's Ice Wall), so it is cast only when walling in helps the side inside. Without it a self-cast
         /// ability (a smokepop) takes the plain under-fire rule.</summary>
         public bool wallsIn;
+        /// <summary>Cover, self-cast with a radius: count shooters outside the radius aiming at anyone of the caster's
+        /// side inside it, as the Barrier worker does, instead of only those aiming at the caster (the low-shield pack's
+        /// dome covers everyone under it).</summary>
+        public bool shieldsAllies;
         /// <summary>Movement, Target hostile: also act while the caster hunts for food (PredatorHunt), with its prey
         /// as the target: a leap or sprint at a fleeing deer, a quill at it. Hunting then counts as being in combat for
         /// this rule. The prey is never one of the caster's enemies for any other rule.</summary>
@@ -704,6 +708,8 @@ namespace AbilityAI
                 yield return $"escapeInMelee is only read by Movement and Skip, not {workerClass.Name}";
             if (wallsIn && workerClass != null && !typeof(AbilityAIWorker_Cover).IsAssignableFrom(workerClass))
                 yield return $"wallsIn is only read by Cover, not {workerClass.Name}";
+            if (shieldsAllies && workerClass != null && !typeof(AbilityAIWorker_Cover).IsAssignableFrom(workerClass))
+                yield return $"shieldsAllies is only read by Cover, not {workerClass.Name}";
             if (whileHunting && workerClass != null && !typeof(AbilityAIWorker_Movement).IsAssignableFrom(workerClass)
                 && !typeof(AbilityAIWorker_TargetHostile).IsAssignableFrom(workerClass))
                 yield return $"whileHunting is only read by Movement and Target hostile, not {workerClass.Name}";

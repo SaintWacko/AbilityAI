@@ -1279,6 +1279,19 @@ namespace AbilityAI
                     target = pawn;
                     return true;
                 }
+                if (ext.shieldsAllies && ring > 0f)
+                {
+                    int shooters = AbilityAIBarrier.Threats(ctx, ring);
+                    // A hit with nobody aiming is one shooter out of sight
+                    if (shooters == 0 && ctx.RecentlyShot(pawn)) shooters = 1;
+                    if (shooters < ext.minThreats)
+                    {
+                        if (AbilityAISettings.DebugLog) ctx.NoTargetWhy = $"{shooters} shooters outside aim inside, needs {ext.minThreats}";
+                        return false;
+                    }
+                    target = pawn;
+                    return true;
+                }
             }
 
             int threats = ctx.RecentlyShot(pawn) ? 1 : 0;

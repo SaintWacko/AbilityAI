@@ -189,8 +189,8 @@
           </match>
         </li>
 
-        <!-- Low-shield pack (single use): once two shooters are on the wearer (three was rarely met in
-             the test of build 0234), not where a low-shield already stands.
+        <!-- Low-shield pack (single use): once two shooters outside its dome aim at the wearer or anyone
+             of its side under it (shieldsAllies, as Guardian Skipbarrier), not where a low-shield already stands.
              Vanilla deploys it for raiders when a bullet it would stop lands nearby. -->
         <li Class="PatchOperationConditional">
           <xpath>Defs/ThingDef[defName="Apparel_PackBroadshield"]</xpath>
@@ -201,6 +201,7 @@
                 <workerClass>AbilityAI.AbilityAIWorker_Cover</workerClass>
                 <priority>5</priority>
                 <minThreats>2</minThreats>
+                <shieldsAllies>true</shieldsAllies>
               </li>
             </value>
           </match>

@@ -66,7 +66,8 @@ namespace AbilityAI
         }
 
         // A pawn's autocast limits; only pawns whose limits differ from the defaults are stored. Resource floors by
-        // defName, so a floor for a resource whose mod was removed is dropped on load rather than failing it
+        // defName: the shipped resource defs always load, so a floor for one whose mod was removed is kept and saved
+        // again, and comes back with the mod; a defName no longer in the game is dropped
         private class LimitsEntry : IExposable
         {
             public Pawn pawn;

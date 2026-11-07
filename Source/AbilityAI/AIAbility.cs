@@ -438,11 +438,21 @@ namespace AbilityAI
             bool player = ability.pawn.Faction != null && ability.pawn.Faction.IsPlayer;
             for (int i = 0; i < comps.Count; i++)
             {
-                if (comps[i].GizmoDisabled(out reason)) return false;
-                if (player && comps[i] is CompAbilityEffect effect && effect.ShouldHideGizmo)
+                // Other mods wrote these for the player's gizmo and the selected pawn; one that throws for an NPC is
+                // left out (once logged) rather than ending every ready check that reaches it
+                try
                 {
-                    reason = "its gizmo is hidden";
-                    return false;
+                    if (comps[i].GizmoDisabled(out reason)) return false;
+                    if (player && comps[i] is CompAbilityEffect effect && effect.ShouldHideGizmo)
+                    {
+                        reason = "its gizmo is hidden";
+                        return false;
+                    }
+                }
+                catch (Exception e)
+                {
+                    Log.ErrorOnce($"[Ability AI] {comps[i].GetType().FullName} threw when asked whether {ability.def.defName} can be cast; it is ignored: {e}",
+                        comps[i].GetType().GetHashCode() ^ 0x5A17C0);
                 }
             }
             reason = null;

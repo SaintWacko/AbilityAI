@@ -103,11 +103,11 @@ namespace AbilityAI
             bool psy = pawn.HasPsylink;
             showPsycast = false;
             shownResources.Clear();
-            var resources = AIResources.Active;
-            for (int i = 0; i < resources.Count; i++)
-                if (resources[i].TryRead(pawn, out _, out _)) held.Add(resources[i]);
             try
             {
+                var resources = AIResources.Active;
+                for (int i = 0; i < resources.Count; i++)
+                    if (resources[i].TryRead(pawn, out _, out _)) held.Add(resources[i]);
                 if (!psy && held.Count == 0) return;
                 AIAbilitySources.Collect(pawn, collected);
                 for (int i = 0; i < collected.Count; i++)
@@ -132,7 +132,9 @@ namespace AbilityAI
             }
         }
 
-        private static int RowCount => (showPsycast ? 2 : 0) + shownResources.Count;
+        private bool ShowsPsycast => showPsycast && pawn?.psychicEntropy != null;
+
+        private int RowCount => (ShowsPsycast ? 2 : 0) + shownResources.Count;
 
         // Up to three rows in one column; from four, columns of two at full height
         private static int Columns(int rows) => rows <= 3 ? 1 : (rows + 1) / 2;
@@ -151,8 +153,8 @@ namespace AbilityAI
             Rect inner = rect.ContractedBy(6f);
             Widgets.DrawWindowBackground(rect);
             var pe = pawn?.psychicEntropy;
-            bool psy = showPsycast && pe != null;
-            int rows = (psy ? 2 : 0) + shownResources.Count;
+            bool psy = ShowsPsycast;
+            int rows = RowCount;
             if (rows == 0) return new GizmoResult(GizmoState.Clear);
             if (dragging.Length < rows) System.Array.Resize(ref dragging, rows);
 

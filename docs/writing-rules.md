@@ -864,6 +864,36 @@ Gear that casts through a verb (`CompApparelVerbOwner` or a subclass: packs, bel
 
 `Patches/AbilityAI_ApparelModded.xml` has rules for the grenade belts, drone packs and jump gear of a dozen other mods, one `PatchOperationFindMod` block per mod.
 
+## Resources
+
+Abilities that spend from a pool (hemogen, The Force's Force points, a magic mod's mana) can get a floor: the player sets, per pawn, the share of the pool autocast leaves unspent, on the autocast limits gizmo beside the psyfocus one. A resource is an `AbilityAI.AIResourceDef`, so it needs no code. Ability AI ships two in `Defs/AbilityAI_Resources.xml`: hemogen (default floor 30%) and Force points (default none).
+
+- `label`: the resource's name in the row's tooltip ("this pawn's hemogen").
+- `limitLabel`: the row's label ("Min hemogen"). `description`, when set, is added to the tooltip.
+- `barColor`, `defaultFloor` (0 to 1, a share of the pawn's maximum).
+- `requiredMod`: a packageId; the def takes no part while that mod or DLC is not active, so it needs no patch.
+- Where a pawn's amount is read, exactly one of: `comp` (`type`, a ThingComp's full name, with `current` and `max`, field or property names), `geneResource` (a `Gene_Resource` subclass's full name: its Value and Max), `need` (a NeedDef: CurLevel and MaxLevel). A pawn with a maximum of 0 has none of the resource.
+- Where an ability's cost is read, one or more of, tried in this order: `costStat` (a StatDef on a vanilla AbilityDef's statBases), `costComp` (`type` and `field` on one of a vanilla AbilityDef's comp properties), `costExtensionField` (a float field of that name on any mod extension of the ability's def, any ability system).
+
+A type or member that can't be found turns the resource off with one warning at startup. The row shows only for a pawn that has the resource and holds an ability on the autocast menu that costs some. Floors hold back autocast on the player's pawns only; casting by hand ignores them. An ability whose comp refuses the cast for lack of the resource (its gizmo greyed out) is never autocast, floor or not.
+
+```xml
+<AbilityAI.AIResourceDef>
+  <defName>AAI_ForcePoints</defName>
+  <label>Force points</label>
+  <limitLabel>Min Force</limitLabel>
+  <barColor>(0.18, 0.37, 0.62)</barColor>
+  <defaultFloor>0</defaultFloor>
+  <requiredMod>lee.theforce.standalone</requiredMod>
+  <comp>
+    <type>TheForce_Standalone.CompClass_ForceUser</type>
+    <current>currentFP</current>
+    <max>MaxFP</max>
+  </comp>
+  <costStat>Force_AbilityForcePoolCost</costStat>
+</AbilityAI.AIResourceDef>
+```
+
 ## Testing
 
 Rule mistakes show at load as config errors naming the def: a missing required field, a field the worker doesn't read, a value out of range. Fix every one; most mean the rule never casts.

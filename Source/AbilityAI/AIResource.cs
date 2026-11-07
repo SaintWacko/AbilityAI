@@ -253,7 +253,7 @@ namespace AbilityAI
                 for (int i = 0; i < list.Count; i++)
                 {
                     try { byResource[i] = list[i].ReadCost(def); }
-                    catch (Exception e) { Log.ErrorOnce($"[Ability AI] Reading {def.defName}'s {list[i].defName} cost failed; counted as free: {e}", def.shortHash ^ list[i].shortHash); }
+                    catch (Exception e) { Log.ErrorOnce($"[Ability AI] Reading {def.defName}'s {list[i].defName} cost failed; counted as free: {e}", Gen.HashCombineInt(def.shortHash, list[i].shortHash)); }
                 }
                 costs[def] = byResource;
             }

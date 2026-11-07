@@ -430,7 +430,7 @@ namespace AbilityAI
         // queued casts. ShouldHideGizmo only gates the player's pawns: a hidden gizmo is the player's loadout choice
         // (The Force's inactive presets), while vanilla's RequiresTrainable hides it from an untrained animal yet
         // lets other factions' animals cast without the trick (aiCanCastWithoutTrainable).
-        private static readonly HashSet<Type> throwingComps = new HashSet<Type>();
+        private static readonly HashSet<(Type, bool)> throwingComps = new HashSet<(Type, bool)>();
 
         private bool CompsAllowCast(out string reason)
         {
@@ -442,8 +442,10 @@ namespace AbilityAI
             {
                 // Other mods wrote these for the player's gizmo and the selected pawn. One that throws refuses: the check
                 // exists so a cost it guards isn't free, and an exception every ready check would cost more than the
-                // cast. Its type isn't asked again this session; those abilities go back to their own AI
-                if (throwingComps.Contains(comps[i].GetType()))
+                // cast. Its type isn't asked again this session for that side (the player's pawns or everyone else's,
+                // since a comp written for the selected pawn may only throw for NPCs); Ability AI then never casts
+                // those abilities, and vanilla's AI stays stood down for them as before
+                if (throwingComps.Contains((comps[i].GetType(), player)))
                 {
                     reason = "a comp of it threw earlier";
                     return false;
@@ -459,8 +461,8 @@ namespace AbilityAI
                 }
                 catch (Exception e)
                 {
-                    throwingComps.Add(comps[i].GetType());
-                    Log.Error($"[Ability AI] {comps[i].GetType().FullName} threw when asked whether {ability.def.defName} can be cast; Ability AI no longer casts abilities with it: {e}");
+                    throwingComps.Add((comps[i].GetType(), player));
+                    Log.Error($"[Ability AI] {comps[i].GetType().FullName} threw when asked whether {ability.def.defName} can be cast; Ability AI no longer casts abilities with it for {(player ? "the player's pawns" : "other factions")}: {e}");
                     reason = "a comp of it threw";
                     return false;
                 }

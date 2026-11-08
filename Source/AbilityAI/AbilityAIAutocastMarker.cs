@@ -137,6 +137,8 @@ namespace AbilityAI
             if (link != null) __result += "\n" + link.Colorize(ColoredText.SubtleGrayColor);
             string group = GroupCooldownHint(ability);
             if (group != null) __result += "\n" + group.Colorize(ColoredText.SubtleGrayColor);
+            string stats = AIStatHints.Hint(ability.def);
+            if (stats != null) __result += "\n" + stats.Colorize(ColoredText.SubtleGrayColor);
         }
 
         // A role ability starts its group's cooldown on the pawn's other abilities of that group (Ideology's Leader

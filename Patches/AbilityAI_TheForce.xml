@@ -1,0 +1,800 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ability AI rules for Star Wars: The Force Standalone (lee.theforce.standalone). Written by
+     .circinus/scratch/gen_the_force.py: edit the table there and run it again rather than this file.
+     Every Force power is a vanilla Ability with CompAbilityEffect_ForcePower: Force points are checked in its
+     GizmoDisabled (Ability AI asks it), the per-pawn global cooldown in its AICanTargetNow, and an ability outside the
+     pawn's active preset is hidden (never autocast). The player's Min Force floor is the AAI_ForcePoints resource, and
+     the tooltip's attunement line comes from Defs/AbilityAI_StatHints.xml. Each rule sits in its own
+     PatchOperationConditional, since the Sith Sorcery and Mechu-Deru defs load only from their own folders.
+     Left out: the lectures and Apprenticeship (rituals and training), Mind trick and Mind control (open a job menu
+     while the caster is selected), Destruction (spends the whole pool, or opens a menu), Force light (hurts only
+     dark side pawns), Health swap, Essence transfer, Phantom, Enlightenment, Force surge, Force grip (two steps),
+     Throw item, Disassemble, Telekinetic barrier, Tempest, Summon object, Witch's bargain, Chant of resurrection,
+     Soul pyre, the Sith rituals (Prayer caps consciousness at 60%), Summon Sith pawn (manhunting animals that attack
+     everyone), Summon statue, Drain knowledge and essence, and every Mechu-Deru power (Mech override gives the mech
+     to the player whoever casts it, and The Force's own target check refuses an enemy mech for it). -->
+<Patch>
+  <Operation Class="PatchOperationFindMod">
+    <mods>
+      <li>Star Wars : The Force Standalone</li>
+    </mods>
+    <match Class="PatchOperationSequence">
+      <operations>
+
+        <!-- Neutral powers -->
+
+        <!-- Force speed: 15 points, x3.5 move speed on the caster, once an enemy is within 25 tiles -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="Force_Speed"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="Force_Speed"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_SelfBuff</workerClass>
+                <priority>3</priority>
+                <maxRange>25</maxRange>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Force leap: 15 points, a jump of up to 25 tiles, as Longjump -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="Force_Leap"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="Force_Leap"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Movement</workerClass>
+                <priority>4</priority>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Precognition: 25 points, better aim, melee hit and dodge on the caster, with an enemy within 15 -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="Force_Precognition"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="Force_Precognition"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_SelfBuff</workerClass>
+                <priority>3</priority>
+                <maxRange>15</maxRange>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Force body: 35 points and a drain of about 9 points a second while it lasts, x1.5 armour and half
+             pain, for a caster in trouble -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="Force_ForceBody"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="Force_ForceBody"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Defensive</workerClass>
+                <priority>5</priority>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Force cloak: 15 points, a few seconds of invisibility, once two shooters are on the caster (as
+             Royalty's Invisibility) -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="Force_ForceCloak"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="Force_ForceCloak"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Defensive</workerClass>
+                <priority>6</priority>
+                <minThreats>2</minThreats>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Battle meditation: 30 points, aim and melee buff on everyone within 15 of the caster. The Force
+             gives it to every pawn in the radius, enemies too, so never with an enemy inside; three allies or more -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="Force_BattleMeditation"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="Force_BattleMeditation"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEFriendly</workerClass>
+                <priority>3</priority>
+                <minTargets>3</minTargets>
+                <avoidEnemies>true</avoidEnemies>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Force malacia: 8 points, a long sickness (nausea, slower, weaker) on one human -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="Force_Malacia"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="Force_Malacia"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
+                <priority>3</priority>
+                <targetKinds>Humanlike</targetKinds>
+                <exclusive>true</exclusive>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Force ionize: 12 points, an EMP cone (4.9 long, 85 degrees) for mechs and raised shields; ours of
+             the same kinds and our buildings stay out of it -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="Force_ForceIonize"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="Force_ForceIonize"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_ConeHostile</workerClass>
+                <priority>4</priority>
+                <radius>2</radius>
+                <coneWidth>9</coneWidth>
+                <targetKinds>Mechanoid, Shielded</targetKinds>
+                <allyKinds>Mechanoid, Turret, Shielded</allyKinds>
+                <avoidAllies>true</avoidAllies>
+                <avoidBuildings>true</avoidBuildings>
+                <approachDistance>3</approachDistance>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Telekinesis -->
+
+        <!-- Force push: 10 points, knocks one enemy back, range 6.9. Throws an enemy out of its aim, so it also
+             interrupts -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="Force_ForcePush"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="Force_ForcePush"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Interrupt</workerClass>
+                <priority>7</priority>
+              </li>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
+                <priority>4</priority>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Force pull: 8 points, drags one enemy (up to 10 tiles) to a melee caster -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="Force_ForcePull"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="Force_ForcePull"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
+                <priority>3</priority>
+                <requires>Melee</requires>
+                <minRange>4</minRange>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Force choke: 15 points, damages the airway and holds the enemy in the air; interrupts too. Mechs
+             have no airway -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="Force_ForceChoke"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="Force_ForceChoke"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Interrupt</workerClass>
+                <priority>7</priority>
+                <targetKinds>Humanlike, Animal</targetKinds>
+              </li>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
+                <priority>5</priority>
+                <targetKinds>Humanlike, Animal</targetKinds>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Force wave: 12 points, pushes everyone in a 30 degree cone 5 tiles long, allies too -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="Force_ForceWave"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="Force_ForceWave"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_ConeHostile</workerClass>
+                <priority>3</priority>
+                <maxRange>5</maxRange>
+                <radius>2</radius>
+                <coneWidth>4.5</coneWidth>
+                <minTargets>2</minTargets>
+                <avoidAllies>true</avoidAllies>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Force repulse: 15 points, throws everyone within 15.5 of the caster away from it, allies too -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="Force_ForceRepulse"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="Force_ForceRepulse"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEHostileSelf</workerClass>
+                <priority>4</priority>
+                <minTargets>2</minTargets>
+                <avoidAllies>true</avoidAllies>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Force attract: 15 points, pulls everyone within 15.5 to the caster, allies too: melee casters only -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="Force_ForceAttract"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="Force_ForceAttract"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEHostileSelf</workerClass>
+                <priority>3</priority>
+                <requires>Melee</requires>
+                <minTargets>2</minTargets>
+                <avoidAllies>true</avoidAllies>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Force shockwave: 20 points, damages and throws every pawn within 18.5 of the caster, allies
+             too (The Force ignores its own affectFriendlyPawns) -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="Force_ForceShockwave"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="Force_ForceShockwave"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEHostileSelf</workerClass>
+                <priority>4</priority>
+                <minTargets>3</minTargets>
+                <avoidAllies>true</avoidAllies>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Force drop: 24 points, drops a ship chunk or crashing shuttle on one enemy and leaves the wreck
+             there, so behind the base-wrecking setting for raiders -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="Force_ForceDrop"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="Force_ForceDrop"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
+                <priority>3</priority>
+                <radius>3</radius>
+                <preferGrouped>true</preferGrouped>
+                <avoidAllies>true</avoidAllies>
+                <avoidBuildings>true</avoidBuildings>
+                <npcGate>BaseWrecking</npcGate>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Catch projectile: 15 points, the caster catches incoming shots for a while, once two shooters
+             are on it -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="Force_CatchProjectile"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="Force_CatchProjectile"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Defensive</workerClass>
+                <priority>5</priority>
+                <minThreats>2</minThreats>
+                <rangedOnly>true</rangedOnly>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Light side -->
+
+        <!-- Force healing: 8 points, faster wound healing and immunity on the caster or an ally within 15 -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="Force_ForceHealing"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="Force_ForceHealing"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Recovery</workerClass>
+                <priority>2</priority>
+                <healthThreshold>0.8</healthThreshold>
+                <health>Injured, Disease</health>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Force stabilize: 12 points, stops all bleeding but caps consciousness at 30%: downed allies only -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="Force_ForceStabilize"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="Force_ForceStabilize"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Rescue</workerClass>
+                <priority>7</priority>
+                <minBleedRate>0.2</minBleedRate>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Revitalize: 16 points, heals the worst wounds one by one and regrows lost parts, consciousness
+             capped at 50% meanwhile: out of combat -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="Force_Revitalize"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="Force_Revitalize"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Recovery</workerClass>
+                <priority>3</priority>
+                <healthThreshold>0.6</healthThreshold>
+                <health>Injured, MissingParts</health>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Protection bubble: 15 points, a shield that stops shots (not melee) on an ally two shooters
+             are on -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="Force_ProtectionBubble"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="Force_ProtectionBubble"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Defensive</workerClass>
+                <priority>5</priority>
+                <minThreats>2</minThreats>
+                <rangedOnly>true</rangedOnly>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Electric judgment: 15 points, a lightning cone 4.9 long and 85 degrees wide (see above) -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="Force_ElectricJudgment"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="Force_ElectricJudgment"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_ConeHostile</workerClass>
+                <priority>4</priority>
+                <radius>2</radius>
+                <coneWidth>9</coneWidth>
+                <avoidAllies>true</avoidAllies>
+                <avoidBuildings>true</avoidBuildings>
+                <approachDistance>3</approachDistance>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Stasis field: 20 points, stuns everyone within 4.9 of the target, allies too. No Interrupt rule:
+             that worker doesn't keep allies out of an area -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="Force_StasisField"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="Force_StasisField"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
+                <priority>5</priority>
+                <minTargets>2</minTargets>
+                <exclusive>true</exclusive>
+                <avoidAllies>true</avoidAllies>
+                <harmless>true</harmless>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Force combustion: 12 points, blows up one item the target carries (worn, held or in the pack,
+             up to radius 4 by its mass). With the caster selected The Force opens a menu to pick the item, which
+             autocast would open in the middle of a fight, so other factions only -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="Force_ForceCombustion"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="Force_ForceCombustion"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
+                <priority>3</priority>
+                <radius>4</radius>
+                <targetKinds>Humanlike</targetKinds>
+                <avoidAllies>true</avoidAllies>
+                <enabled>false</enabled>
+                <npc>
+                  <enabled>true</enabled>
+                </npc>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Animal bond: 15 points, ends an animal's rage. The most dangerous enraged animal in range, as
+             Ideology's Animal calm. On an animal not in a rage The Force opens a menu instead -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="Force_AnimalBond"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="Force_AnimalBond"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
+                <priority>6</priority>
+                <combat>Any</combat>
+                <targetKinds>Animal</targetKinds>
+                <inMentalState>true</inMentalState>
+                <exclusive>true</exclusive>
+                <harmless>true</harmless>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Dark side -->
+
+        <!-- Force rage: 20 points and a drain while it lasts, no pain and no death; for a caster in trouble, or
+             a melee caster with an enemy within 8 -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="Force_Rage"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="Force_Rage"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Defensive</workerClass>
+                <priority>6</priority>
+                <healthThreshold>0.4</healthThreshold>
+              </li>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_SelfBuff</workerClass>
+                <priority>4</priority>
+                <requires>Melee</requires>
+                <maxRange>8</maxRange>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Force lightning: 6 points, a lightning cone 5.5 long and 90 degrees wide (see above) -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="Force_Lightning"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="Force_Lightning"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_ConeHostile</workerClass>
+                <priority>4</priority>
+                <radius>2</radius>
+                <coneWidth>11</coneWidth>
+                <avoidAllies>true</avoidAllies>
+                <avoidBuildings>true</avoidBuildings>
+                <approachDistance>3</approachDistance>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Lightning bolt: 1.2 points, a 5 damage beam at one enemy -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="Force_LightningB"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="Force_LightningB"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
+                <priority>2</priority>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Fear: 12 points, one human flees in panic; interrupts too -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="Force_Fear"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="Force_Fear"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Interrupt</workerClass>
+                <priority>7</priority>
+                <targetKinds>Humanlike</targetKinds>
+                <harmless>true</harmless>
+              </li>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
+                <priority>4</priority>
+                <targetKinds>Humanlike</targetKinds>
+                <exclusive>true</exclusive>
+                <harmless>true</harmless>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Insanity: 12 points, panic on every human within 2.5 of the target (The Force refuses a target with
+             anyone not hostile in that radius) -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="Force_Insanity"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="Force_Insanity"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
+                <priority>5</priority>
+                <radius>2.5</radius>
+                <minTargets>2</minTargets>
+                <targetKinds>Humanlike</targetKinds>
+                <preferGrouped>true</preferGrouped>
+                <exclusive>true</exclusive>
+                <avoidAllies>true</avoidAllies>
+                <harmless>true</harmless>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Wave of hatred: 20 points, an aura (4.8) that drives every human near the caster toward a berserk
+             rage, allies too: with two enemies near and no ally -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="Force_Hatred"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="Force_Hatred"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_SelfBuff</workerClass>
+                <priority>3</priority>
+                <maxRange>8</maxRange>
+                <radius>4.8</radius>
+                <auraKinds>Humanlike</auraKinds>
+                <auraMin>2</auraMin>
+                <avoidAllies>true</avoidAllies>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Drain vitality: 25 points, a day of weakness on the target, part of it siphoned to the caster -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="Force_DrainVitality"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="Force_DrainVitality"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
+                <priority>3</priority>
+                <targetKinds>Humanlike, Animal</targetKinds>
+                <exclusive>true</exclusive>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Cryokinesis: 15 points, mild hypothermia on everyone within 2.5 of the target -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="Force_Cryokinesis"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="Force_Cryokinesis"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
+                <priority>2</priority>
+                <radius>2.5</radius>
+                <targetKinds>Humanlike, Animal</targetKinds>
+                <preferGrouped>true</preferGrouped>
+                <avoidAllies>true</avoidAllies>
+                <harmless>true</harmless>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Nightsister magick -->
+
+        <!-- Spell of comfort: 8 points, a tenth of the pain for a few seconds, on an ally in 40% pain -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="Force_SpellOfComfort"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="Force_SpellOfComfort"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetFriendly</workerClass>
+                <priority>3</priority>
+                <minPain>0.4</minPain>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Shield of protection: 10 points, a shield that stops shots (not melee) on an ally two
+             shooters are on -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="Force_ShieldofProtection"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="Force_ShieldofProtection"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Defensive</workerClass>
+                <priority>5</priority>
+                <minThreats>2</minThreats>
+                <rangedOnly>true</rangedOnly>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Ssurian scream: 1.2 points, stuns and deafens the target, and may stun anyone within 3.5
+             of it -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="Force_SsurianScream"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="Force_SsurianScream"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_TargetHostile</workerClass>
+                <priority>4</priority>
+                <radius>3.5</radius>
+                <preferGrouped>true</preferGrouped>
+                <exclusive>true</exclusive>
+                <avoidAllies>true</avoidAllies>
+                <harmless>true</harmless>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Whuffa heal: 15 points, fixes the worst health condition (disease, a lost part) by touch -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="Force_MagickWhuffaHeal"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="Force_MagickWhuffaHeal"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Recovery</workerClass>
+                <priority>3</priority>
+                <health>Disease, MissingParts</health>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Nightsister teleport: 18 points plus a little per tile, up to 17.9 tiles in sight; takes a badly
+             hurt ally out of danger, or the caster -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="Force_Teleport"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="Force_Teleport"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Skip</workerClass>
+                <skipMode>Rescue</skipMode>
+                <priority>7</priority>
+                <healthThreshold>0.4</healthThreshold>
+              </li>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Skip</workerClass>
+                <skipMode>Escape</skipMode>
+                <priority>6</priority>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Sith sorcery (the Sith Sorcery mod's own defs when it is active, else The Force's copy) -->
+
+        <!-- Firey energy: 10 points, an energy cone 7 long and 85 degrees wide (see above), after a 7
+             second warmup: two enemies or more -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="Force_FireyEnergy"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="Force_FireyEnergy"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_ConeHostile</workerClass>
+                <priority>4</priority>
+                <maxRange>7</maxRange>
+                <radius>3</radius>
+                <coneWidth>15.6</coneWidth>
+                <minTargets>2</minTargets>
+                <avoidAllies>true</avoidAllies>
+                <avoidBuildings>true</avoidBuildings>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Lightning strike: 12 points, one 25 damage blast of radius 12 that ignores armour and hits
+             everyone. Its range is 80; the AI casts it within 30 -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="Force_LightningStrike"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="Force_LightningStrike"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
+                <priority>4</priority>
+                <maxRange>30</maxRange>
+                <radius>12</radius>
+                <minTargets>2</minTargets>
+                <avoidAllies>true</avoidAllies>
+                <avoidBuildings>true</avoidBuildings>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Dark chain: 15 points, four strikes hopping between pawns, each with a 25 damage blast
+             of radius 12: behind the base-wrecking setting for raiders -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="Force_SithRitualDarkChain"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="Force_SithRitualDarkChain"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_AoEHostile</workerClass>
+                <priority>4</priority>
+                <maxRange>30</maxRange>
+                <radius>12</radius>
+                <minTargets>2</minTargets>
+                <avoidAllies>true</avoidAllies>
+                <avoidBuildings>true</avoidBuildings>
+                <npcGate>BaseWrecking</npcGate>
+              </li>
+            </value>
+          </match>
+        </li>
+
+        <!-- Summon wraith: 15 points, a wraith of the caster's faction that stays; counts against the
+             Summons limit -->
+        <li Class="PatchOperationConditional">
+          <xpath>Defs/AbilityDef[defName="Force_SummonWraith"]</xpath>
+          <match Class="PatchOperationAddModExtension">
+            <xpath>Defs/AbilityDef[defName="Force_SummonWraith"]</xpath>
+            <value>
+              <li Class="AbilityAI.AbilityAIExtension">
+                <workerClass>AbilityAI.AbilityAIWorker_Deploy</workerClass>
+                <priority>3</priority>
+                <minTargets>2</minTargets>
+                <deployedThing>Force_DarksideWraithRace</deployedThing>
+              </li>
+            </value>
+          </match>
+        </li>
+
+      </operations>
+    </match>
+  </Operation>
+</Patch>

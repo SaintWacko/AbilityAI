@@ -894,6 +894,24 @@ A type or member that can't be found turns the resource off with one warning at 
 </AbilityAI.AIResourceDef>
 ```
 
+### Stat hints
+
+When a cast changes something on the caster that the player should know autocast is spending for them, an `AbilityAI.AIStatHintDef` adds a line to the gizmo tooltip of every ability whose AbilityDef lists that stat in its `statBases` with a value other than 0. Ability AI ships two in `Defs/AbilityAI_StatHints.xml`, for The Force's dark and light side attunement.
+
+- `stat`: the StatDef's defName, read with `GetStatValueAbstract` on the AbilityDef.
+- `hint`: the line, with `{0}` for the value. Translated through DefInjected like any def text.
+- `requiredMod`: a packageId; the def takes no part while that mod is not active. A stat that can't be found turns it off with one warning.
+
+```xml
+<AbilityAI.AIStatHintDef>
+  <defName>AAI_ForceDarkside</defName>
+  <label>dark side attunement</label>
+  <requiredMod>lee.theforce.standalone</requiredMod>
+  <stat>Force_AbilityDarksideStat</stat>
+  <hint>Each cast adds {0} dark side attunement to the caster.</hint>
+</AbilityAI.AIStatHintDef>
+```
+
 ## Testing
 
 Rule mistakes show at load as config errors naming the def: a missing required field, a field the worker doesn't read, a value out of range. Fix every one; most mean the rule never casts.

@@ -2839,6 +2839,9 @@ namespace AbilityAI
                     if (!(abilityDef is ThingDef) && !(abilityDef is GearVerbDef) && (own.enabled || npc.enabled || friendly.enabled)
                         && rule.workerClass != null && typeof(AbilityAIWorker_Deploy).IsAssignableFrom(rule.workerClass))
                         AbilityAIWorker_Deploy.UsedByAbilities = true;
+                    if ((own.enabled || npc.enabled || friendly.enabled) && rule.workerClass != null
+                        && typeof(AbilityAIWorker_Skip).IsAssignableFrom(rule.workerClass))
+                        AbilityAIWorker_Skip.UsedByRules = true;
                 }
         }
 
@@ -3213,8 +3216,8 @@ namespace AbilityAI
             list.Label("AAI_MinGap".Translate(MinGapSeconds.ToString("0.#")));
             MinGapSeconds = Mathf.Round(list.Slider(MinGapSeconds, 0f, 30f) * 2f) / 2f;
             Hint(list, "AAI_MinGap_Desc");
-            // Only Royalty's Skip has rules for this worker
-            if (ModsConfig.RoyaltyActive)
+            // Royalty's and VPE's Skip, The Force's Nightsister teleport: shown only when a loaded rule uses the worker
+            if (AbilityAIWorker_Skip.UsedByRules)
             {
                 Section(list, "AAI_Section_Skip");
                 list.CheckboxLabeled("AAI_SkipRepel".Translate(), ref SkipRepel, "AAI_SkipRepel_Tip".Translate());

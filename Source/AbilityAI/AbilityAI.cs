@@ -1357,6 +1357,13 @@ namespace AbilityAI
             // made, which IsOwnCast counts as this AI's: the owner starts it from its own think node, not the tree's root
             public int offer;
             public int ownerJobId = -1;
+
+            // A cast whose rule keeps clear of allies or friendly buildings, asked again through its warmup
+            // (CheckWarmup): its job, ability, rule and target. Not saved: a cast loaded mid-warmup goes off unchecked.
+            public int warmupJobId = -1;
+            public AIAbility warmupAbility;
+            public AbilityAIExtension warmupRule;
+            public LocalTargetInfo warmupTarget = LocalTargetInfo.Invalid;
         }
 
         /// <summary>Which workers a player's pawn may use at the moment.</summary>
@@ -2358,6 +2365,68 @@ namespace AbilityAI
                     return;
                 }
             }
+        }
+
+        /// <summary>Casts waiting on CheckWarmup. Only a fast-path gate for it: a pawn destroyed mid-warmup leaves it
+        /// counted for the rest of the session, which costs one table lookup per constant-tree check.</summary>
+        internal static int WarmupChecks;
+
+        private static void WatchWarmup(PawnState state, AIAbility a, AbilityAIExtension ext, LocalTargetInfo target, Job cast)
+        {
+            if (!ext.avoidAllies && !ext.avoidBuildings)
+            {
+                if (state.warmupJobId >= 0) ClearWarmup(state);
+                return;
+            }
+            if (state.warmupJobId < 0) WarmupChecks++;
+            state.warmupJobId = cast.loadID;
+            state.warmupAbility = a;
+            state.warmupRule = ext;
+            state.warmupTarget = target;
+        }
+
+        private static void ClearWarmup(PawnState state)
+        {
+            if (state.warmupJobId < 0) return;
+            state.warmupJobId = -1;
+            state.warmupAbility = null;
+            state.warmupRule = null;
+            state.warmupTarget = LocalTargetInfo.Invalid;
+            if (WarmupChecks > 0) WarmupChecks--;
+        }
+
+        /// <summary>Called from the constant-tree postfix (every 30 ticks) while any cast is watched: during the warmup
+        /// of a cast this AI started, its rule's StillClear is asked where the target is now, and the cast ends if an
+        /// ally or a friendly building has come into the way. The aim follows a moving target, so a cone or blast that
+        /// was clear when chosen can swing onto a colonist. The cooldown and the cost are only spent when the cast
+        /// goes off, so ending it costs nothing but the time.</summary>
+        internal static void CheckWarmup(Pawn pawn)
+        {
+            if (evaluating || !states.TryGetValue(pawn, out PawnState state) || state.warmupJobId < 0) return;
+            Job cur = pawn.CurJob;
+            if (cur == null || cur.loadID != state.warmupJobId || !pawn.Spawned) { ClearWarmup(state); return; }
+            // Still walking up, or past the warmup: nothing to stop yet, or nothing left to stop
+            if (!AIAbilitySources.TryGetRunningCast(pawn, out _, out int warmupLeft) || warmupLeft <= 0) return;
+            var worker = state.warmupRule.Worker;
+            if (worker == null) return;
+            int tick = Find.TickManager.TicksGame;
+            bool clear;
+            evaluating = true;
+            ctx.Begin(pawn, tick, null, 0, ControlOf(pawn) == Control.Player && pawn.Drafted);
+            try { clear = worker.StillClear(ctx, state.warmupAbility, state.warmupTarget); }
+            finally
+            {
+                ctx.End();
+                evaluating = false;
+            }
+            if (clear) return;
+            if (AbilityAISettings.DebugLog && Prefs.DevMode)
+                Log.Message($"[Ability AI] {pawn.LabelShort} stops casting {state.warmupAbility.Label} at {TargetLabel(state.warmupTarget)}: "
+                    + "an ally or a friendly building came into the way during the warmup");
+            ClearWarmup(state);
+            // No new job from in here: this runs inside the constant-tree check, and the tracker finds one (the queue
+            // first, so a Full walk's way back) at the end of the same tick
+            pawn.jobs.EndCurrentJob(JobCondition.InterruptForced, startNewJob: false);
         }
 
         /// <summary>Called from the constant-tree postfix for every pawn while any barrier is watched, ahead of every
@@ -3521,6 +3590,11 @@ namespace AbilityAI
                 catch (Exception e) { Log.ErrorOnce($"[Ability AI] barrier check threw for {___pawn.def.defName}: {e}", ___pawn.def.shortHash ^ 0x5B31); }
             }
             if (!AbilityAISettings.Enabled) return;
+            if (AbilityAIDriver.WarmupChecks > 0 && ___pawn != null)
+            {
+                try { AbilityAIDriver.CheckWarmup(___pawn); }
+                catch (Exception e) { Log.ErrorOnce($"[Ability AI] warmup check threw for {___pawn.def.defName}: {e}", ___pawn.def.shortHash ^ 0x2E47); }
+            }
             // An undrafted colonist's hostility response (Attack or Flee) answers every constant-tree check while a
             // threat is near, so without this the AI would never get a look in for a colonist set to anything but
             // Ignore: it would attack or run from a berserk friend instead of calming it. The player's pawns only;

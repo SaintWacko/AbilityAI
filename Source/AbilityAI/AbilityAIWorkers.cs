@@ -70,6 +70,21 @@ namespace AbilityAI
         /// once more, so a worker only needs to call it where it is choosing between candidates.</summary>
         public abstract bool TryFindTarget(AbilityAIContext ctx, AIAbility ability, out LocalTargetInfo target, out LocalTargetInfo dest);
 
+        /// <summary>Asked about this rule's own cast every 30 ticks of its warmup (AbilityAIDriver.CheckWarmup): false
+        /// ends the cast before it fires. The aim follows a moving target and allies move too, so a target that was
+        /// clear when it was chosen may not be by the time the cast goes off. Only the rule's avoidAllies and
+        /// avoidBuildings are asked again, where the target is now.</summary>
+        public virtual bool StillClear(AbilityAIContext ctx, AIAbility ability, LocalTargetInfo target) => true;
+
+        /// <summary>Where a cast aimed at target lands now: the thing's cell while it stands on the caster's map, else
+        /// the aimed cell. Invalid when the thing is gone, which the cast itself handles.</summary>
+        protected static IntVec3 AimCell(AbilityAIContext ctx, LocalTargetInfo target)
+        {
+            if (!target.HasThing) return target.Cell;
+            Thing t = target.Thing;
+            return t.Spawned && t.Map == ctx.map ? t.Position : IntVec3.Invalid;
+        }
+
         /// <summary>Only asked when TryFindTarget found nothing for any ability and the extension sets
         /// approachDistance: the thing the pawn should walk toward so that it could cast, looking as far as reach
         /// (range + approachDistance). Targets are checked with AbilityAIDriver.ValidIgnoringRange, since range and
@@ -650,6 +665,16 @@ namespace AbilityAI
                 ctx.NoTargetWhy = $"{Mathf.Min(centres.Count, tries)} spots refused (sight, range or the verb's own check)";
             centres.Clear();
             return target.IsValid;
+        }
+
+        public override bool StillClear(AbilityAIContext ctx, AIAbility ability, LocalTargetInfo target)
+        {
+            if (!ext.avoidAllies && !ext.avoidBuildings) return true;
+            IntVec3 at = AimCell(ctx, target);
+            float radius = AbilityAIUtility.Radius(ability, ext);
+            if (!at.IsValid || radius <= 0f) return true;
+            if (ext.avoidAllies && AbilityAIUtility.AllyWithin(ctx, ext, at, radius * radius, !AbilityAIUtility.MayHitBrokenAllies(ext), false)) return false;
+            return !ext.avoidBuildings || !AbilityAIUtility.FriendlyBuildingWithin(ctx, at, radius, target.Thing);
         }
 
         public override bool TryFindApproachTarget(AbilityAIContext ctx, AIAbility ability, float reach, out Thing goal)
@@ -1553,6 +1578,16 @@ namespace AbilityAI
             return target.IsValid;
         }
 
+        public override bool StillClear(AbilityAIContext ctx, AIAbility ability, LocalTargetInfo target)
+        {
+            if (!ext.avoidAllies && !ext.avoidBuildings) return true;
+            float radius = AbilityAIUtility.Radius(ability, ext);
+            if (radius <= 0f) return true;
+            IntVec3 c = ctx.pawn.Position;
+            if (ext.avoidAllies && AbilityAIUtility.AllyWithin(ctx, ext, c, radius * radius, !AbilityAIUtility.MayHitBrokenAllies(ext), true)) return false;
+            return !ext.avoidBuildings || !AbilityAIUtility.FriendlyBuildingWithin(ctx, c, radius);
+        }
+
         public override bool TryFindApproachCell(AbilityAIContext ctx, AIAbility ability, out IntVec3 cell, out int expected)
         {
             cell = IntVec3.Invalid;
@@ -1728,6 +1763,23 @@ namespace AbilityAI
             }
             aims.Clear();
             return target.IsValid;
+        }
+
+        // The shape toward where the target stands now: the aim turns with a moving target through the warmup and
+        // can swing onto an ally the first check never saw
+        public override bool StillClear(AbilityAIContext ctx, AIAbility ability, LocalTargetInfo target)
+        {
+            if (!ext.avoidAllies && !ext.avoidBuildings) return true;
+            IntVec3 from = ctx.pawn.Position, at = AimCell(ctx, target);
+            if (!at.IsValid || at == from) return true;
+            var area = new ConeArea(from, Dir(from, at), ShapeFor(Length(ability), HalfWidth(ability), (at - from).LengthHorizontalSquared));
+            if (ext.avoidAllies)
+            {
+                bool spareBroken = !AbilityAIUtility.MayHitBrokenAllies(ext);
+                if (AbilityAIUtility.AllyIn(ctx, ext, area, spareBroken, ctx.pawn)) return false;
+                if (ext.radius > 0f && AbilityAIUtility.AllyWithin(ctx, ext, at, ext.radius * ext.radius, spareBroken, true)) return false;
+            }
+            return !ext.avoidBuildings || !AbilityAIUtility.FriendlyBuildingIn(ctx, area);
         }
 
         public override bool TryFindApproachTarget(AbilityAIContext ctx, AIAbility ability, float reach, out Thing goal)

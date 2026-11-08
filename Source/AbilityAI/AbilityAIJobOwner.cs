@@ -245,6 +245,7 @@ namespace AbilityAI
                 TrackBarrier(state, ext.hediff, barrierCount, barrierRadius, tick);
                 state.barrierJobId = cast.loadID;
             }
+            WatchWarmup(state, a, ext, target, cast);
             if (AbilityAISettings.DebugLog && Prefs.DevMode)
                 Log.Message($"[Ability AI] {pawn.LabelShort} casts {a.Label} ({ext.Worker.GetType().Name}) on {TargetLabel(target)}"
                     + (ventFor != null ? $" to vent heat: {ventFor.Label} had a target but heat held it back" : "")

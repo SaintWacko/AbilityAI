@@ -133,6 +133,16 @@ namespace AbilityAI
         // Grouping, avoidAllies and avoidBuildings: how far around the target they look
         private float Near => ext.radius >= 0f ? ext.radius : 5f;
 
+        public override bool StillClear(AbilityAIContext ctx, AIAbility ability, LocalTargetInfo target)
+        {
+            if (!ext.avoidAllies && !ext.avoidBuildings) return true;
+            IntVec3 at = AimCell(ctx, target);
+            if (!at.IsValid) return true;
+            float near = Near;
+            if (ext.avoidAllies && AbilityAIUtility.AllyWithin(ctx, ext, at, near * near, !AbilityAIUtility.MayHitBrokenAllies(ext), ext.casterLeaves)) return false;
+            return !ext.avoidBuildings || !AbilityAIUtility.FriendlyBuildingWithin(ctx, at, near);
+        }
+
         // The per-enemy tests of Consider; grouping, avoidAllies and avoidBuildings are about where the area lands,
         // which a linked Word has none of
         protected internal override bool IsLinkTarget(AbilityAIContext ctx, AIAbility ability, Pawn p)

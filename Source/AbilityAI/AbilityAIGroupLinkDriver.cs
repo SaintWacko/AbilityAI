@@ -138,6 +138,16 @@ namespace AbilityAI
                 target = AbilityAIGroupLink.NearestLinkedTarget(ctx, pawn, word, rule, linked);
                 if (target == null) why = $"no linked target for {word.Label}";
                 else if (player && !PsycastWithinLimits(word, target)) why = $"over this pawn's autocast limits for {target.LabelShort}";
+                else if (Offering)
+                {
+                    // Made at Start; a job owner that passes it over leaves the link to come down at linkDeadline
+                    Offer(state, new AbilityAICandidate
+                    {
+                        kind = AbilityAICandidateKind.LinkWord, ability = word, rule = rule, target = target, dest = target,
+                        priority = rule.priority,
+                    });
+                    return null;
+                }
                 else if ((cast = word.MakeCastJob(target, target)) == null) why = $"{word.Label} was refused at {target.LabelShort}";
             }
             if (cast == null)
@@ -145,7 +155,28 @@ namespace AbilityAI
                 EndLink(pawn, state, why, false);
                 return null;
             }
+            CommitLinkWord(pawn, state, tick, player, word, rule, target, linked, cast);
+            return cast;
+        }
 
+        private static Job StartLinkWord(Pawn pawn, PawnState state, int tick, bool player, AIAbility word, AbilityAIExtension rule, Pawn target)
+        {
+            Hediff link = AbilityAIGroupLink.LinkOf(pawn);
+            var linked = link != null ? AbilityAIGroupLink.Linked(link) : null;
+            if (linked == null || target == null) return null;
+            Job cast = word.MakeCastJob(target, target);
+            if (cast == null)
+            {
+                EndLink(pawn, state, $"{word.Label} was refused at {target.LabelShort}", false);
+                return null;
+            }
+            CommitLinkWord(pawn, state, tick, player, word, rule, target, linked, cast);
+            return cast;
+        }
+
+        private static void CommitLinkWord(Pawn pawn, PawnState state, int tick, bool player, AIAbility word, AbilityAIExtension rule,
+            Pawn target, List<Pawn> linked, Job cast)
+        {
             state.linkWordJobId = cast.loadID;
             state.nextCastTick = tick + Mathf.RoundToInt(AbilityAISettings.MinGapSeconds * GenTicks.TicksPerRealSecond);
             if (rule.minGapSeconds > 0f)
@@ -161,68 +192,76 @@ namespace AbilityAI
                 Log.Message($"[Ability AI] {pawn.LabelShort} casts {word.Label} on {target.LabelShort} through its group link ({linked.Count} linked)");
             AbilityAIHooks.NotifyCast(pawn, word, target, target);
             AbilityAICombatAI.HoldForCast(pawn, word, target, cast);
-            if (player) QueueAfterCast(pawn, state);
-            return cast;
+            if (player) QueueAfterCast(pawn, state, false);
         }
 
         // Before a Word the driver chose: with a link up, everyone linked must be able to take it (null, refused set);
         // without one, the pawn's Group link first when the link reaches enough of the Word's targets where it stands.
-        // Returns the link's cast job, or null to go on with the Word alone.
-        private static Job TryLinkFirst(Pawn pawn, PawnState state, int tick, bool player, AbilityAIRole role, AIAbility word,
-            AbilityAIExtension ext, LocalTargetInfo target)
+        // True with the linker and how many targets it would link; false to go on with the Word alone.
+        private static bool FindLinkFirst(Pawn pawn, PawnState state, int tick, bool player, AbilityAIRole role, AIAbility word,
+            AbilityAIExtension ext, LocalTargetInfo target, out AIAbility linker, out int count)
         {
             noLinkWhy = null;
-            if (!ext.linkFirst || !AbilityAIGroupLink.Any) return null;
+            count = 0;
+            linker = null;
+            if (!ext.linkFirst || !AbilityAIGroupLink.Any) return false;
             bool log = AbilityAISettings.DebugLog && Prefs.DevMode;
-            AIAbility linker = AbilityAIGroupLink.FindLinker(pawn, collected, player, role, out bool held);
+            linker = AbilityAIGroupLink.FindLinker(pawn, collected, player, role, out bool held);
             if (linker == null)
             {
                 if (log && held) noLinkWhy = "its Group link can't be cast now";
-                return null;
+                return false;
             }
             if (state.abilityNext != null && state.abilityNext.TryGetValue(linker.Def, out int next) && tick < next)
             {
                 if (log) noLinkWhy = $"waiting {next - tick} ticks after a link that came to nothing";
-                return null;
+                return false;
             }
             try
             {
                 float radius = linker.DefaultRadius;
-                if (radius <= 0f) return null;
+                if (radius <= 0f) return false;
                 if (!AbilityAIGroupLink.Survey(ctx, pawn, pawn.Position, radius, word, ext, linkTargets, out Pawn refused))
                 {
                     if (log) noLinkWhy = $"{refused.LabelShort} would be linked";
-                    return null;
+                    return false;
                 }
                 AbilityAIGroupLink.KeepInReach(linkTargets, pawn.Position, radius, word);
-                int count = linkTargets.Count;
+                count = linkTargets.Count;
                 if (count < AbilityAIGroupLink.MinTargets)
                 {
                     if (log) noLinkWhy = $"{count} target{(count == 1 ? "" : "s")} in reach, under {AbilityAIGroupLink.MinTargets}";
-                    return null;
+                    return false;
                 }
                 string notWorth = AbilityAIGroupLink.WhyNotWorth(pawn, linker, word, target, count, player);
                 if (notWorth != null)
                 {
                     if (log) noLinkWhy = $"{count} targets, but {notWorth}";
-                    return null;
+                    return false;
                 }
-                Job job = linker.MakeCastJob(pawn, pawn);
-                if (job == null)
-                {
-                    if (log) noLinkWhy = "Group link refused when its job was made";
-                    return null;
-                }
-                PlanLink(pawn, word.Def, ext, linker.Def, job);
-                state.nextCastTick = tick + Mathf.RoundToInt(AbilityAISettings.MinGapSeconds * GenTicks.TicksPerRealSecond);
-                if (AbilityAISettings.DebugLog && Prefs.DevMode)
-                    Log.Message($"[Ability AI] {pawn.LabelShort} casts {linker.Label} first, to reach {count} targets of {word.Label}");
-                AbilityAIHooks.NotifyCast(pawn, linker, pawn, pawn);
-                AbilityAICombatAI.HoldForCast(pawn, linker, pawn, job);
-                if (player) QueueAfterCast(pawn, state);
-                return job;
+                return true;
             }
             finally { linkTargets.Clear(); }
+        }
+
+        // The link's cast job for a FindLinkFirst that said yes, or null (noLinkWhy set) to go on with the Word alone
+        private static Job StartLinkFirst(Pawn pawn, PawnState state, int tick, bool player, AIAbility linker, AIAbility word,
+            AbilityAIExtension ext, int count, bool castAtPrey)
+        {
+            Job job = linker.MakeCastJob(pawn, pawn);
+            if (job == null)
+            {
+                if (AbilityAISettings.DebugLog && Prefs.DevMode) noLinkWhy = "Group link refused when its job was made";
+                return null;
+            }
+            PlanLink(pawn, word.Def, ext, linker.Def, job);
+            state.nextCastTick = tick + Mathf.RoundToInt(AbilityAISettings.MinGapSeconds * GenTicks.TicksPerRealSecond);
+            if (AbilityAISettings.DebugLog && Prefs.DevMode)
+                Log.Message($"[Ability AI] {pawn.LabelShort} casts {linker.Label} first, to reach {count} targets of {word.Label}");
+            AbilityAIHooks.NotifyCast(pawn, linker, pawn, pawn);
+            AbilityAICombatAI.HoldForCast(pawn, linker, pawn, job);
+            if (player) QueueAfterCast(pawn, state, castAtPrey);
+            return job;
         }
     }
 }

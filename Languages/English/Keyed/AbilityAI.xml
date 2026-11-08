@@ -111,8 +111,8 @@
   <AAI_Limits_NoCap>no cap</AAI_Limits_NoCap>
   <AAI_Limits_NoFloor>none</AAI_Limits_NoFloor>
   <AAI_Limits_Title>Autocast limits</AAI_Limits_Title>
-  <AAI_Limits_Hemogen>Min hemogen</AAI_Limits_Hemogen>
-  <AAI_Limits_Hemogen_Tip>Autocast won't use an ability that would bring this pawn's hemogen below this point. This covers every ability that costs hemogen, psycast or not. The default is 30%. Casting by hand ignores this.</AAI_Limits_Hemogen_Tip>
+  <!-- {0}: the resource's label (hemogen, Force points); {1}: its default floor (30%, or none) -->
+  <AAI_Limits_Resource_Tip>Autocast won't use an ability that would bring this pawn's {0} below this point. The default is {1}. Casting by hand ignores this.</AAI_Limits_Resource_Tip>
   <AAI_MinGap>Least time between one pawn's casts: {0} s</AAI_MinGap>
   <AAI_MinGap_Desc>Stops a pawn with several abilities from using them all in the same moment. Each ability's own cooldown and charges still apply.</AAI_MinGap_Desc>
   <AAI_Section_Skip>Skip</AAI_Section_Skip>
@@ -122,7 +122,7 @@
   <AAI_SkipRescue_Tip>A downed ally with an enemy within 10 tiles, or a badly hurt ally being hit or shot at, is skipped to a spot near the caster, away from the enemies and behind cover if there is any. Drafted pawns on their feet and pawns doing something you ordered stay where they are.</AAI_SkipRescue_Tip>
   <AAI_SkipEscape>Skip the caster away when it is in trouble</AAI_SkipEscape>
   <AAI_SkipEscape_Tip>When the caster is badly hurt, fleeing, or has a ranged weapon and is caught in melee, it skips itself to the spot furthest from every enemy within reach.</AAI_SkipEscape_Tip>
-  <AAI_Skip_Desc>For every pawn that uses Skip on its own: yours set to autocast it, and other factions' psycasters.</AAI_Skip_Desc>
+  <AAI_Skip_Desc>For every pawn that uses Skip (Royalty's or VPE's) or The Force's Nightsister teleport on its own: yours set to autocast it, and other factions' casters.</AAI_Skip_Desc>
   <AAI_Section_Cai>Combat AI (CAI 5000)</AAI_Section_Cai>
   <AAI_CaiHoldNpcs>Other factions' casts can't be cut off by CAI</AAI_CaiHoldNpcs>
   <AAI_CaiHoldNpcs_Tip>CAI 5000 sends pawns under fire to cover, to duck or to retreat, and that cancels a psycast's warmup. With this on, CAI waits until the cast has gone off (and until a channelled effect such as Frost Ray's ray has ended, up to 10 seconds) before it moves the pawn. With it off, CAI reacts as it would without Ability AI.</AAI_CaiHoldNpcs_Tip>

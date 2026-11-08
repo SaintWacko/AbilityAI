@@ -85,6 +85,28 @@ Keep `Vote` cheap: it runs for each ready ability of each pawn Ability AI looks 
 
 `RegisterVote` is the same for abilities of other systems (VEF's). The voter gets the system's own ability object (`VEF.Abilities.Ability` for VEF), typed `object`, so your compat assembly doesn't need to reference that system. A voter that throws counts as `Veto` for that call.
 
+## Job owners: your own arbiter decides
+
+For a mod that decides every job its pawns start (a combat AI with one arbiter per pawn). Ability AI then starts nothing for the pawns you own and suggests casts when you ask.
+
+```csharp
+public interface IAbilityAIJobOwner { bool Owns(Pawn pawn); }
+AbilityAIHooks.RegisterJobOwner(IAbilityAIJobOwner owner);
+
+AbilityAIDriver.GetCandidates(Pawn pawn, List<AbilityAICandidate> into, int max = 3);
+Job AbilityAIDriver.Start(Pawn pawn, AbilityAICandidate candidate);
+bool AbilityAIDriver.IsAICast(Pawn pawn, out int warmupTicksLeft);
+```
+
+- `Owns` is asked on every constant-tree check of a pawn with abilities. Answer from a field or a cached lookup. The first owner that says yes has the pawn; an owner that throws is logged once and dropped for the session.
+- Owned pawns get nothing from Ability AI's constant-tree postfix, including the cast it would put ahead of a colonist's hostility response. Barriers and group links it raised still come down, and recasting, zone casting and cast markers still run as colonist work.
+- `GetCandidates` runs the same evaluation Ability AI runs for its own casts, under the same settings, autocast modes, votes and intervals: a pawn checked in the last 30 ticks, or within the gap after a cast, gets an empty list. Ask once per pawn per check. Casts come first, sorted by rule priority; a walk into range (`Approach`) or a Full autocast pawn's walk back (`Return`) is offered only when no cast is. `LinkFirst` (a Group link before a Word) is always followed by the Word alone, so the list can be one longer than `max`. `LinkWord` (the Word once the link is up) comes alone.
+- A candidate holds nothing: no job is made and no target is claimed, so you can drop it without a call. Pass the one you pick to `Start` in the same tick. `Start` makes the job and does Ability AI's own bookkeeping for a cast (gaps, barrier and link tracking, `Notify_AICast`, and for the player's pawns the attack queued to resume after the cast). It returns null when the candidate is stale or the ability refused when its job was made; try the next one. A `Return` whose walk can't be made returns the attack the pawn was on before it walked out (or null), not a walk. Start the job at once, from your own think node.
+- `category` is the rule's `category` field, else its worker's default (`Approach` and `Return` are `Movement`).
+- `IsAICast` is true while the pawn runs a cast Ability AI or your `Start` made. Not saved: after a load, a cast you started is only recognised once the pawn starts its next one.
+
+In dev mode the action "Ability AI > Job owner test" registers a stand-in owner that owns every pawn and either starts nothing or starts the first candidate it is offered.
+
 ## Telling Ability AI about your effect comp
 
 ```csharp
@@ -158,7 +180,7 @@ Workers never see a `RimWorld.Ability`; they see an `AIAbility`, an adapter that
 
 A source that throws is dropped for the session and its abilities go back to their own AI.
 
-`AIAbility`'s abstract members: `Pawn`, `Def` (what rules, autocast modes and gaps are keyed on), `Raw` (the wrapped object), `CanCastNow`, `IsPsycast`, `Range` (0 or less for a touch ability), `DefaultRadius`, `IsSelfCast`, `CanTargetSelf`, `WarmupSeconds`, `Verb` (for `CastPositionFinder`), `Effects` (an `AIAbilityEffects` read once per def), `Hostile`, `ValidIgnoringRange(target)`, `ValidInRange(target)`, `PsyfocusCost(target)`, `HeatGain`, and `MakeCastJob(target, dest)`, which returns the cast job without starting it (or null to refuse). Virtual members with defaults cover touch abilities, charges, single use, hemogen cost, flight time, two-target destinations and the dev log's reason text. `VefAIAbility` in `Source/VEF/VefAIAbility.cs` is the complete example.
+`AIAbility`'s abstract members: `Pawn`, `Def` (what rules, autocast modes and gaps are keyed on), `Raw` (the wrapped object), `CanCastNow`, `IsPsycast`, `Range` (0 or less for a touch ability), `DefaultRadius`, `IsSelfCast`, `CanTargetSelf`, `WarmupSeconds`, `Verb` (for `CastPositionFinder`), `Effects` (an `AIAbilityEffects` read once per def), `Hostile`, `ValidIgnoringRange(target)`, `ValidInRange(target)`, `PsyfocusCost(target)`, `HeatGain`, and `MakeCastJob(target, dest)`, which returns the cast job without starting it (or null to refuse). Virtual members with defaults cover touch abilities, charges, single use, resource costs (`ResourceCost(AIResourceDef)`, by default the resource def's own readers on `Def`; it replaces `HemogenCost`), flight time, two-target destinations and the dev log's reason text. `VefAIAbility` in `Source/VEF/VefAIAbility.cs` is the complete example.
 
 At startup, also call these for each of the system's defs, so its Recast, gather, zone, spot, heat, barrier, group link and NPC gate rules are known (the VEF compat does this in `VefStartup`):
 

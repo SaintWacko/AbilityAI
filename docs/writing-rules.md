@@ -131,6 +131,7 @@ These work on any rule.
 | `workerClass` | | Required. The worker, `AbilityAI.AbilityAIWorker_<Name>` (see Workers below). |
 | `priority` | 0 | Higher is tried first, across all of the pawn's ready abilities. The shipped rules use 1 to 9: interrupts and rescues high, damage in the middle, buffs low. |
 | `combat` | the worker's | `InCombat`, `OutOfCombat` or `Any`. In combat means the pawn has an enemy target, attacked or was hurt in the last 10 seconds, or is drafted with an enemy on the map. A rule that isn't `InCombat` also runs for the player's undrafted pawns. |
+| `category` | the worker's | `Interrupt`, `Rescue`, `Recovery`, `Offensive`, `Defensive`, `Buff`, `Movement` or `Utility`. Only read by a mod that decides its pawns' jobs itself and asks Ability AI for suggestions (a job owner, see csharp-api.md); Ability AI's own casting ignores it. Defaults: the hostile area, cone, beam and target workers and Deploy are Offensive; Cover, Defensive and Barrier Defensive; SelfBuff, AoE friendly and Target friendly Buff; Recovery and Bloodfeed Recovery; Rescue Rescue; Interrupt Interrupt; Movement Movement; Skip by its mode (Repel Offensive, Rescue Rescue, Escape Movement); the rest Utility. |
 | `enabled` | true | false turns the rule off. Meant for an `npc` or `friendlyNpc` block. |
 | `exclusive` | the worker's | Leave a target alone while a faction-mate is casting this ability at it or walking into range to. On by default for every worker that doesn't target enemies, and for Interrupt and Skip; set it true on a hostile rule whose effect doesn't stack (a stun keeps the longer of two). |
 | `reserveCharges` | 0 | Charges the AI never spends, for abilities with charges. |
@@ -157,7 +158,7 @@ Fields that several workers share:
 | `harmless` | false | Hostile rules: the ability disables without lasting harm (a stun, a slow, a blind). With the player's setting at its default, such a rule may also be used on an ally in a hostile mental break, and `avoidAllies` doesn't count downed faction-mates. |
 | `skipAffected` | true | Hostile rules: leave out pawns the cast would be wasted on (already stunned by a stunning ability, already carrying its hediff, already in a mental state from one that gives one, no psychic sensitivity for a psycast). Turn it off when the damage alone makes the cast worth it. |
 | `targetPart` | | Hostile rules: a BodyPartDef. Only pawns with at least one part of that def left, for an ability that works on that part alone (Alpha Animals' Destroy eyes: `Eye`, Leg skip: `Leg`). A pawn whose parts of that def are all gone is skipped, and so is a body without any (a mech has no `Eye`). |
-| `avoidAllies` | false | Keep the caster's side out of the area. What "the area" is depends on the worker. |
+| `avoidAllies` | false | Keep the caster's side out of the area. What "the area" is depends on the worker. With Target hostile, AoE hostile (around a target or the caster), Cone hostile and Beam hostile, it is checked again every half second of the warmup where the target stands then, and the cast is called off if an ally (or, with `avoidBuildings`, a friendly building, for a pawn target) has come into the way: the aim follows a moving target. Nothing is spent on a cast called off. |
 | `allyKinds` | every pawn | Which of the caster's side `avoidAllies` keeps clear of: only those the effect would harm. An EMP: `Mechanoid, Turret, Shielded`. |
 | `avoidBuildings` | false | Not with a building of the caster's side, or of a faction not hostile to it, in the area. For fire and blasts, so visitors don't burn the player's base. |
 | `approachDistance` | 0 | How far past the ability's range a ranged caster walks to cast it in combat, when nothing is in range now. Read by AoE hostile, AoE hostile around the caster, Cone and Beam hostile, Target hostile, and self-cast AoE friendly. It is also what offers Full Autocast to the player. |
@@ -862,6 +863,55 @@ Gear that casts through a verb (`CompApparelVerbOwner` or a subclass: packs, bel
 ```
 
 `Patches/AbilityAI_ApparelModded.xml` has rules for the grenade belts, drone packs and jump gear of a dozen other mods, one `PatchOperationFindMod` block per mod.
+
+## Resources
+
+Abilities that spend from a pool (hemogen, The Force's Force points, a magic mod's mana) can get a floor: the player sets, per pawn, the share of the pool autocast leaves unspent, on the autocast limits gizmo beside the psyfocus one. A resource is an `AbilityAI.AIResourceDef`, so it needs no code. Ability AI ships two in `Defs/AbilityAI_Resources.xml`: hemogen (default floor 30%) and Force points (default none).
+
+- `label`: the resource's name in the row's tooltip ("this pawn's hemogen").
+- `limitLabel`: the row's label ("Min hemogen"). `description`, when set, is added to the tooltip.
+- `barColor`, `defaultFloor` (0 to 1, a share of the pawn's maximum).
+- `requiredMod`: a packageId; the def takes no part while that mod or DLC is not active, so it needs no patch.
+- Where a pawn's amount is read, exactly one of: `comp` (`type`, a ThingComp's full name, with `current` and `max`, field or property names), `geneResource` (a `Gene_Resource` subclass's full name: its Value and Max), `need` (a NeedDef: CurLevel and MaxLevel). A pawn with a maximum of 0 has none of the resource.
+- Where an ability's cost is read, one or more of, tried in this order: `costStat` (a StatDef on a vanilla AbilityDef's statBases), `costComp` (`type` and `field` on one of a vanilla AbilityDef's comp properties), `costExtensionField` (a float field of that name on any mod extension of the ability's def, any ability system).
+- `extraCosts`: a list of `ability` (a defName) and `cost`, for a part of the cost the ability's own code spends at cast time that no reader sees. It is added to what the readers find, and a player pawn's cast is held for it even with no floor set, since the ability's own check doesn't know it (The Force's Nightsister teleport: 8 more plus 0.05 a tile after its 18).
+
+A type or member that can't be found turns the resource off with one warning at startup. The row shows only for a pawn that has the resource and holds an ability on the autocast menu that costs some. Floors hold back autocast on the player's pawns only; casting by hand ignores them. An ability whose comp refuses the cast for lack of the resource (its gizmo greyed out) is never autocast, floor or not.
+
+```xml
+<AbilityAI.AIResourceDef>
+  <defName>AAI_ForcePoints</defName>
+  <label>Force points</label>
+  <limitLabel>Min Force</limitLabel>
+  <barColor>(0.18, 0.37, 0.62)</barColor>
+  <defaultFloor>0</defaultFloor>
+  <requiredMod>lee.theforce.standalone</requiredMod>
+  <comp>
+    <type>TheForce_Standalone.CompClass_ForceUser</type>
+    <current>currentFP</current>
+    <max>MaxFP</max>
+  </comp>
+  <costStat>Force_AbilityForcePoolCost</costStat>
+</AbilityAI.AIResourceDef>
+```
+
+### Stat hints
+
+When a cast changes something on the caster that the player should know autocast is spending for them, an `AbilityAI.AIStatHintDef` adds a line to the gizmo tooltip of every ability whose AbilityDef lists that stat in its `statBases` with a value other than 0. Ability AI ships two in `Defs/AbilityAI_StatHints.xml`, for The Force's dark and light side attunement.
+
+- `stat`: the StatDef's defName, read with `GetStatValueAbstract` on the AbilityDef.
+- `hint`: the line, with `{0}` for the value. Translated through DefInjected like any def text.
+- `requiredMod`: a packageId; the def takes no part while that mod is not active. A stat that can't be found turns it off with one warning.
+
+```xml
+<AbilityAI.AIStatHintDef>
+  <defName>AAI_ForceDarkside</defName>
+  <label>dark side attunement</label>
+  <requiredMod>lee.theforce.standalone</requiredMod>
+  <stat>Force_AbilityDarksideStat</stat>
+  <hint>Each cast adds {0} dark side attunement to the caster.</hint>
+</AbilityAI.AIStatHintDef>
+```
 
 ## Testing
 

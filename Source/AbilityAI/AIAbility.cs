@@ -160,9 +160,10 @@ namespace AbilityAI
         /// isn't a psycast.</summary>
         public abstract float HeatGain { get; }
 
-        /// <summary>Hemogen the cast spends (Biotech's Gene_Hemogen, absolute units). Read for the player's hemogen
-        /// floor (AbilityAIDriver.PsycastWithinLimits), psycast or not.</summary>
-        public virtual float HemogenCost => 0f;
+        /// <summary>What the cast spends of a resource (hemogen, Force points; absolute units), for the player's
+        /// resource floors (AbilityAIDriver.PsycastWithinLimits), psycast or not. By default the resource def's own
+        /// cost readers on this ability's def; override for a cost those can't see.</summary>
+        public virtual float ResourceCost(AIResourceDef resource) => AIResources.Cost(Def, resource);
 
         /// <summary>The job that casts it, handed back to the think tree rather than started; null when the ability's
         /// own system refuses the cast at the last moment. It may set up the cast on its system's side (VEF records
@@ -403,7 +404,7 @@ namespace AbilityAI
         public override object Raw => ability;
         public override Ability Vanilla => ability;
 
-        public override bool CanCastNow => ability.verb != null && ability.CanCast && PsycastAffordable();
+        public override bool CanCastNow => ability.verb != null && ability.CanCast && PsycastAffordable() && CompsAllowCast(out _);
 
         public override string NotReadyReason
         {
@@ -416,8 +417,58 @@ namespace AbilityAI
                     if (!report.Reason.NullOrEmpty()) return report.Reason;
                     return ability.OnCooldown ? "on cooldown" : "vanilla refused it";
                 }
-                return "not enough psyfocus";
+                if (!PsycastAffordable()) return "not enough psyfocus";
+                CompsAllowCast(out string reason);
+                return reason.NullOrEmpty() ? "a comp refused it" : reason;
             }
+        }
+
+        // Ability.CanCast never asks the comps' GizmoDisabled; only Command_Ability does, so a cost a comp checks there
+        // and nowhere else is free to any AI: The Force's Force points (CompAbilityEffect_ForcePower casts with too
+        // few, skipping only its own spending while the ability's other comps still apply), hemogen, a mech's
+        // capacities. Ability.GizmoDisabled as a whole is not asked: it refuses undrafted pawns, lord members and
+        // queued casts. ShouldHideGizmo only gates the player's pawns: a hidden gizmo is the player's loadout choice
+        // (The Force's inactive presets), while vanilla's RequiresTrainable hides it from an untrained animal yet
+        // lets other factions' animals cast without the trick (aiCanCastWithoutTrainable).
+        private static readonly HashSet<(Type, bool)> throwingComps = new HashSet<(Type, bool)>();
+
+        private bool CompsAllowCast(out string reason)
+        {
+            reason = null;
+            var comps = ability.comps;
+            if (comps == null) return true;
+            bool player = ability.pawn.Faction != null && ability.pawn.Faction.IsPlayer;
+            for (int i = 0; i < comps.Count; i++)
+            {
+                // Other mods wrote these for the player's gizmo and the selected pawn. One that throws refuses: the check
+                // exists so a cost it guards isn't free, and an exception every ready check would cost more than the
+                // cast. Its type isn't asked again this session for that side (the player's pawns or everyone else's,
+                // since a comp written for the selected pawn may only throw for NPCs); Ability AI then never casts
+                // those abilities, and vanilla's AI stays stood down for them as before
+                if (throwingComps.Contains((comps[i].GetType(), player)))
+                {
+                    reason = "a comp of it threw earlier";
+                    return false;
+                }
+                try
+                {
+                    if (comps[i].GizmoDisabled(out reason)) return false;
+                    if (player && comps[i] is CompAbilityEffect effect && effect.ShouldHideGizmo)
+                    {
+                        reason = "its gizmo is hidden";
+                        return false;
+                    }
+                }
+                catch (Exception e)
+                {
+                    throwingComps.Add((comps[i].GetType(), player));
+                    Log.Error($"[Ability AI] {comps[i].GetType().FullName} threw when asked whether {ability.def.defName} can be cast; Ability AI no longer casts abilities with it for {(player ? "the player's pawns" : "other factions")}: {e}");
+                    reason = "a comp of it threw";
+                    return false;
+                }
+            }
+            reason = null;
+            return true;
         }
 
         // Checked up front because Verb_CastPsycast.ValidateTarget posts its "not enough psyfocus" and similar
@@ -523,8 +574,6 @@ namespace AbilityAI
 
         public override float HeatGain => ability is Psycast ? ability.def.EntropyGain : 0f;
 
-        public override float HemogenCost => ability.HemogenCost();
-
         public override Job MakeCastJob(LocalTargetInfo target, LocalTargetInfo dest) => ability.GetJob(target, dest);
 
         // The comp's own CanHitTarget and CanPlaceSelectedTargetAt read the targeting UI's selection, so the Skip
@@ -549,12 +598,15 @@ namespace AbilityAI
         // saved before the trick was lost goes back to the comp's own rule. Psychic slaughter refuses every AI target
         // outright; its Valid already holds the real rule (flesh, not too big), so the player's pawns go by that.
         // Other factions still get vanilla's no.
-        private enum PlayerAIRule : byte { Ask, TargetIsPawn, TargetAimsAtCaster, TrickLearned }
+        // The Force's GiveHediff (any caster) casts every thing its area touches to Pawn, so an area power with a
+        // building or item in the radius throws InvalidCastException out of AICanTargetNow; its rule is applied here
+        // over the pawns only.
+        private enum PlayerAIRule : byte { Ask, TargetIsPawn, TargetAimsAtCaster, TrickLearned, AffectedPawnsHediff }
         private static readonly Dictionary<Type, PlayerAIRule> playerAIRules = new Dictionary<Type, PlayerAIRule>();
+        private static readonly HashSet<Type> throwingAICanTarget = new HashSet<Type>();
 
         private static bool CompAllowsTarget(CompAbilityEffect comp, LocalTargetInfo target, bool playerCaster)
         {
-            if (!playerCaster) return comp.AICanTargetNow(target);
             var type = comp.GetType();
             if (!playerAIRules.TryGetValue(type, out var rule))
             {
@@ -563,19 +615,52 @@ namespace AbilityAI
                      : declaring == typeof(CompAbilityEffect_FireBurst) ? PlayerAIRule.TargetAimsAtCaster
                      : declaring == typeof(CompAbilityEffect_RequiresTrainable) ? PlayerAIRule.TrickLearned
                      : declaring == typeof(CompAbilityEffect_PsychicSlaughter) ? PlayerAIRule.TargetIsPawn
+                     : declaring?.FullName == "TheForce_Standalone.CompAbilityEffect_GiveHediff" ? PlayerAIRule.AffectedPawnsHediff
                      : PlayerAIRule.Ask;
                 playerAIRules[type] = rule;
             }
+            if (rule == PlayerAIRule.AffectedPawnsHediff) return AffectedPawnsTakeHediff(comp, target);
+            if (!playerCaster) return Ask(comp, target);
             switch (rule)
             {
                 case PlayerAIRule.TrickLearned:
                     return comp.parent.pawn?.training?.HasLearned(((CompAbilityEffect_RequiresTrainable)comp).Props.trainableDef) == true
-                        || comp.AICanTargetNow(target);
+                        || Ask(comp, target);
                 case PlayerAIRule.TargetIsPawn: return target.Pawn != null;
                 case PlayerAIRule.TargetAimsAtCaster:
                     return target.Thing is Pawn p && p.TargetCurrentlyAimingAt == comp.parent.pawn;
-                default: return comp.AICanTargetNow(target);
+                default: return Ask(comp, target);
             }
+        }
+
+        // A throw here would end the pawn's whole evaluation, every tick it is asked; it refuses this target instead.
+        // Not cached as a refusal for the type, since such throws usually depend on what is around the target.
+        private static bool Ask(CompAbilityEffect comp, LocalTargetInfo target)
+        {
+            try { return comp.AICanTargetNow(target); }
+            catch (Exception e)
+            {
+                if (throwingAICanTarget.Add(comp.GetType()))
+                    Log.Warning($"[Ability AI] {comp.GetType().FullName}.AICanTargetNow threw on {comp.parent.def.defName}; the target is refused whenever it does: {e}");
+                return false;
+            }
+        }
+
+        // The Force's rule without the cast: a harmful hediff never touches an ally or neutral, a good one never an
+        // enemy, and at least one pawn in the area lacks it
+        private static bool AffectedPawnsTakeHediff(CompAbilityEffect comp, LocalTargetInfo target)
+        {
+            if (target.Pawn == null || !(comp.props is CompProperties_AbilityGiveHediff props) || props.hediffDef == null) return false;
+            Faction casterFaction = comp.parent.pawn.Faction;
+            bool isBad = props.hediffDef.isBad;
+            bool any = false;
+            foreach (LocalTargetInfo t in comp.parent.GetAffectedTargets(target))
+            {
+                if (!(t.Thing is Pawn p)) continue;
+                if (p.Faction != null && (isBad ? p.Faction.AllyOrNeutralTo(casterFaction) : p.Faction.HostileTo(casterFaction))) return false;
+                if (!p.health.hediffSet.HasHediff(props.hediffDef)) any = true;
+            }
+            return any;
         }
 
         // The rest of Verb_CastPsycast.ValidateTarget, which would post messages, plus immunity: a psycast on a pawn

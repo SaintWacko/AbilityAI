@@ -19,6 +19,8 @@ namespace AbilityAI
     /// </summary>
     public class AbilityAIWorker_Barrier : AbilityAIWorker
     {
+        protected internal override AbilityAICategory DefaultCategory => AbilityAICategory.Defensive;
+
         /// <summary>The count and radius of the last target found, read by the driver right after a cast.</summary>
         internal static int LastCount;
         internal static float LastRadius;

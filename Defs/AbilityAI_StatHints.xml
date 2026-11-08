@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Stat hints (Source/AbilityAI/AIStatHint.cs): a line on an autocastable ability's tooltip for a stat its AbilityDef
+     lists in statBases, so the player sees what autocasting changes for them. A def whose requiredMod is not active
+     takes no part, so these need no patch. -->
+<Defs>
+
+  <!-- The Force: each cast of a dark or light side power moves the caster's attunement by the def's stat -->
+  <AbilityAI.AIStatHintDef>
+    <defName>AAI_ForceDarkside</defName>
+    <label>dark side attunement</label>
+    <requiredMod>lee.theforce.standalone</requiredMod>
+    <stat>Force_AbilityDarksideStat</stat>
+    <hint>Each cast adds {0} dark side attunement to the caster.</hint>
+  </AbilityAI.AIStatHintDef>
+
+  <AbilityAI.AIStatHintDef>
+    <defName>AAI_ForceLightside</defName>
+    <label>light side attunement</label>
+    <requiredMod>lee.theforce.standalone</requiredMod>
+    <stat>Force_AbilityLightsideStat</stat>
+    <hint>Each cast adds {0} light side attunement to the caster.</hint>
+  </AbilityAI.AIStatHintDef>
+
+</Defs>

@@ -23,6 +23,12 @@ namespace AbilityAI
 
         public AbilityAICombat Combat => ext.combat == AbilityAICombat.Default ? DefaultCombat : ext.combat;
 
+        protected internal virtual AbilityAICategory DefaultCategory => AbilityAICategory.Utility;
+
+        /// <summary>What the rule does in a fight, for a job owner's arbiter: the rule's category, else the worker's.</summary>
+        public AbilityAICategory Category => ext.category != AbilityAICategory.Default ? ext.category
+            : DefaultCategory != AbilityAICategory.Default ? DefaultCategory : AbilityAICategory.Utility;
+
         /// <summary>Whether the player's pawns may autocast it while undrafted: any worker that isn't combat-only
         /// (Recovery, Rescue, Calm, Firefighting by default). A def can opt a combat worker in with combat Any.</summary>
         public bool WorksUndrafted => Combat != AbilityAICombat.InCombat;
@@ -63,6 +69,21 @@ namespace AbilityAI
         /// <summary>A target worth casting at now, or false. The driver runs AbilityAIDriver.Valid on the result
         /// once more, so a worker only needs to call it where it is choosing between candidates.</summary>
         public abstract bool TryFindTarget(AbilityAIContext ctx, AIAbility ability, out LocalTargetInfo target, out LocalTargetInfo dest);
+
+        /// <summary>Asked about this rule's own cast every 30 ticks of its warmup (AbilityAIDriver.CheckWarmup): false
+        /// ends the cast before it fires. The aim follows a moving target and allies move too, so a target that was
+        /// clear when it was chosen may not be by the time the cast goes off. Only the rule's avoidAllies and
+        /// avoidBuildings are asked again, where the target is now.</summary>
+        public virtual bool StillClear(AbilityAIContext ctx, AIAbility ability, LocalTargetInfo target) => true;
+
+        /// <summary>Where a cast aimed at target lands now: the thing's cell while it stands on the caster's map, else
+        /// the aimed cell. Invalid when the thing is gone, which the cast itself handles.</summary>
+        protected static IntVec3 AimCell(AbilityAIContext ctx, LocalTargetInfo target)
+        {
+            if (!target.HasThing) return target.Cell;
+            Thing t = target.Thing;
+            return t.Spawned && t.Map == ctx.map ? t.Position : IntVec3.Invalid;
+        }
 
         /// <summary>Only asked when TryFindTarget found nothing for any ability and the extension sets
         /// approachDistance: the thing the pawn should walk toward so that it could cast, looking as far as reach
@@ -603,6 +624,8 @@ namespace AbilityAI
     /// </summary>
     public class AbilityAIWorker_AoEHostile : AbilityAIWorker
     {
+        protected internal override AbilityAICategory DefaultCategory => AbilityAICategory.Offensive;
+
         public override bool TargetsEnemies => true;
         private struct Centre { public Thing thing; public int count; public float distSq; }
         private static readonly List<Centre> centres = new List<Centre>();
@@ -642,6 +665,18 @@ namespace AbilityAI
                 ctx.NoTargetWhy = $"{Mathf.Min(centres.Count, tries)} spots refused (sight, range or the verb's own check)";
             centres.Clear();
             return target.IsValid;
+        }
+
+        public override bool StillClear(AbilityAIContext ctx, AIAbility ability, LocalTargetInfo target)
+        {
+            if (!ext.avoidAllies && !ext.avoidBuildings) return true;
+            IntVec3 at = AimCell(ctx, target);
+            float radius = AbilityAIUtility.Radius(ability, ext);
+            if (!at.IsValid || radius <= 0f) return true;
+            if (ext.avoidAllies && AbilityAIUtility.AllyWithin(ctx, ext, at, radius * radius, !AbilityAIUtility.MayHitBrokenAllies(ext), false)) return false;
+            // Buildings don't move: only a moving target can carry the blast onto one. A cell aim (an anchored rule's
+            // fallback) would also lose the anchor's exemption here and refuse its own runecircle.
+            return !ext.avoidBuildings || !(target.Thing is Pawn) || !AbilityAIUtility.FriendlyBuildingWithin(ctx, at, radius, target.Thing);
         }
 
         public override bool TryFindApproachTarget(AbilityAIContext ctx, AIAbility ability, float reach, out Thing goal)
@@ -836,6 +871,8 @@ namespace AbilityAI
     /// </summary>
     public class AbilityAIWorker_AoEFriendly : AbilityAIWorker
     {
+        protected internal override AbilityAICategory DefaultCategory => AbilityAICategory.Buff;
+
         // Its self-cast branch counts the allies in reach itself; a cast at an ally is not an area around the caster
         protected internal override bool CountsAffectedAroundCaster => true;
         private struct Spot { public IntVec3 cell; public int count; public float dist; }
@@ -1026,6 +1063,8 @@ namespace AbilityAI
     /// </summary>
     public class AbilityAIWorker_SelfBuff : AbilityAIWorker
     {
+        protected internal override AbilityAICategory DefaultCategory => AbilityAICategory.Buff;
+
         public override bool TryFindTarget(AbilityAIContext ctx, AIAbility ability, out LocalTargetInfo target, out LocalTargetInfo dest)
         {
             target = dest = LocalTargetInfo.Invalid;
@@ -1067,6 +1106,8 @@ namespace AbilityAI
     /// </summary>
     public class AbilityAIWorker_Movement : AbilityAIWorker
     {
+        protected internal override AbilityAICategory DefaultCategory => AbilityAICategory.Movement;
+
         protected internal override bool ForFleeing => true;
 
         private const float EscapeDangerRange = 12f;
@@ -1275,6 +1316,8 @@ namespace AbilityAI
     /// </summary>
     public class AbilityAIWorker_Cover : AbilityAIWorker
     {
+        protected internal override AbilityAICategory DefaultCategory => AbilityAICategory.Defensive;
+
         public override bool TryFindTarget(AbilityAIContext ctx, AIAbility ability, out LocalTargetInfo target, out LocalTargetInfo dest)
         {
             target = dest = LocalTargetInfo.Invalid;
@@ -1417,6 +1460,8 @@ namespace AbilityAI
     /// </summary>
     public class AbilityAIWorker_Recovery : AbilityAIWorker
     {
+        protected internal override AbilityAICategory DefaultCategory => AbilityAICategory.Recovery;
+
         protected override AbilityAICombat DefaultCombat => AbilityAICombat.OutOfCombat;
         protected internal override bool ForFleeing => true;
         private static readonly List<TargetingUtil.Cand> cands = new List<TargetingUtil.Cand>();
@@ -1499,6 +1544,8 @@ namespace AbilityAI
     /// </summary>
     public class AbilityAIWorker_AoEHostileSelf : AbilityAIWorker
     {
+        protected internal override AbilityAICategory DefaultCategory => AbilityAICategory.Offensive;
+
         public override bool TargetsEnemies => true;
         protected internal override bool CountsAffectedAroundCaster => true;
         private struct Spot { public IntVec3 cell; public int count; public float dist; }
@@ -1531,6 +1578,16 @@ namespace AbilityAI
             if (ext.avoidBuildings && AbilityAIUtility.FriendlyBuildingWithin(ctx, c, radius)) return false;
             target = AbilityAIUtility.IsSelfCast(ability) ? new LocalTargetInfo(pawn) : AbilityAIUtility.PawnOrCell(ability, pawn);
             return target.IsValid;
+        }
+
+        public override bool StillClear(AbilityAIContext ctx, AIAbility ability, LocalTargetInfo target)
+        {
+            if (!ext.avoidAllies && !ext.avoidBuildings) return true;
+            float radius = AbilityAIUtility.Radius(ability, ext);
+            if (radius <= 0f) return true;
+            IntVec3 c = ctx.pawn.Position;
+            if (ext.avoidAllies && AbilityAIUtility.AllyWithin(ctx, ext, c, radius * radius, !AbilityAIUtility.MayHitBrokenAllies(ext), true)) return false;
+            return !ext.avoidBuildings || !AbilityAIUtility.FriendlyBuildingWithin(ctx, c, radius);
         }
 
         public override bool TryFindApproachCell(AbilityAIContext ctx, AIAbility ability, out IntVec3 cell, out int expected)
@@ -1677,6 +1734,8 @@ namespace AbilityAI
     /// </summary>
     public class AbilityAIWorker_ConeHostile : AbilityAIWorker
     {
+        protected internal override AbilityAICategory DefaultCategory => AbilityAICategory.Offensive;
+
         public override bool TargetsEnemies => true;
         // along: how far the shape reaches; lateral half width = max(minHalf, distance along the axis × tanHalf)
         private struct Shape { public float length, tanHalf, minHalf; }
@@ -1706,6 +1765,23 @@ namespace AbilityAI
             }
             aims.Clear();
             return target.IsValid;
+        }
+
+        // The shape toward where the target stands now: the aim turns with a moving target through the warmup and
+        // can swing onto an ally the first check never saw
+        public override bool StillClear(AbilityAIContext ctx, AIAbility ability, LocalTargetInfo target)
+        {
+            if (!ext.avoidAllies && !ext.avoidBuildings) return true;
+            IntVec3 from = ctx.pawn.Position, at = AimCell(ctx, target);
+            if (!at.IsValid || at == from) return true;
+            var area = new ConeArea(from, Dir(from, at), ShapeFor(Length(ability), HalfWidth(ability), (at - from).LengthHorizontalSquared));
+            if (ext.avoidAllies)
+            {
+                bool spareBroken = !AbilityAIUtility.MayHitBrokenAllies(ext);
+                if (AbilityAIUtility.AllyIn(ctx, ext, area, spareBroken, ctx.pawn)) return false;
+                if (ext.radius > 0f && AbilityAIUtility.AllyWithin(ctx, ext, at, ext.radius * ext.radius, spareBroken, true)) return false;
+            }
+            return !ext.avoidBuildings || !AbilityAIUtility.FriendlyBuildingIn(ctx, area);
         }
 
         public override bool TryFindApproachTarget(AbilityAIContext ctx, AIAbility ability, float reach, out Thing goal)

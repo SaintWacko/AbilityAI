@@ -61,6 +61,34 @@ namespace AbilityAI
     {
         private static readonly List<IAbilityAIHook> hooks = new List<IAbilityAIHook>();
         private static readonly List<Func<Pawn, object, AbilityAIVote>> votes = new List<Func<Pawn, object, AbilityAIVote>>();
+        private static readonly List<IAbilityAIJobOwner> owners = new List<IAbilityAIJobOwner>();
+
+        /// <summary>A mod that decides every job its pawns start (see IAbilityAIJobOwner). Several may register; the
+        /// first that owns a pawn has it. One that throws is dropped for the session.</summary>
+        public static void RegisterJobOwner(IAbilityAIJobOwner owner)
+        {
+            if (owner != null && !owners.Contains(owner)) owners.Add(owner);
+        }
+
+        internal static bool Owned(Pawn pawn)
+        {
+            for (int i = 0; i < owners.Count; i++)
+            {
+                try
+                {
+                    if (owners[i].Owns(pawn)) return true;
+                }
+                catch (Exception e)
+                {
+                    // Dropped rather than counted as owning: a broken owner would otherwise leave its pawns with no
+                    // ability AI at all
+                    Log.ErrorOnce($"[Ability AI] job owner {owners[i].GetType().FullName}.Owns threw, so it is dropped for this session: {e}", owners[i].GetType().GetHashCode() ^ 0x5A4);
+                    owners.RemoveAt(i);
+                    i--;
+                }
+            }
+            return false;
+        }
 
         public static void Register(IAbilityAIHook hook)
         {
@@ -354,6 +382,9 @@ namespace AbilityAI
         /// <summary>Higher is tried first when a pawn has several ready abilities.</summary>
         public int priority;
         public AbilityAICombat combat = AbilityAICombat.Default;
+        /// <summary>What the rule does in a fight, for a job owner's arbiter (AbilityAICandidate.category). Default =
+        /// the worker's own.</summary>
+        public AbilityAICategory category = AbilityAICategory.Default;
         /// <summary>Charges the AI never spends (abilities with charges only).</summary>
         public int reserveCharges;
         /// <summary>Seconds after an AI cast of this ability before the AI considers it again, on top of its cooldown.</summary>
@@ -1321,6 +1352,18 @@ namespace AbilityAI
             // What QueueAfterCast queued behind the cast job afterCastJobId (TakeAfterLanding)
             public List<Job> afterCast;
             public int afterCastJobId = -1;
+
+            // The batch GetCandidates last offered (0 once one of it was started), and the last job a job owner's Start
+            // made, which IsOwnCast counts as this AI's: the owner starts it from its own think node, not the tree's root
+            public int offer;
+            public int ownerJobId = -1;
+
+            // A cast whose rule keeps clear of allies or friendly buildings, asked again through its warmup
+            // (CheckWarmup): its job, ability, rule and target. Not saved: a cast loaded mid-warmup goes off unchecked.
+            public int warmupJobId = -1;
+            public AIAbility warmupAbility;
+            public AbilityAIExtension warmupRule;
+            public LocalTargetInfo warmupTarget = LocalTargetInfo.Invalid;
         }
 
         /// <summary>Which workers a player's pawn may use at the moment.</summary>
@@ -1391,26 +1434,28 @@ namespace AbilityAI
 
 
 
-        /// <summary>The player's per-pawn psycast limits (the gizmo beside vanilla's psyfocus one): the cast must not
-        /// push neural heat over the cap or psyfocus under the floor (real psycasts only), nor hemogen under the hemogen
-        /// floor (any ability with a hemogen cost). A pawn with no limits set stops at one dictionary lookup and the
-        /// default hemogen floor. Without a target the cheapest cost the psycast can have is used (asked
+        /// <summary>The player's per-pawn autocast limits (the gizmo beside vanilla's psyfocus one): the cast must not
+        /// push neural heat over the cap or psyfocus under the floor (real psycasts only), nor any resource (hemogen,
+        /// Force points: AIResources) under its floor (any ability that costs some). An ability that costs no resource
+        /// pays one cached cost lookup per resource in play. Without a target the cheapest cost the psycast can have is used (asked
         /// while choosing candidates); with one, the cost for that target (Word of Serenity costs more for a worse
         /// break).</summary>
         internal static bool PsycastWithinLimits(AIAbility a, LocalTargetInfo target, bool ignoreHeat = false)
         {
             Pawn pawn = a.Pawn;
-            bool any = AbilityAIAutocast.TryGetLimits(pawn, out float heatCap, out float focusFloor, out float hemogenFloor);
-            // Psycast or not: Biotech's own hemogen abilities spend the same reserve
-            if (hemogenFloor > 0f)
+            // Psycast or not: Biotech's own hemogen abilities spend the same reserve as VPE Hemosage's
+            var resources = AIResources.Active;
+            for (int i = 0; i < resources.Count; i++)
             {
-                float hemogen = a.HemogenCost;
-                if (hemogen > float.Epsilon)
-                {
-                    var gene = pawn.genes?.GetFirstGeneOfType<Gene_Hemogen>();
-                    if (gene != null && gene.Value - hemogen < hemogenFloor * gene.Max - 0.001f) return false;
-                }
+                AIResourceDef r = resources[i];
+                float cost = a.ResourceCost(r);
+                if (cost <= float.Epsilon) continue;
+                float floor = AbilityAIAutocast.ResourceFloor(pawn, r);
+                // With no floor the ability's own check covers the cost, except a part only its code spends (extraCosts)
+                if (floor <= 0f && r.ExtraCost(a.Def) <= 0f) continue;
+                if (r.TryRead(pawn, out float value, out float max) && value - cost < floor * max - 0.001f) return false;
             }
+            bool any = AbilityAIAutocast.TryGetLimits(pawn, out float heatCap, out float focusFloor);
             if (!any || !a.IsPsycast) return true;
             var pe = pawn.psychicEntropy;
             if (pe == null) return true;
@@ -1682,7 +1727,9 @@ namespace AbilityAI
         {
             warmupTicksLeft = -1;
             Job cur = pawn.CurJob;
-            if (cur?.jobGiver == null || cur.jobGiver != pawn.thinker?.ConstantThinkTree?.thinkRoot) return false;
+            if (cur == null) return false;
+            bool ours = cur.jobGiver != null && cur.jobGiver == pawn.thinker?.ConstantThinkTree?.thinkRoot;
+            if (!ours && !(states.TryGetValue(pawn, out PawnState s) && s.ownerJobId == cur.loadID)) return false;
             return AIAbilitySources.TryGetRunningCast(pawn, out _, out warmupTicksLeft);
         }
 
@@ -1938,7 +1985,7 @@ namespace AbilityAI
             if (!linkDue)
             {
                 if (tick < state.nextEvalTick) return null;
-                if (tick < state.nextCastTick) return returnDue ? ReturnJob(pawn, state) : null;
+                if (tick < state.nextCastTick) return returnDue ? ReturnOrOffer(pawn, state) : null;
             }
             int interval = quick ? EvalIntervalTicks : Math.Max(EvalIntervalTicks, AbilityAISettings.UndraftedIntervalTicks);
             state.slowEval = interval > EvalIntervalTicks;
@@ -2080,13 +2127,13 @@ namespace AbilityAI
                         into.Insert(at, new Candidate { ability = a, ext = ext });
                     }
                 }
-                if (candidates.Count == 0 && vents.Count == 0) return returnDue ? ReturnJob(pawn, state) : null;
+                if (candidates.Count == 0 && vents.Count == 0) return returnDue ? ReturnOrOffer(pawn, state) : null;
 
                 // Every candidate refused for want of a fight and none got as far as a target search: an NPC then
                 // waits NpcIdleIntervalTicks. A rule that works outside combat keeps the 30-tick check.
                 bool waitingForFight = !player && !outOfFightRule;
                 Job job = TryCandidates(candidates, pawn, state, tick, player, role, ref waitingForFight, null);
-                if (job != null) return job;
+                if (job != null || Offered) return job;
                 // Nothing cast: a vent, if heat is what kept something else from being cast just now
                 if (vents.Count > 0)
                 {
@@ -2095,7 +2142,7 @@ namespace AbilityAI
                     {
                         bool unused = false;
                         job = TryCandidates(vents, pawn, state, tick, player, role, ref unused, blocked);
-                        if (job != null) return job;
+                        if (job != null || Offered) return job;
                     }
                     else if (whyNot != null) WhyNot(null, null, "its heat vents wait for a psycast heat holds back");
                 }
@@ -2108,7 +2155,7 @@ namespace AbilityAI
                     return null;
                 }
                 if (!player) return TryApproach(state, false);
-                if (returnDue) return ReturnJob(pawn, state);
+                if (returnDue) return ReturnOrOffer(pawn, state);
                 // Full walks are drafted only, one at a time, and not while the last one is still on its way back
                 if (!drafted || charging || state.home.IsValid) return null;
                 return TryApproach(state, true);
@@ -2180,16 +2227,45 @@ namespace AbilityAI
                             continue;
                         }
                     }
-                    else
+                    else if (FindLinkFirst(pawn, state, tick, player, role, a, ext, target, out AIAbility linker, out int linkCount))
                     {
-                        Job link = TryLinkFirst(pawn, state, tick, player, role, a, ext, target);
-                        if (link != null)
+                        if (Offering)
                         {
-                            exclusiveDef = null;
-                            affectedCounted = false;
-                            return link;
+                            // The Word alone is offered next, as the driver falls back to it when the link's job is refused
+                            Offer(state, new AbilityAICandidate
+                            {
+                                kind = AbilityAICandidateKind.LinkFirst, ability = a, rule = ext, target = target, dest = dest,
+                                priority = ext.priority, linker = linker, expected = linkCount, castAtPrey = ctx.CastAtPrey,
+                            });
+                        }
+                        else
+                        {
+                            Job link = StartLinkFirst(pawn, state, tick, player, linker, a, ext, linkCount, ctx.CastAtPrey);
+                            if (link != null)
+                            {
+                                exclusiveDef = null;
+                                affectedCounted = false;
+                                return link;
+                            }
                         }
                     }
+                }
+                if (Offering)
+                {
+                    // No job yet: MakeCastJob may run another system's PreCast (VEF's), so it waits for Start
+                    bool barrier = worker is AbilityAIWorker_Barrier;
+                    Offer(state, new AbilityAICandidate
+                    {
+                        kind = AbilityAICandidateKind.Cast, ability = a, rule = ext, target = target, dest = dest,
+                        priority = ext.priority, castAtPrey = ctx.CastAtPrey, ventFor = ventFor,
+                        barrierCount = barrier ? AbilityAIWorker_Barrier.LastCount : 0,
+                        barrierRadius = barrier ? AbilityAIWorker_Barrier.LastRadius : 0f,
+                    });
+                    noLinkWhy = null;
+                    exclusiveDef = null;
+                    affectedCounted = false;
+                    if (OfferFull) return null;
+                    continue;
                 }
                 // Made before anything is recorded: another system's ability may still refuse at this point
                 // (VEF runs its extensions' own Valid and PreCast here)
@@ -2201,28 +2277,10 @@ namespace AbilityAI
                     continue;
                 }
 
-                state.nextCastTick = tick + Mathf.RoundToInt(AbilityAISettings.MinGapSeconds * GenTicks.TicksPerRealSecond);
-                if (ext.minGapSeconds > 0f)
-                {
-                    if (state.abilityNext == null) state.abilityNext = new Dictionary<Def, int>();
-                    state.abilityNext[a.Def] = tick + Mathf.RoundToInt(ext.minGapSeconds * GenTicks.TicksPerRealSecond);
-                }
-                if (worker is AbilityAIWorker_Barrier)
-                {
-                    TrackBarrier(state, ext.hediff, AbilityAIWorker_Barrier.LastCount, AbilityAIWorker_Barrier.LastRadius, tick);
-                    state.barrierJobId = cast.loadID;
-                }
-                if (AbilityAISettings.DebugLog && Prefs.DevMode)
-                    Log.Message($"[Ability AI] {pawn.LabelShort} casts {a.Label} ({worker.GetType().Name}) on {TargetLabel(target)}"
-                        + (ventFor != null ? $" to vent heat: {ventFor.Label} had a target but heat held it back" : "")
-                        + (noLinkWhy != null ? $", no group link first: {noLinkWhy}" : ""));
-                noLinkWhy = null;
                 exclusiveDef = null;
                 affectedCounted = false;
-                AbilityAIHooks.NotifyCast(pawn, a, target, dest);
-                AbilityAICombatAI.HoldForCast(pawn, a, target, cast);
-                if (player) QueueAfterCast(pawn, state, cast);
-                else if (ctx.CastAtPrey) ResumeHunt(pawn);
+                CommitCast(pawn, state, tick, player, a, ext, target, dest, cast, ctx.CastAtPrey,
+                    AbilityAIWorker_Barrier.LastCount, AbilityAIWorker_Barrier.LastRadius, ventFor);
                 return cast;
             }
             return null;
@@ -2309,6 +2367,69 @@ namespace AbilityAI
             }
         }
 
+        /// <summary>Casts waiting on CheckWarmup. Only a fast-path gate for it: a pawn destroyed mid-warmup leaves it
+        /// counted for the rest of the session, which costs one table lookup per constant-tree check.</summary>
+        internal static int WarmupChecks;
+
+        private static void WatchWarmup(PawnState state, AIAbility a, AbilityAIExtension ext, LocalTargetInfo target, Job cast)
+        {
+            if (!ext.avoidAllies && !ext.avoidBuildings)
+            {
+                if (state.warmupJobId >= 0) ClearWarmup(state);
+                return;
+            }
+            if (state.warmupJobId < 0) WarmupChecks++;
+            state.warmupJobId = cast.loadID;
+            state.warmupAbility = a;
+            state.warmupRule = ext;
+            state.warmupTarget = target;
+        }
+
+        private static void ClearWarmup(PawnState state)
+        {
+            if (state.warmupJobId < 0) return;
+            state.warmupJobId = -1;
+            state.warmupAbility = null;
+            state.warmupRule = null;
+            state.warmupTarget = LocalTargetInfo.Invalid;
+            if (WarmupChecks > 0) WarmupChecks--;
+        }
+
+        /// <summary>Called from the constant-tree postfix while any cast is watched (every 30 ticks, and whenever the
+        /// tracker looks for a job, as CheckForJobOverride does, which then starts the next job itself): during the warmup
+        /// of a cast this AI started, its rule's StillClear is asked where the target is now, and the cast ends if an
+        /// ally or a friendly building has come into the way. The aim follows a moving target, so a cone or blast that
+        /// was clear when chosen can swing onto a colonist. The cooldown and the cost are only spent when the cast
+        /// goes off, so ending it costs nothing but the time.</summary>
+        internal static void CheckWarmup(Pawn pawn)
+        {
+            if (evaluating || !states.TryGetValue(pawn, out PawnState state) || state.warmupJobId < 0) return;
+            Job cur = pawn.CurJob;
+            if (cur == null || cur.loadID != state.warmupJobId || !pawn.Spawned) { ClearWarmup(state); return; }
+            // Still walking up, or past the warmup: nothing to stop yet, or nothing left to stop
+            if (!AIAbilitySources.TryGetRunningCast(pawn, out _, out int warmupLeft) || warmupLeft <= 0) return;
+            var worker = state.warmupRule.Worker;
+            if (worker == null) return;
+            int tick = Find.TickManager.TicksGame;
+            bool clear;
+            evaluating = true;
+            ctx.Begin(pawn, tick, null, 0, ControlOf(pawn) == Control.Player && pawn.Drafted);
+            try { clear = worker.StillClear(ctx, state.warmupAbility, state.warmupTarget); }
+            finally
+            {
+                ctx.End();
+                evaluating = false;
+            }
+            if (clear) return;
+            if (AbilityAISettings.DebugLog && Prefs.DevMode)
+                Log.Message($"[Ability AI] {pawn.LabelShort} stops casting {state.warmupAbility.Label} at {TargetLabel(state.warmupTarget)}: "
+                    + "an ally or a friendly building came into the way during the warmup");
+            ClearWarmup(state);
+            // No new job from in here: this runs inside the tracker's own job search, which goes on to start one, or
+            // failing that the interval tick does at its end (the queue first, so a Full walk's way back)
+            pawn.jobs.EndCurrentJob(JobCondition.InterruptForced, startNewJob: false);
+        }
+
         /// <summary>Called from the constant-tree postfix for every pawn while any barrier is watched, ahead of every
         /// reason the driver might not evaluate the pawn (a job from the constant tree, a lord, autocast switched off
         /// since), so a barrier the AI raised always comes down by its rule.</summary>
@@ -2376,7 +2497,7 @@ namespace AbilityAI
         // one, so an attack would be lost: queue a copy to resume. After a Full walk, the walk back goes first and the
         // attack it was on before the walk after that.
         // The jobs queued are noted with the cast job (afterCast, afterCastJobId) for a jump: see TakeAfterLanding.
-        private static void QueueAfterCast(Pawn pawn, PawnState state, Job cast = null)
+        private static void QueueAfterCast(Pawn pawn, PawnState state, bool castAtPrey, Job cast = null)
         {
             var queue = pawn.jobs.jobQueue;
             var noted = state.afterCast ?? (state.afterCast = new List<Job>());
@@ -2393,7 +2514,7 @@ namespace AbilityAI
             }
             Job cur = pawn.CurJob;
             // A hunt only after a cast at the prey: not after an escape from the hunt
-            if (cur != null && cur.def.suspendable && (IsFightJob(cur.def) || (ctx.CastAtPrey && IsResumable(cur))))
+            if (cur != null && cur.def.suspendable && (IsFightJob(cur.def) || (castAtPrey && IsResumable(cur))))
             {
                 Job resume = Resume(cur);
                 queue.EnqueueFirst(resume);
@@ -2652,32 +2773,46 @@ namespace AbilityAI
                     at = goal.LabelShort;
                     claim = goal;
                 }
-
-                if (state.approachNext == null) state.approachNext = new Dictionary<Def, int>();
-                state.approachNext[a.Def] = ctx.tick + ApproachRetryTicks;
-                Job job = JobMaker.MakeJob(JobDefOf.Goto, cell);
-                job.expiryInterval = ApproachExpiryTicks;
-                job.checkOverrideOnExpire = false;
-                job.locomotionUrgency = LocomotionUrgency.Jog;
-                state.approachJobId = job.loadID;
-                state.approachAbility = expected > 0 ? a.Def : null;
-                state.approachExpected = expected;
-                state.approachDef = claim.IsValid ? a.Def : null;
-                state.approachGoal = claim;
                 exclusiveDef = null;
-                if (player)
+                if (Offering)
                 {
-                    ClearHome(state);
-                    state.home = pawn.Position;
-                    // Holding fire on a target the player picked: back to it once home
-                    Job cur = pawn.CurJob;
-                    if (cur != null && cur.def == JobDefOf.AttackStatic && cur.def.suspendable) state.resume = Resume(cur);
+                    Offer(state, new AbilityAICandidate
+                    {
+                        kind = AbilityAICandidateKind.Approach, ability = a, rule = ext, target = claim, dest = cell,
+                        priority = ext.priority, expected = expected, at = at, category = AbilityAICategory.Movement,
+                    });
+                    return null;
                 }
-                if (AbilityAISettings.DebugLog && Prefs.DevMode)
-                    Log.Message($"[Ability AI] {pawn.LabelShort} moves to {cell} to cast {a.Label} ({ext.Worker.GetType().Name}) at {at}");
-                return job;
+                return StartApproach(pawn, state, player, a, ext, cell, claim, expected, at);
             }
             return null;
+        }
+
+        private static Job StartApproach(Pawn pawn, PawnState state, bool player, AIAbility a, AbilityAIExtension ext, IntVec3 cell,
+            LocalTargetInfo claim, int expected, string at)
+        {
+            if (state.approachNext == null) state.approachNext = new Dictionary<Def, int>();
+            state.approachNext[a.Def] = Find.TickManager.TicksGame + ApproachRetryTicks;
+            Job job = JobMaker.MakeJob(JobDefOf.Goto, cell);
+            job.expiryInterval = ApproachExpiryTicks;
+            job.checkOverrideOnExpire = false;
+            job.locomotionUrgency = LocomotionUrgency.Jog;
+            state.approachJobId = job.loadID;
+            state.approachAbility = expected > 0 ? a.Def : null;
+            state.approachExpected = expected;
+            state.approachDef = claim.IsValid ? a.Def : null;
+            state.approachGoal = claim;
+            if (player)
+            {
+                ClearHome(state);
+                state.home = pawn.Position;
+                // Holding fire on a target the player picked: back to it once home
+                Job cur = pawn.CurJob;
+                if (cur != null && cur.def == JobDefOf.AttackStatic && cur.def.suspendable) state.resume = Resume(cur);
+            }
+            if (AbilityAISettings.DebugLog && Prefs.DevMode)
+                Log.Message($"[Ability AI] {pawn.LabelShort} moves to {cell} to cast {a.Label} ({ext.Worker.GetType().Name}) at {at}");
+            return job;
         }
 
         // A self-cast ability walks toward the goal itself (Battle Cry: toward the allies); a targeted one to a
@@ -2776,6 +2911,9 @@ namespace AbilityAI
                     if (!(abilityDef is ThingDef) && !(abilityDef is GearVerbDef) && (own.enabled || npc.enabled || friendly.enabled)
                         && rule.workerClass != null && typeof(AbilityAIWorker_Deploy).IsAssignableFrom(rule.workerClass))
                         AbilityAIWorker_Deploy.UsedByAbilities = true;
+                    if ((own.enabled || npc.enabled || friendly.enabled) && rule.workerClass != null
+                        && typeof(AbilityAIWorker_Skip).IsAssignableFrom(rule.workerClass))
+                        AbilityAIWorker_Skip.UsedByRules = true;
                 }
         }
 
@@ -3150,8 +3288,8 @@ namespace AbilityAI
             list.Label("AAI_MinGap".Translate(MinGapSeconds.ToString("0.#")));
             MinGapSeconds = Mathf.Round(list.Slider(MinGapSeconds, 0f, 30f) * 2f) / 2f;
             Hint(list, "AAI_MinGap_Desc");
-            // Only Royalty's Skip has rules for this worker
-            if (ModsConfig.RoyaltyActive)
+            // Royalty's and VPE's Skip, The Force's Nightsister teleport: shown only when a loaded rule uses the worker
+            if (AbilityAIWorker_Skip.UsedByRules)
             {
                 Section(list, "AAI_Section_Skip");
                 list.CheckboxLabeled("AAI_SkipRepel".Translate(), ref SkipRepel, "AAI_SkipRepel_Tip".Translate());
@@ -3453,6 +3591,11 @@ namespace AbilityAI
                 catch (Exception e) { Log.ErrorOnce($"[Ability AI] barrier check threw for {___pawn.def.defName}: {e}", ___pawn.def.shortHash ^ 0x5B31); }
             }
             if (!AbilityAISettings.Enabled) return;
+            if (AbilityAIDriver.WarmupChecks > 0 && ___pawn != null)
+            {
+                try { AbilityAIDriver.CheckWarmup(___pawn); }
+                catch (Exception e) { Log.ErrorOnce($"[Ability AI] warmup check threw for {___pawn.def.defName}: {e}", ___pawn.def.shortHash ^ 0x2E47); }
+            }
             // An undrafted colonist's hostility response (Attack or Flee) answers every constant-tree check while a
             // threat is near, so without this the AI would never get a look in for a colonist set to anything but
             // Ignore: it would attack or run from a berserk friend instead of calming it. The player's pawns only;
@@ -3464,6 +3607,12 @@ namespace AbilityAI
                 overHostility = true;
             }
             if (___pawn == null || !AIAbilitySources.HasAny(___pawn)) return;
+            // A job owner decides this pawn's jobs and asks for casts itself (GetCandidates), hostility included
+            if (AbilityAIHooks.Owned(___pawn))
+            {
+                if (DevJobOwner.mode != DevJobOwner.Mode.Off) DevJobOwner.Give(___pawn, ref __result);
+                return;
+            }
             // The player's pawns with nothing set to autocast stop at one dictionary lookup here
             var control = AbilityAIDriver.ControlOf(___pawn);
             if (control == AbilityAIDriver.Control.None || !AIAbilitySources.AnyWithExtension(___pawn)) return;

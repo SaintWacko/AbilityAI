@@ -138,6 +138,9 @@ namespace AbilityAI
                 }
                 catch (Exception e) { Log.Error($"[Ability AI] Setting up the gear rules for {thingDefs[i].defName} failed; that item is left to its own AI: {e}"); }
             }
+            // Here rather than on first use, so a resource def with a missing type warns at startup
+            try { AIResources.Init(); }
+            catch (Exception e) { Log.Error($"[Ability AI] Setting up resource floors failed: {e}"); }
             try { ApparelGearCompat.Register(); }
             catch (Exception e) { Log.Error($"[Ability AI] Setting up other mods' gear checks failed; some modded packs may waste a cast: {e}"); }
         }

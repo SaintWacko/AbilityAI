@@ -140,7 +140,8 @@ namespace AbilityAI
             if (!at.IsValid) return true;
             float near = Near;
             if (ext.avoidAllies && AbilityAIUtility.AllyWithin(ctx, ext, at, near * near, !AbilityAIUtility.MayHitBrokenAllies(ext), ext.casterLeaves)) return false;
-            return !ext.avoidBuildings || !AbilityAIUtility.FriendlyBuildingWithin(ctx, at, near);
+            // Buildings don't move: only a pawn target can carry the area onto one
+            return !ext.avoidBuildings || !(target.Thing is Pawn) || !AbilityAIUtility.FriendlyBuildingWithin(ctx, at, near);
         }
 
         // The per-enemy tests of Consider; grouping, avoidAllies and avoidBuildings are about where the area lands,

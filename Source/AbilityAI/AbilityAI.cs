@@ -2395,8 +2395,8 @@ namespace AbilityAI
             if (WarmupChecks > 0) WarmupChecks--;
         }
 
-        /// <summary>Called from the constant-tree postfix (every 30 ticks, and from CheckForJobOverride, after which a
-        /// pawn left without a job gets one on its next interval tick) while any cast is watched: during the warmup
+        /// <summary>Called from the constant-tree postfix while any cast is watched (every 30 ticks, and whenever the
+        /// tracker looks for a job, as CheckForJobOverride does, which then starts the next job itself): during the warmup
         /// of a cast this AI started, its rule's StillClear is asked where the target is now, and the cast ends if an
         /// ally or a friendly building has come into the way. The aim follows a moving target, so a cone or blast that
         /// was clear when chosen can swing onto a colonist. The cooldown and the cost are only spent when the cast
@@ -2425,8 +2425,8 @@ namespace AbilityAI
                 Log.Message($"[Ability AI] {pawn.LabelShort} stops casting {state.warmupAbility.Label} at {TargetLabel(state.warmupTarget)}: "
                     + "an ally or a friendly building came into the way during the warmup");
             ClearWarmup(state);
-            // No new job from in here: this runs inside the constant-tree check, and the tracker finds one (the queue
-            // first, so a Full walk's way back) at the end of the same tick
+            // No new job from in here: this runs inside the tracker's own job search, which goes on to start one, or
+            // failing that the interval tick does at its end (the queue first, so a Full walk's way back)
             pawn.jobs.EndCurrentJob(JobCondition.InterruptForced, startNewJob: false);
         }
 

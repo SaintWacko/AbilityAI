@@ -211,7 +211,8 @@
           </match>
         </li>
 
-        <!-- Force wave: 12 points, pushes everyone in a 30 degree cone 5 tiles long, allies too -->
+        <!-- Force wave: 12 points, pushes everyone in a plain 30 degree cone 5 tiles long, allies too. The
+             wedge is as long as the verb's 8.4, so 4.5 wide there for 30 degrees; aims within 5 -->
         <li Class="PatchOperationConditional">
           <xpath>Defs/AbilityDef[defName="Force_ForceWave"]</xpath>
           <match Class="PatchOperationAddModExtension">
@@ -691,8 +692,9 @@
           </match>
         </li>
 
-        <!-- Nightsister teleport: 18 points plus a little per tile, up to 17.9 tiles in sight; takes a badly
-             hurt ally out of danger, or the caster -->
+        <!-- Nightsister teleport: 18 points, then 8 more plus 0.05 a tile in its own code (AAI_ForcePoints'
+             extraCosts holds a player pawn's cast for that part), up to 17.9 tiles in sight; takes a badly hurt
+             ally out of danger, or the caster -->
         <li Class="PatchOperationConditional">
           <xpath>Defs/AbilityDef[defName="Force_Teleport"]</xpath>
           <match Class="PatchOperationAddModExtension">
@@ -716,7 +718,8 @@
         <!-- Sith sorcery (the Sith Sorcery mod's own defs when it is active, else The Force's copy) -->
 
         <!-- Firey energy: 10 points, an energy cone 7 long and 85 degrees wide (see above), after a 7
-             second warmup: two enemies or more -->
+             second warmup: two enemies or more. The wedge is as long as the verb's 8.5, so 15.6 wide there to
+             hold the cone's 85 degrees at 7; aims within 7 -->
         <li Class="PatchOperationConditional">
           <xpath>Defs/AbilityDef[defName="Force_FireyEnergy"]</xpath>
           <match Class="PatchOperationAddModExtension">

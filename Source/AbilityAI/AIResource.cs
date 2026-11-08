@@ -42,8 +42,13 @@ namespace AbilityAI
         /// <summary>A float field of this name on any of the def's mod extensions, any def type (VPE Hemosage's
         /// hemogenCost on VEF abilities). Summed when several extensions have it.</summary>
         public string costExtensionField;
+        /// <summary>Costs an ability's own code spends at cast time that no reader sees, added to what the readers find,
+        /// by the ability's defName (The Force's Nightsister teleport spends 8 plus 0.05 a tile after its 18). Autocast
+        /// holds a player pawn's cast for these even with no floor set, since the ability's own check doesn't know them.</summary>
+        public List<AIResourceExtraCost> extraCosts;
 
         internal int resourceIndex = -1;
+        private Dictionary<string, float> extraByAbility;
         private Func<Pawn, object> holderOf;
         private Func<object, float> currentOf, maxOf;
         private StatDef costStatDef;
@@ -80,7 +85,9 @@ namespace AbilityAI
             return true;
         }
 
-        internal float ReadCost(Def def)
+        internal float ReadCost(Def def) => ReadBaseCost(def) + ExtraCost(def);
+
+        private float ReadBaseCost(Def def)
         {
             if (def is AbilityDef ad)
             {
@@ -112,6 +119,10 @@ namespace AbilityAI
             }
             return 0f;
         }
+
+        /// <summary>The extraCosts entry for this def, 0 without one.</summary>
+        internal float ExtraCost(Def def) =>
+            extraByAbility != null && def != null && extraByAbility.TryGetValue(def.defName, out float extra) ? extra : 0f;
 
         // Main thread only (the gizmo draws them): SolidColorMaterials makes a texture
         internal Texture2D BarTex => barTex ?? (barTex = SolidColorMaterials.NewSolidColorTexture(barColor));
@@ -166,6 +177,13 @@ namespace AbilityAI
                 costStatDef = DefDatabase<StatDef>.GetNamedSilentFail(costStat);
                 if (costStatDef == null) { problem = $"no StatDef {costStat}"; return false; }
             }
+            if (extraCosts != null)
+            {
+                extraByAbility = new Dictionary<string, float>();
+                for (int i = 0; i < extraCosts.Count; i++)
+                    if (extraCosts[i] != null && !extraCosts[i].ability.NullOrEmpty() && extraCosts[i].cost > 0f)
+                        extraByAbility[extraCosts[i].ability] = extraCosts[i].cost;
+            }
             if (costComp != null)
             {
                 costCompType = GenTypes.GetTypeInAnyAssembly(costComp.type);
@@ -188,6 +206,13 @@ namespace AbilityAI
     {
         public string type;
         public string field;
+    }
+
+    public class AIResourceExtraCost
+    {
+        /// <summary>A defName, kept as a string so the entry costs nothing while the ability's mod is missing.</summary>
+        public string ability;
+        public float cost;
     }
 
     public static class AIResources

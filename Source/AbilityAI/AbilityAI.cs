@@ -1444,7 +1444,9 @@ namespace AbilityAI
                 float cost = a.ResourceCost(r);
                 if (cost <= float.Epsilon) continue;
                 float floor = AbilityAIAutocast.ResourceFloor(pawn, r);
-                if (floor > 0f && r.TryRead(pawn, out float value, out float max) && value - cost < floor * max - 0.001f) return false;
+                // With no floor the ability's own check covers the cost, except a part only its code spends (extraCosts)
+                if (floor <= 0f && r.ExtraCost(a.Def) <= 0f) continue;
+                if (r.TryRead(pawn, out float value, out float max) && value - cost < floor * max - 0.001f) return false;
             }
             bool any = AbilityAIAutocast.TryGetLimits(pawn, out float heatCap, out float focusFloor);
             if (!any || !a.IsPsycast) return true;

@@ -57,8 +57,6 @@ namespace AbilityAI
                     if (job != null) return job;
                     // Refused at the link step or when its job was made: the next best option, and the candidates a
                     // bound skipped against this one get their search now that the bar is lower
-                    exclusiveDef = null;
-                    affectedCounted = false;
                 }
             }
             finally
@@ -100,23 +98,24 @@ namespace AbilityAI
                 ctx.CastAtPrey = false;
                 ctx.TargetValue = -1f;
                 ctx.NoTargetWhy = null;
+                // Valid below must still see the rule's exclusivity and its own count of an area cast at the caster, as
+                // its search did, or an AoE hostile self rule is judged by its comps against the caster and refused
                 bool found = worker.TryFindTarget(ctx, a, out LocalTargetInfo target, out LocalTargetInfo dest);
+                string refusal = null;
+                if (!found) refusal = ctx.NoTargetWhy ?? "no target";
+                else
+                {
+                    if (!dest.IsValid) dest = target;
+                    if (!Valid(a, target))
+                        refusal = whyNot != null ? $"the ability refused {TargetLabel(target)}" : "";
+                    else if (player && !PsycastWithinLimits(a, target))
+                        refusal = whyNot != null ? $"over this pawn's autocast limits for {TargetLabel(target)}" : "";
+                }
                 exclusiveDef = null;
                 affectedCounted = false;
-                if (!found)
+                if (refusal != null)
                 {
-                    WhyNot(a, ext, ctx.NoTargetWhy ?? "no target");
-                    continue;
-                }
-                if (!dest.IsValid) dest = target;
-                if (!Valid(a, target))
-                {
-                    if (whyNot != null) WhyNot(a, ext, $"the ability refused {TargetLabel(target)}");
-                    continue;
-                }
-                if (player && !PsycastWithinLimits(a, target))
-                {
-                    if (whyNot != null) WhyNot(a, ext, $"over this pawn's autocast limits for {TargetLabel(target)}");
+                    if (whyNot != null) WhyNot(a, ext, refusal);
                     continue;
                 }
                 bool barrier = worker is AbilityAIWorker_Barrier;
@@ -159,7 +158,7 @@ namespace AbilityAI
         // The cast for a target the driver chose: for a Word of psycast the group link step (through a link only if
         // everyone linked may take it; without one, perhaps the pawn's Group link first), then the ability's own job.
         // Null when refused, with the dev log's reason written; the caller goes on to its next choice. exclusiveDef
-        // and affectedCounted are the chosen rule's on the way in and cleared once a job is made.
+        // and affectedCounted are the chosen rule's on the way in and cleared on the way out.
         private static Job CastChosen(Pawn pawn, PawnState state, int tick, bool player, AbilityAIRole role, AIAbility a,
             AbilityAIExtension ext, LocalTargetInfo target, LocalTargetInfo dest, bool castAtPrey, int barrierCount, float barrierRadius,
             AIAbility ventFor)
@@ -170,6 +169,8 @@ namespace AbilityAI
                 {
                     if (!AbilityAIGroupLink.LinkedMayTake(ctx, pawn, a, ext, out Pawn refused))
                     {
+                        exclusiveDef = null;
+                        affectedCounted = false;
                         if (whyNot != null) WhyNot(a, ext, $"{refused.LabelShort} is linked to it and mustn't be reached");
                         return null;
                     }
@@ -190,6 +191,8 @@ namespace AbilityAI
             Job cast = a.MakeCastJob(target, dest);
             if (cast == null)
             {
+                exclusiveDef = null;
+                affectedCounted = false;
                 noLinkWhy = null;
                 if (whyNot != null) WhyNot(a, ext, $"refused when its cast job was made, at {TargetLabel(target)}");
                 return null;

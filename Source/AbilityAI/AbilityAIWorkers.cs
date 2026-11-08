@@ -78,8 +78,10 @@ namespace AbilityAI
         public virtual float ValueBase => ext.minTargets;
 
         /// <summary>The most ctx.TargetValue could be for this rule now, worked out from what the context already holds,
-        /// before the search: never lower than the value the search could report, and cheap. -1 = no value.</summary>
-        public virtual float ValueBound(AbilityAIContext ctx, AIAbility ability) => -1f;
+        /// before the search: never lower than the value the search could report, and cheap. -1 = no value now. The
+        /// default, float.MaxValue, knows no bound: a worker that reports a value without overriding this is searched
+        /// whenever its priority plus its cap could win, rather than skipped as if it could only score its priority.</summary>
+        public virtual float ValueBound(AbilityAIContext ctx, AIAbility ability) => float.MaxValue;
 
         /// <summary>Asked about this rule's own cast every 30 ticks of its warmup (AbilityAIDriver.CheckWarmup): false
         /// ends the cast before it fires. The aim follows a moving target and allies move too, so a target that was

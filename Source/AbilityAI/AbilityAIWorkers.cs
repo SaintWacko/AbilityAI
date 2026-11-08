@@ -674,7 +674,9 @@ namespace AbilityAI
             float radius = AbilityAIUtility.Radius(ability, ext);
             if (!at.IsValid || radius <= 0f) return true;
             if (ext.avoidAllies && AbilityAIUtility.AllyWithin(ctx, ext, at, radius * radius, !AbilityAIUtility.MayHitBrokenAllies(ext), false)) return false;
-            return !ext.avoidBuildings || !AbilityAIUtility.FriendlyBuildingWithin(ctx, at, radius, target.Thing);
+            // Buildings don't move: only a moving target can carry the blast onto one. A cell aim (an anchored rule's
+            // fallback) would also lose the anchor's exemption here and refuse its own runecircle.
+            return !ext.avoidBuildings || !target.HasThing || !AbilityAIUtility.FriendlyBuildingWithin(ctx, at, radius, target.Thing);
         }
 
         public override bool TryFindApproachTarget(AbilityAIContext ctx, AIAbility ability, float reach, out Thing goal)

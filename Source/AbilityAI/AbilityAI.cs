@@ -2395,7 +2395,8 @@ namespace AbilityAI
             if (WarmupChecks > 0) WarmupChecks--;
         }
 
-        /// <summary>Called from the constant-tree postfix (every 30 ticks) while any cast is watched: during the warmup
+        /// <summary>Called from the constant-tree postfix (every 30 ticks, and from CheckForJobOverride, after which a
+        /// pawn left without a job gets one on its next interval tick) while any cast is watched: during the warmup
         /// of a cast this AI started, its rule's StillClear is asked where the target is now, and the cast ends if an
         /// ally or a friendly building has come into the way. The aim follows a moving target, so a cone or blast that
         /// was clear when chosen can swing onto a colonist. The cooldown and the cost are only spent when the cast

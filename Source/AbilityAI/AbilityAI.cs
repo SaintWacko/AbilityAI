@@ -956,7 +956,8 @@ namespace AbilityAI
             tick = t;
             approachAbility = walkingFor;
             approachExpected = expected;
-            WantsValue = AbilityAISettings.DynamicPriority;
+            // The setting is drawn in dev mode only until the driver reads the values; a saved "on" is not left weighing targets
+            WantsValue = AbilityAISettings.DynamicPriority && Prefs.DevMode;
             TargetValue = -1f;
             combatKnown = enemiesBuilt = alliesBuilt = aimsBuilt = friendliesBuilt = brokenBuilt = supportBuilt = enemyTargetKnown = preyKnown = meleeJobTargetKnown = false;
             friendlyTurretsBuilt = false;

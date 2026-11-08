@@ -72,8 +72,8 @@ namespace AbilityAI
 
         private static Type compType;
         private static FieldInfo levelField;
-        private static MethodInfo recalcMax, recover, clearCache;
-        private static PropertyInfo maxFP;
+        private static MethodInfo recalcMax, recover, clearCache, xpForNext;
+        private static PropertyInfo maxFP, leveling;
         private static bool resolved, usable;
 
         private static bool Ready()
@@ -92,7 +92,10 @@ namespace AbilityAI
                 recover = compType == null ? null : AccessTools.Method(compType, "RecoverFP");
                 maxFP = compType == null ? null : AccessTools.Property(compType, "MaxFP");
                 clearCache = AccessTools.Method("TheForce_Standalone.ForceSensitivityUtils:ClearCacheForPawn");
+                leveling = compType == null ? null : AccessTools.Property(compType, "Leveling");
+                xpForNext = AccessTools.Method("TheForce_Standalone.ForceUserLeveling:CalculateXPForNextLevel");
                 usable = levelField != null && recalcMax != null && recover != null && maxFP != null && clearCache != null
+                    && leveling != null && xpForNext != null
                     && DefDatabase<TraitDef>.GetNamedSilentFail(SensitivityTrait) != null;
             }
             if (!usable) Messages.Message("Force: The Force's types or trait have changed; see the code", MessageTypeDefOf.RejectInput, false);
@@ -131,12 +134,16 @@ namespace AbilityAI
                 clearCache.Invoke(null, new object[] { p });
                 GenSpawn.Spawn(p, CellFinder.RandomClosewalkCellNear(near, map, 6), map);
                 ThingComp comp = p.AllComps.FirstOrDefault(c => compType.IsInstanceOfType(c));
-                if (comp != null)
+                if (comp == null)
                 {
-                    levelField.SetValue(comp, ForceLevel);
-                    recalcMax.Invoke(comp, null);
-                    recover.Invoke(comp, new object[] { (float)maxFP.GetValue(comp) });
+                    p.Destroy();
+                    continue;
                 }
+                levelField.SetValue(comp, ForceLevel);
+                // The spawn set the next level's XP for level 1; left there, the first casts level every pawn up mid-fight
+                if (leveling.GetValue(comp) is object lv) xpForNext.Invoke(lv, null);
+                recalcMax.Invoke(comp, null);
+                recover.Invoke(comp, new object[] { (float)maxFP.GetValue(comp) });
                 if (player && p.drafter != null) p.drafter.Drafted = true;
                 pawns.Add(p);
             }

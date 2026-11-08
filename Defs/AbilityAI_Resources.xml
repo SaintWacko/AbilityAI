@@ -34,11 +34,12 @@
       <max>MaxFP</max>
     </comp>
     <costStat>Force_AbilityForcePoolCost</costStat>
-    <!-- The Nightsister teleport spends 8 plus 0.05 a tile (range 17.9) after its 18, in its own Apply -->
+    <!-- The Nightsister teleport spends 8 plus 0.05 a tile moved after its 18, in its own Apply. A rescued ally can
+         move a little over 20 tiles (target up to 17.9 away, landing past the caster), so 10 rather than 9 -->
     <extraCosts>
       <li>
         <ability>Force_Teleport</ability>
-        <cost>9</cost>
+        <cost>10</cost>
       </li>
     </extraCosts>
   </AbilityAI.AIResourceDef>

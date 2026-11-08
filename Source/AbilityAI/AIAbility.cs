@@ -598,12 +598,15 @@ namespace AbilityAI
         // saved before the trick was lost goes back to the comp's own rule. Psychic slaughter refuses every AI target
         // outright; its Valid already holds the real rule (flesh, not too big), so the player's pawns go by that.
         // Other factions still get vanilla's no.
-        private enum PlayerAIRule : byte { Ask, TargetIsPawn, TargetAimsAtCaster, TrickLearned }
+        // The Force's GiveHediff (any caster) casts every thing its area touches to Pawn, so an area power with a
+        // building or item in the radius throws InvalidCastException out of AICanTargetNow; its rule is applied here
+        // over the pawns only.
+        private enum PlayerAIRule : byte { Ask, TargetIsPawn, TargetAimsAtCaster, TrickLearned, AffectedPawnsHediff }
         private static readonly Dictionary<Type, PlayerAIRule> playerAIRules = new Dictionary<Type, PlayerAIRule>();
+        private static readonly HashSet<Type> throwingAICanTarget = new HashSet<Type>();
 
         private static bool CompAllowsTarget(CompAbilityEffect comp, LocalTargetInfo target, bool playerCaster)
         {
-            if (!playerCaster) return comp.AICanTargetNow(target);
             var type = comp.GetType();
             if (!playerAIRules.TryGetValue(type, out var rule))
             {
@@ -612,19 +615,52 @@ namespace AbilityAI
                      : declaring == typeof(CompAbilityEffect_FireBurst) ? PlayerAIRule.TargetAimsAtCaster
                      : declaring == typeof(CompAbilityEffect_RequiresTrainable) ? PlayerAIRule.TrickLearned
                      : declaring == typeof(CompAbilityEffect_PsychicSlaughter) ? PlayerAIRule.TargetIsPawn
+                     : declaring?.FullName == "TheForce_Standalone.CompAbilityEffect_GiveHediff" ? PlayerAIRule.AffectedPawnsHediff
                      : PlayerAIRule.Ask;
                 playerAIRules[type] = rule;
             }
+            if (rule == PlayerAIRule.AffectedPawnsHediff) return AffectedPawnsTakeHediff(comp, target);
+            if (!playerCaster) return Ask(comp, target);
             switch (rule)
             {
                 case PlayerAIRule.TrickLearned:
                     return comp.parent.pawn?.training?.HasLearned(((CompAbilityEffect_RequiresTrainable)comp).Props.trainableDef) == true
-                        || comp.AICanTargetNow(target);
+                        || Ask(comp, target);
                 case PlayerAIRule.TargetIsPawn: return target.Pawn != null;
                 case PlayerAIRule.TargetAimsAtCaster:
                     return target.Thing is Pawn p && p.TargetCurrentlyAimingAt == comp.parent.pawn;
-                default: return comp.AICanTargetNow(target);
+                default: return Ask(comp, target);
             }
+        }
+
+        // A throw here would end the pawn's whole evaluation, every tick it is asked; it refuses this target instead.
+        // Not cached as a refusal for the type, since such throws usually depend on what is around the target.
+        private static bool Ask(CompAbilityEffect comp, LocalTargetInfo target)
+        {
+            try { return comp.AICanTargetNow(target); }
+            catch (Exception e)
+            {
+                if (throwingAICanTarget.Add(comp.GetType()))
+                    Log.Warning($"[Ability AI] {comp.GetType().FullName}.AICanTargetNow threw on {comp.parent.def.defName}; the target is refused whenever it does: {e}");
+                return false;
+            }
+        }
+
+        // The Force's rule without the cast: a harmful hediff never touches an ally or neutral, a good one never an
+        // enemy, and at least one pawn in the area lacks it
+        private static bool AffectedPawnsTakeHediff(CompAbilityEffect comp, LocalTargetInfo target)
+        {
+            if (target.Pawn == null || !(comp.props is CompProperties_AbilityGiveHediff props) || props.hediffDef == null) return false;
+            Faction casterFaction = comp.parent.pawn.Faction;
+            bool isBad = props.hediffDef.isBad;
+            bool any = false;
+            foreach (LocalTargetInfo t in comp.parent.GetAffectedTargets(target))
+            {
+                if (!(t.Thing is Pawn p)) continue;
+                if (p.Faction != null && (isBad ? p.Faction.AllyOrNeutralTo(casterFaction) : p.Faction.HostileTo(casterFaction))) return false;
+                if (!p.health.hediffSet.HasHediff(props.hediffDef)) any = true;
+            }
+            return any;
         }
 
         // The rest of Verb_CastPsycast.ValidateTarget, which would post messages, plus immunity: a psycast on a pawn

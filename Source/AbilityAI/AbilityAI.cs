@@ -874,7 +874,8 @@ namespace AbilityAI
         /// resets it before each worker. Only filled while WantsValue.</summary>
         public float TargetValue { get; set; } = -1f;
 
-        /// <summary>Dynamic priority is on: a worker that reports a value works it out. Off, it may skip the work.</summary>
+        /// <summary>The driver is scoring this search (Dynamic priority on, its own casts): a worker that reports a value
+        /// works it out. Otherwise nothing reads it, so the worker skips the work.</summary>
         public bool WantsValue { get; internal set; }
 
         private readonly Dictionary<Thing, float> weights = new Dictionary<Thing, float>();
@@ -956,8 +957,8 @@ namespace AbilityAI
             tick = t;
             approachAbility = walkingFor;
             approachExpected = expected;
-            // The setting is drawn in dev mode only until the driver reads the values; a saved "on" is not left weighing targets
-            WantsValue = AbilityAISettings.DynamicPriority && Prefs.DevMode;
+            // Set by the scored loop around its own searches only: approach walks, vents and offers don't read values
+            WantsValue = false;
             TargetValue = -1f;
             combatKnown = enemiesBuilt = alliesBuilt = aimsBuilt = friendliesBuilt = brokenBuilt = supportBuilt = enemyTargetKnown = preyKnown = meleeJobTargetKnown = false;
             friendlyTurretsBuilt = false;
@@ -2220,10 +2221,13 @@ namespace AbilityAI
         }
 
         // Tries each candidate's worker in order and returns the first cast made. ventFor: the psycast heat held back,
-        // when these are heat vents (named in the dev log line).
+        // when these are heat vents (named in the dev log line). With Dynamic priority on, the driver's own casts are
+        // scored instead (TryCandidatesScored); vents stay first-fit, as they only answer a psycast heat held back.
         private static Job TryCandidates(List<Candidate> list, Pawn pawn, PawnState state, int tick, bool player, AbilityAIRole role,
             ref bool waitingForFight, AIAbility ventFor)
         {
+            if (AbilityAISettings.DynamicPriority && ventFor == null && !Offering)
+                return TryCandidatesScored(list, pawn, state, tick, player, role, ref waitingForFight);
             for (int i = 0; i < list.Count; i++)
             {
                 AIAbility a = list[i].ability;
@@ -2257,8 +2261,15 @@ namespace AbilityAI
                     if (whyNot != null) WhyNot(a, ext, $"over this pawn's autocast limits for {TargetLabel(target)}");
                     continue;
                 }
+                if (!Offering)
+                {
+                    Job cast = CastChosen(pawn, state, tick, player, role, a, ext, target, dest, ctx.CastAtPrey,
+                        AbilityAIWorker_Barrier.LastCount, AbilityAIWorker_Barrier.LastRadius, ventFor);
+                    if (cast != null) return cast;
+                    continue;
+                }
                 // A Word of psycast (AbilityAIGroupLink): through a link only if everyone linked may take it; without one,
-                // perhaps the pawn's Group link first
+                // perhaps the pawn's Group link first, offered ahead of the Word alone
                 if (AbilityAIGroupLink.Registered && AbilityAIGroupLink.IsWord(a.Def))
                 {
                     if (AbilityAIGroupLink.LinkOf(pawn) != null)
@@ -2271,59 +2282,27 @@ namespace AbilityAI
                     }
                     else if (FindLinkFirst(pawn, state, tick, player, role, a, ext, target, out AIAbility linker, out int linkCount))
                     {
-                        if (Offering)
+                        // The Word alone is offered next, as the driver falls back to it when the link's job is refused
+                        Offer(state, new AbilityAICandidate
                         {
-                            // The Word alone is offered next, as the driver falls back to it when the link's job is refused
-                            Offer(state, new AbilityAICandidate
-                            {
-                                kind = AbilityAICandidateKind.LinkFirst, ability = a, rule = ext, target = target, dest = dest,
-                                priority = ext.priority, linker = linker, expected = linkCount, castAtPrey = ctx.CastAtPrey,
-                            });
-                        }
-                        else
-                        {
-                            Job link = StartLinkFirst(pawn, state, tick, player, linker, a, ext, linkCount, ctx.CastAtPrey);
-                            if (link != null)
-                            {
-                                exclusiveDef = null;
-                                affectedCounted = false;
-                                return link;
-                            }
-                        }
+                            kind = AbilityAICandidateKind.LinkFirst, ability = a, rule = ext, target = target, dest = dest,
+                            priority = ext.priority, linker = linker, expected = linkCount, castAtPrey = ctx.CastAtPrey,
+                        });
                     }
                 }
-                if (Offering)
+                // No job yet: MakeCastJob may run another system's PreCast (VEF's), so it waits for Start
+                bool barrier = worker is AbilityAIWorker_Barrier;
+                Offer(state, new AbilityAICandidate
                 {
-                    // No job yet: MakeCastJob may run another system's PreCast (VEF's), so it waits for Start
-                    bool barrier = worker is AbilityAIWorker_Barrier;
-                    Offer(state, new AbilityAICandidate
-                    {
-                        kind = AbilityAICandidateKind.Cast, ability = a, rule = ext, target = target, dest = dest,
-                        priority = ext.priority, castAtPrey = ctx.CastAtPrey, ventFor = ventFor,
-                        barrierCount = barrier ? AbilityAIWorker_Barrier.LastCount : 0,
-                        barrierRadius = barrier ? AbilityAIWorker_Barrier.LastRadius : 0f,
-                    });
-                    noLinkWhy = null;
-                    exclusiveDef = null;
-                    affectedCounted = false;
-                    if (OfferFull) return null;
-                    continue;
-                }
-                // Made before anything is recorded: another system's ability may still refuse at this point
-                // (VEF runs its extensions' own Valid and PreCast here)
-                Job cast = a.MakeCastJob(target, dest);
-                if (cast == null)
-                {
-                    noLinkWhy = null;
-                    if (whyNot != null) WhyNot(a, ext, $"refused when its cast job was made, at {TargetLabel(target)}");
-                    continue;
-                }
-
+                    kind = AbilityAICandidateKind.Cast, ability = a, rule = ext, target = target, dest = dest,
+                    priority = ext.priority, castAtPrey = ctx.CastAtPrey, ventFor = ventFor,
+                    barrierCount = barrier ? AbilityAIWorker_Barrier.LastCount : 0,
+                    barrierRadius = barrier ? AbilityAIWorker_Barrier.LastRadius : 0f,
+                });
+                noLinkWhy = null;
                 exclusiveDef = null;
                 affectedCounted = false;
-                CommitCast(pawn, state, tick, player, a, ext, target, dest, cast, ctx.CastAtPrey,
-                    AbilityAIWorker_Barrier.LastCount, AbilityAIWorker_Barrier.LastRadius, ventFor);
-                return cast;
+                if (OfferFull) return null;
             }
             return null;
         }
@@ -3345,20 +3324,16 @@ namespace AbilityAI
             list.Label("AAI_MinGap".Translate(MinGapSeconds.ToString("0.#")));
             MinGapSeconds = Mathf.Round(list.Slider(MinGapSeconds, 0f, 30f) * 2f) / 2f;
             Hint(list, "AAI_MinGap_Desc");
-            // Dev mode only until the driver reads the values (scored-driver.md step 3): on, it only weighs targets
-            if (Prefs.DevMode)
+            Section(list, "AAI_Section_DynamicPriority");
+            list.CheckboxLabeled("AAI_DynamicPriority".Translate(), ref DynamicPriority, "AAI_DynamicPriority_Tip".Translate());
+            if (DynamicPriority)
             {
-                Section(list, "AAI_Section_DynamicPriority");
-                list.CheckboxLabeled("AAI_DynamicPriority".Translate(), ref DynamicPriority, "AAI_DynamicPriority_Tip".Translate());
-                if (DynamicPriority)
-                {
-                    list.Label("AAI_PriorityPerValue".Translate(PriorityPerValue.ToString("0.0#")), -1f, "AAI_PriorityPerValue_Tip".Translate());
-                    PriorityPerValue = Mathf.Round(list.Slider(PriorityPerValue, 0.1f, 2f) * 20f) / 20f;
-                    list.Label("AAI_MaxPriorityBonus".Translate(MaxPriorityBonus.ToString("0.#")), -1f, "AAI_MaxPriorityBonus_Tip".Translate());
-                    MaxPriorityBonus = Mathf.Round(list.Slider(MaxPriorityBonus, 0f, 5f) * 2f) / 2f;
-                }
-                Hint(list, "AAI_DynamicPriority_Desc");
+                list.Label("AAI_PriorityPerValue".Translate(PriorityPerValue.ToString("0.0#")), -1f, "AAI_PriorityPerValue_Tip".Translate());
+                PriorityPerValue = Mathf.Round(list.Slider(PriorityPerValue, 0.1f, 2f) * 20f) / 20f;
+                list.Label("AAI_MaxPriorityBonus".Translate(MaxPriorityBonus.ToString("0.#")), -1f, "AAI_MaxPriorityBonus_Tip".Translate());
+                MaxPriorityBonus = Mathf.Round(list.Slider(MaxPriorityBonus, 0f, 5f) * 2f) / 2f;
             }
+            Hint(list, "AAI_DynamicPriority_Desc");
             // Royalty's and VPE's Skip, The Force's Nightsister teleport: shown only when a loaded rule uses the worker
             if (AbilityAIWorker_Skip.UsedByRules)
             {

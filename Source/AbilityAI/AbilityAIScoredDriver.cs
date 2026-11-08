@@ -1,0 +1,203 @@
+using System.Collections.Generic;
+using Verse;
+using Verse.AI;
+
+// The scored driver (.circinus/handoffs/scored-driver.md step 3): with Dynamic priority on, the driver's own casts pick
+// the best-scored candidate (AbilityAIScore: priority plus a bonus from the value its worker reports for the target it
+// found) instead of the first by priority that finds a target. A candidate is searched only while it could still win:
+// its priority plus the bonus its worker's ValueBound allows must beat the best option found so far, so a rule
+// without a value below the best is skipped unsearched, as the first-fit loop never reached it either. Off, and for
+// heat vents and job owners' offers, TryCandidates runs the first-fit loop unchanged.
+namespace AbilityAI
+{
+    public static partial class AbilityAIDriver
+    {
+        // A candidate that found a target and passed Valid and the limits, with what its search left behind that a
+        // later search would overwrite (CastAtPrey, the barrier statics)
+        private struct Option
+        {
+            public int index;
+            public LocalTargetInfo target;
+            public LocalTargetInfo dest;
+            public bool castAtPrey;
+            public int barrierCount;
+            public float barrierRadius;
+            public float value;
+            public float score;
+        }
+
+        private static readonly List<Option> options = new List<Option>();
+        // Per candidate of the list being scored: its worker has run (or it was turned away for good), so a later round
+        // after a refused winner only looks at the ones a bound skipped
+        private static readonly List<bool> searched = new List<bool>();
+
+        private static Job TryCandidatesScored(List<Candidate> list, Pawn pawn, PawnState state, int tick, bool player, AbilityAIRole role,
+            ref bool waitingForFight)
+        {
+            options.Clear();
+            searched.Clear();
+            for (int i = 0; i < list.Count; i++) searched.Add(false);
+            ctx.WantsValue = true;
+            try
+            {
+                while (true)
+                {
+                    SearchScored(list, player, ref waitingForFight);
+                    int best = BestOption();
+                    if (best < 0) return null;
+                    Option o = options[best];
+                    options.RemoveAt(best);
+                    AIAbility a = list[o.index].ability;
+                    var ext = list[o.index].ext;
+                    // The link step asks Valid again, which must see the winner's exclusivity as its search did
+                    exclusiveDef = ext.Worker.Exclusive ? a.Def : null;
+                    affectedCounted = ext.Worker.CountsAffectedAroundCaster;
+                    Job job = CastChosen(pawn, state, tick, player, role, a, ext, o.target, o.dest, o.castAtPrey,
+                        o.barrierCount, o.barrierRadius, null);
+                    if (job != null) return job;
+                    // Refused at the link step or when its job was made: the next best option, and the candidates a
+                    // bound skipped against this one get their search now that the bar is lower
+                    exclusiveDef = null;
+                    affectedCounted = false;
+                }
+            }
+            finally
+            {
+                ctx.WantsValue = false;
+                options.Clear();
+                searched.Clear();
+            }
+        }
+
+        // Searches every candidate not yet searched that could still beat the best option, in base priority order
+        private static void SearchScored(List<Candidate> list, bool player, ref bool waitingForFight)
+        {
+            int best = BestOption();
+            for (int i = 0; i < list.Count; i++)
+            {
+                if (searched[i]) continue;
+                AIAbility a = list[i].ability;
+                var ext = list[i].ext;
+                var worker = ext.Worker;
+                if (!CombatAllows(worker))
+                {
+                    searched[i] = true;
+                    if (worker.Combat != AbilityAICombat.InCombat) waitingForFight = false;
+                    WhyNot(a, ext, worker.Combat == AbilityAICombat.InCombat ? "not in combat" : "in combat");
+                    continue;
+                }
+                waitingForFight = false;
+                if (best >= 0)
+                {
+                    // The cap first, which costs nothing; the bound only for a rule the cap leaves in the running
+                    float cap = worker.ReportsValue ? AbilityAIScore.Cap(ext) : 0f;
+                    if (Beaten(ext.priority + (cap > 0f ? cap : 0f), i, best)) continue;
+                    if (cap > 0f && Beaten(ext.priority + AbilityAIScore.Bonus(worker, worker.ValueBound(ctx, a)), i, best)) continue;
+                }
+                searched[i] = true;
+                exclusiveDef = worker.Exclusive ? a.Def : null;
+                affectedCounted = worker.CountsAffectedAroundCaster;
+                ctx.CastAtPrey = false;
+                ctx.TargetValue = -1f;
+                ctx.NoTargetWhy = null;
+                bool found = worker.TryFindTarget(ctx, a, out LocalTargetInfo target, out LocalTargetInfo dest);
+                exclusiveDef = null;
+                affectedCounted = false;
+                if (!found)
+                {
+                    WhyNot(a, ext, ctx.NoTargetWhy ?? "no target");
+                    continue;
+                }
+                if (!dest.IsValid) dest = target;
+                if (!Valid(a, target))
+                {
+                    if (whyNot != null) WhyNot(a, ext, $"the ability refused {TargetLabel(target)}");
+                    continue;
+                }
+                if (player && !PsycastWithinLimits(a, target))
+                {
+                    if (whyNot != null) WhyNot(a, ext, $"over this pawn's autocast limits for {TargetLabel(target)}");
+                    continue;
+                }
+                bool barrier = worker is AbilityAIWorker_Barrier;
+                float value = worker.ReportsValue ? ctx.TargetValue : -1f;
+                options.Add(new Option
+                {
+                    index = i, target = target, dest = dest, castAtPrey = ctx.CastAtPrey,
+                    barrierCount = barrier ? AbilityAIWorker_Barrier.LastCount : 0,
+                    barrierRadius = barrier ? AbilityAIWorker_Barrier.LastRadius : 0f,
+                    value = value, score = AbilityAIScore.Score(worker, value),
+                });
+                if (best < 0 || Better(options.Count - 1, best)) best = options.Count - 1;
+            }
+            ctx.CastAtPrey = false;
+        }
+
+        // Ties go to the higher base priority, then the list's order; the list is in base priority order, so the
+        // lower index wins a tie
+        private static bool Better(int x, int y)
+        {
+            Option a = options[x], b = options[y];
+            return a.score > b.score || (a.score == b.score && a.index < b.index);
+        }
+
+        // Whether candidate index, at the most it could score, still loses to option best
+        private static bool Beaten(float ceiling, int index, int best)
+        {
+            Option b = options[best];
+            return ceiling < b.score || (ceiling == b.score && b.index < index);
+        }
+
+        private static int BestOption()
+        {
+            int best = -1;
+            for (int i = 0; i < options.Count; i++)
+                if (best < 0 || Better(i, best)) best = i;
+            return best;
+        }
+
+        // The cast for a target the driver chose: for a Word of psycast the group link step (through a link only if
+        // everyone linked may take it; without one, perhaps the pawn's Group link first), then the ability's own job.
+        // Null when refused, with the dev log's reason written; the caller goes on to its next choice. exclusiveDef
+        // and affectedCounted are the chosen rule's on the way in and cleared once a job is made.
+        private static Job CastChosen(Pawn pawn, PawnState state, int tick, bool player, AbilityAIRole role, AIAbility a,
+            AbilityAIExtension ext, LocalTargetInfo target, LocalTargetInfo dest, bool castAtPrey, int barrierCount, float barrierRadius,
+            AIAbility ventFor)
+        {
+            if (AbilityAIGroupLink.Registered && AbilityAIGroupLink.IsWord(a.Def))
+            {
+                if (AbilityAIGroupLink.LinkOf(pawn) != null)
+                {
+                    if (!AbilityAIGroupLink.LinkedMayTake(ctx, pawn, a, ext, out Pawn refused))
+                    {
+                        if (whyNot != null) WhyNot(a, ext, $"{refused.LabelShort} is linked to it and mustn't be reached");
+                        return null;
+                    }
+                }
+                else if (FindLinkFirst(pawn, state, tick, player, role, a, ext, target, out AIAbility linker, out int linkCount))
+                {
+                    Job link = StartLinkFirst(pawn, state, tick, player, linker, a, ext, linkCount, castAtPrey);
+                    if (link != null)
+                    {
+                        exclusiveDef = null;
+                        affectedCounted = false;
+                        return link;
+                    }
+                }
+            }
+            // Made before anything is recorded: another system's ability may still refuse at this point
+            // (VEF runs its extensions' own Valid and PreCast here)
+            Job cast = a.MakeCastJob(target, dest);
+            if (cast == null)
+            {
+                noLinkWhy = null;
+                if (whyNot != null) WhyNot(a, ext, $"refused when its cast job was made, at {TargetLabel(target)}");
+                return null;
+            }
+            exclusiveDef = null;
+            affectedCounted = false;
+            CommitCast(pawn, state, tick, player, a, ext, target, dest, cast, castAtPrey, barrierCount, barrierRadius, ventFor);
+            return cast;
+        }
+    }
+}

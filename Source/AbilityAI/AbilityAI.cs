@@ -70,6 +70,11 @@ namespace AbilityAI
             if (owner != null && !owners.Contains(owner)) owners.Add(owner);
         }
 
+        /// <summary>A mod's own idea of how much a target is worth (see IAbilityAITargetWeight), used for the scored
+        /// driver's values in place of combat power. The first registered answers; one that throws is dropped for the
+        /// session.</summary>
+        public static void RegisterTargetWeight(IAbilityAITargetWeight provider) => AbilityAIScore.Register(provider);
+
         internal static bool Owned(Pawn pawn)
         {
             for (int i = 0; i < owners.Count; i++)
@@ -381,6 +386,12 @@ namespace AbilityAI
         public Type workerClass;
         /// <summary>Higher is tried first when a pawn has several ready abilities.</summary>
         public int priority;
+        /// <summary>Dynamic priority: priority gained per point of value past the worker's ValueBase, for a worker that
+        /// reports a value (AbilityAIScore). Negative = the setting.</summary>
+        public float priorityPerValue = -1f;
+        /// <summary>Dynamic priority: the most a value can add to priority. Negative = the setting; 0 turns the bonus off
+        /// for this rule.</summary>
+        public float maxPriorityBonus = -1f;
         public AbilityAICombat combat = AbilityAICombat.Default;
         /// <summary>What the rule does in a fight, for a job owner's arbiter (AbilityAICandidate.category). Default =
         /// the worker's own.</summary>
@@ -722,6 +733,9 @@ namespace AbilityAI
             else if (!typeof(AbilityAIWorker).IsAssignableFrom(workerClass)) yield return $"workerClass {workerClass} is not an AbilityAIWorker";
             else if (workerClass.IsAbstract) yield return $"workerClass {workerClass} is abstract";
             if (reserveCharges < 0) yield return "reserveCharges can't be negative";
+            if ((priorityPerValue >= 0f || maxPriorityBonus >= 0f) && Worker != null && !Worker.ReportsValue)
+                yield return $"priorityPerValue and maxPriorityBonus are only read by a rule whose worker reports a value, not {workerClass.Name}"
+                    + (typeof(AbilityAIWorker_TargetHostile).IsAssignableFrom(workerClass) ? " with minTargets 1" : "");
             // A corpse-scored rule may need no enemy near the corpses (its combat mode still wants a fight)
             if (minTargets < (minCorpses > 0 ? 0 : 1)) yield return minCorpses > 0 ? "minTargets can't be negative" : "minTargets must be at least 1";
             if (approachDistance < 0f) yield return "approachDistance can't be negative";
@@ -855,6 +869,29 @@ namespace AbilityAI
         /// 30 ticks, so a worker waiting a few seconds for a better moment would miss it.</summary>
         public bool SlowCheck { get; internal set; }
 
+        /// <summary>Set by a worker that reports a value (AbilityAIWorker.ReportsValue) for the target it returned: what
+        /// the cast there is worth (weighted enemies caught, allies helped, fire covered). -1 = no value. The driver
+        /// resets it before each worker. Only filled while WantsValue.</summary>
+        public float TargetValue { get; set; } = -1f;
+
+        /// <summary>Dynamic priority is on: a worker that reports a value works it out. Off, it may skip the work.</summary>
+        public bool WantsValue { get; internal set; }
+
+        private readonly Dictionary<Thing, float> weights = new Dictionary<Thing, float>();
+
+        /// <summary>What a target is worth to the caster, 1 to 3: a registered IAbilityAITargetWeight's answer, else
+        /// the pawn's kind's combat power / 100 (1 for a turret). Kept for the evaluation, so a target counted by
+        /// several rules is weighed once.</summary>
+        public float Weight(Thing t)
+        {
+            if (!weights.TryGetValue(t, out float w))
+            {
+                w = AbilityAIScore.WeightOf(pawn, t);
+                weights[t] = w;
+            }
+            return w;
+        }
+
         private bool combatKnown, inCombat;
         private bool enemiesBuilt, alliesBuilt, aimsBuilt, friendliesBuilt, brokenBuilt, supportBuilt;
         private readonly List<Pawn> brokenAllies = new List<Pawn>();
@@ -919,12 +956,15 @@ namespace AbilityAI
             tick = t;
             approachAbility = walkingFor;
             approachExpected = expected;
+            WantsValue = AbilityAISettings.DynamicPriority;
+            TargetValue = -1f;
             combatKnown = enemiesBuilt = alliesBuilt = aimsBuilt = friendliesBuilt = brokenBuilt = supportBuilt = enemyTargetKnown = preyKnown = meleeJobTargetKnown = false;
             friendlyTurretsBuilt = false;
         }
 
         internal void End()
         {
+            weights.Clear();
             enemies.Clear();
             enemyTurrets.Clear();
             friendlyTurrets.Clear();
@@ -2198,6 +2238,7 @@ namespace AbilityAI
                 exclusiveDef = worker.Exclusive ? a.Def : null;
                 affectedCounted = worker.CountsAffectedAroundCaster;
                 ctx.CastAtPrey = false;
+                ctx.TargetValue = -1f;
                 ctx.NoTargetWhy = null;
                 if (!worker.TryFindTarget(ctx, a, out LocalTargetInfo target, out LocalTargetInfo dest))
                 {
@@ -3068,6 +3109,13 @@ namespace AbilityAI
         /// <summary>Remote shield may go on an enemy mech (AbilityAISwitch.RemoteShieldEnemies), every caster. Off by
         /// default: the mechanitor stands within the shield's short range of that mech for the whole channel.</summary>
         public static bool RemoteShieldEnemies;
+        /// <summary>Dynamic priority (AbilityAIScore), every caster: a rule whose target is worth more than its minimum
+        /// gains priority, PriorityPerValue per point past it, at most MaxPriorityBonus.</summary>
+        public static bool DynamicPriority;
+        public const float DefaultPriorityPerValue = 0.5f;
+        public static float PriorityPerValue = DefaultPriorityPerValue;
+        public const float DefaultMaxPriorityBonus = 2f;
+        public static float MaxPriorityBonus = DefaultMaxPriorityBonus;
 
         public static bool SkipAllowed(AbilityAISkipMode mode)
         {
@@ -3114,6 +3162,9 @@ namespace AbilityAI
                     MaxDeployedNear = DefaultMaxDeployedNear;
                     MaxSummonedNear = DefaultMaxSummonedNear;
                     RemoteShieldEnemies = false;
+                    DynamicPriority = false;
+                    PriorityPerValue = DefaultPriorityPerValue;
+                    MaxPriorityBonus = DefaultMaxPriorityBonus;
                     DebugLog = false;
                     break;
                 case Tab.OtherFactions:
@@ -3229,6 +3280,11 @@ namespace AbilityAI
             GroupLinkMinTargets = Mathf.Clamp(GroupLinkMinTargets, 2, 10);
             Scribe_Values.Look(ref GroupLinkKeep, "abilityAI_groupLinkKeep", false);
             Scribe_Values.Look(ref RemoteShieldEnemies, "abilityAI_remoteShieldEnemies", false);
+            Scribe_Values.Look(ref DynamicPriority, "abilityAI_dynamicPriority", false);
+            Scribe_Values.Look(ref PriorityPerValue, "abilityAI_priorityPerValue", DefaultPriorityPerValue);
+            PriorityPerValue = Mathf.Clamp(PriorityPerValue, 0.1f, 2f);
+            Scribe_Values.Look(ref MaxPriorityBonus, "abilityAI_maxPriorityBonus", DefaultMaxPriorityBonus);
+            MaxPriorityBonus = Mathf.Clamp(MaxPriorityBonus, 0f, 5f);
             Scribe_Values.Look(ref MaxDeployedNear, "abilityAI_maxDeployedNear", DefaultMaxDeployedNear);
             MaxDeployedNear = Mathf.Clamp(MaxDeployedNear, 1, 6);
             Scribe_Values.Look(ref MaxSummonedNear, "abilityAI_maxSummonedNear", DefaultMaxSummonedNear);
@@ -3288,6 +3344,16 @@ namespace AbilityAI
             list.Label("AAI_MinGap".Translate(MinGapSeconds.ToString("0.#")));
             MinGapSeconds = Mathf.Round(list.Slider(MinGapSeconds, 0f, 30f) * 2f) / 2f;
             Hint(list, "AAI_MinGap_Desc");
+            Section(list, "AAI_Section_DynamicPriority");
+            list.CheckboxLabeled("AAI_DynamicPriority".Translate(), ref DynamicPriority, "AAI_DynamicPriority_Tip".Translate());
+            if (DynamicPriority)
+            {
+                list.Label("AAI_PriorityPerValue".Translate(PriorityPerValue.ToString("0.0#")), -1f, "AAI_PriorityPerValue_Tip".Translate());
+                PriorityPerValue = Mathf.Round(list.Slider(PriorityPerValue, 0.1f, 2f) * 20f) / 20f;
+                list.Label("AAI_MaxPriorityBonus".Translate(MaxPriorityBonus.ToString("0.#")), -1f, "AAI_MaxPriorityBonus_Tip".Translate());
+                MaxPriorityBonus = Mathf.Round(list.Slider(MaxPriorityBonus, 0f, 5f) * 2f) / 2f;
+            }
+            Hint(list, "AAI_DynamicPriority_Desc");
             // Royalty's and VPE's Skip, The Force's Nightsister teleport: shown only when a loaded rule uses the worker
             if (AbilityAIWorker_Skip.UsedByRules)
             {

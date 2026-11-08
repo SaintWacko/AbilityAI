@@ -94,8 +94,16 @@ namespace AbilityAI
         protected internal override AbilityAICategory DefaultCategory => AbilityAICategory.Offensive;
 
         public override bool TargetsEnemies => true;
-        private struct Cand { public Thing thing; public float score; }
+        // value: the weighted group (the target and its side near it), only while ReportsValue and ctx.WantsValue
+        private struct Cand { public Thing thing; public float score; public float value; }
         private static readonly List<Cand> cands = new List<Cand>();
+
+        // Only a group rule has a count past its minimum; a single target's worth is already in its own score
+        public override bool ReportsValue => ext.minTargets > 1;
+
+        // A target within reach and its group within Near of it: all of them within reach + Near of the caster
+        public override float ValueBound(AbilityAIContext ctx, AIAbility ability) =>
+            ReportsValue ? AbilityAIUtility.WeightWithin(ctx, ext, ctx.pawn.Position, TargetingUtil.Reach(ability, ext) + Near + 1f, false) : -1f;
 
         private static void SortBest() => cands.Sort((a, b) => b.score.CompareTo(a.score));
 
@@ -110,6 +118,7 @@ namespace AbilityAI
                 target = AbilityAIUtility.PawnOrCell(ability, cands[i].thing);
                 if (!target.IsValid) continue;
                 ctx.CastAtPrey = ext.whileHunting && cands[i].thing == ctx.Prey;
+                if (ctx.WantsValue && ReportsValue) ctx.TargetValue = cands[i].value;
                 break;
             }
             cands.Clear();
@@ -195,16 +204,17 @@ namespace AbilityAI
             float score = 1f;
             if (isCurrent) score += 1f;
             if (t is Building_Turret turret && turret.CurrentTarget.Thing == ctx.pawn) score += 1f;
+            float value = -1f;
             if (grouping)
             {
-                int group = 1 + CountNear(ctx, t, near2, spareBroken);
+                int group = 1 + CountNear(ctx, t, near2, spareBroken, ref value);
                 if (group < ext.minTargets) return;
                 if (ext.preferGrouped) score *= group;
             }
             if (ext.avoidAllies && AbilityAIUtility.AllyWithin(ctx, ext, t.Position, near2, spareBroken, ext.casterLeaves)) return;
             if (ext.avoidBuildings && AbilityAIUtility.FriendlyBuildingWithin(ctx, t.Position, Near)) return;
             score /= 1f + Mathf.Sqrt(d) / Mathf.Max(range, 1f);
-            cands.Add(new Cand { thing = t, score = score });
+            cands.Add(new Cand { thing = t, score = score, value = value });
         }
 
         // As CompAbilityEffect_PsychicSlaughter.Apply decides when a kill costs the player goodwill
@@ -215,20 +225,32 @@ namespace AbilityAI
                 && !p.Faction.def.PermanentlyHostileTo(FactionDefOf.PlayerColony);
         }
 
-        // The rest of the target's side within near2 of it: enemy pawns, and enemy turrets when the rule names them
-        private int CountNear(AbilityAIContext ctx, Thing t, float near2, bool spareBroken)
+        // The rest of the target's side within near2 of it: enemy pawns, and enemy turrets when the rule names them.
+        // value: set to the weighted group, the target included, while ReportsValue and ctx.WantsValue; else left as it is
+        private int CountNear(AbilityAIContext ctx, Thing t, float near2, bool spareBroken, ref float value)
         {
+            bool weigh = ctx.WantsValue && ReportsValue;
+            float w = weigh ? ctx.Weight(t) : 0f;
             int n = 0;
             var enemies = ctx.Enemies;
             for (int j = 0; j < enemies.Count; j++)
                 if (enemies[j] != t && (enemies[j].Position - t.Position).LengthHorizontalSquared <= near2
-                    && (!spareBroken || !ctx.IsBrokenAlly(enemies[j]))) n++;
+                    && (!spareBroken || !ctx.IsBrokenAlly(enemies[j])))
+                {
+                    n++;
+                    if (weigh) w += ctx.Weight(enemies[j]);
+                }
             if (AbilityAIUtility.WantsTurrets(ext))
             {
                 var turrets = ctx.EnemyTurrets;
                 for (int j = 0; j < turrets.Count; j++)
-                    if (turrets[j] != t && (turrets[j].Position - t.Position).LengthHorizontalSquared <= near2) n++;
+                    if (turrets[j] != t && (turrets[j].Position - t.Position).LengthHorizontalSquared <= near2)
+                    {
+                        n++;
+                        if (weigh) w += ctx.Weight(turrets[j]);
+                    }
             }
+            if (weigh) value = w;
             return n;
         }
 
@@ -246,9 +268,10 @@ namespace AbilityAI
             if (isCurrent) score += 1f;
             if (AbilityAIUtility.AimsAt(e, ctx.pawn)) score += 1f;
             score *= Mathf.Clamp(e.kindDef.combatPower / 100f, 0.5f, 3f);
+            float value = -1f;
             if (grouping)
             {
-                int group = 1 + CountNear(ctx, e, near2, spareBroken);
+                int group = 1 + CountNear(ctx, e, near2, spareBroken, ref value);
                 if (group < ext.minTargets) return;
                 if (ext.preferGrouped) score *= group;
             }
@@ -256,7 +279,7 @@ namespace AbilityAI
             // Here rather than on the best few: when those all stand by a wall, a clear enemy further down still counts
             if (ext.avoidBuildings && AbilityAIUtility.FriendlyBuildingWithin(ctx, e.Position, Near)) return;
             score /= 1f + Mathf.Sqrt(d) / Mathf.Max(range, 1f);
-            cands.Add(new Cand { thing = e, score = score });
+            cands.Add(new Cand { thing = e, score = score, value = value });
         }
     }
 
@@ -736,6 +759,13 @@ namespace AbilityAI
         private struct Spot { public IntVec3 cell; public float weight; public float score; }
         private static readonly List<Spot> spots = new List<Spot>();
 
+        // The value is the fire weight covered, already weighed by who is burning
+        public override bool ReportsValue => true;
+
+        // Bounding the weight would take the fire scan itself; with no fire the rule finds nothing anyway
+        public override float ValueBound(AbilityAIContext ctx, AIAbility ability) =>
+            ctx.map.listerThings.ThingsOfDef(ThingDefOf.Fire).Count == 0 ? -1f : float.MaxValue;
+
         public override bool TryFindTarget(AbilityAIContext ctx, AIAbility ability, out LocalTargetInfo target, out LocalTargetInfo dest)
         {
             target = dest = LocalTargetInfo.Invalid;
@@ -780,6 +810,7 @@ namespace AbilityAI
                 if (InvisibleAllyNear(allies, from, r2) && !BurningAllyNear(allies, ctx.pawn, from, r2)
                     && !BurningAllyNear(downed, ctx.pawn, from, r2)) return false;
                 target = ctx.pawn;
+                if (ctx.WantsValue) ctx.TargetValue = covered;
                 return true;
             }
             for (int i = 0; i < spots.Count; i++)
@@ -797,7 +828,12 @@ namespace AbilityAI
                 if (spots[i].score < ext.minTargets) break;
                 if (InvisibleAllyNear(allies, spots[i].cell, r2) && !BurningAllyNear(allies, ctx.pawn, spots[i].cell, r2)
                     && !BurningAllyNear(downed, ctx.pawn, spots[i].cell, r2)) continue;
-                if (AbilityAIDriver.Valid(ability, spots[i].cell)) { target = spots[i].cell; break; }
+                if (AbilityAIDriver.Valid(ability, spots[i].cell))
+                {
+                    target = spots[i].cell;
+                    if (ctx.WantsValue) ctx.TargetValue = spots[i].score;
+                    break;
+                }
             }
             spots.Clear();
             return target.IsValid;

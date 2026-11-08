@@ -142,6 +142,14 @@
   <AAI_Section_Summon>Summons</AAI_Section_Summon>
   <AAI_MaxSummonedNear>At most {0} of each summoned creature per side near the caster</AAI_MaxSummonedNear>
   <AAI_MaxSummonedNear_Tip>A pawn set to autocast a summon (Alpha Animals' Black Hive insects and eyelings) holds it while this many creatures of that kind on its side already stand within 20 tiles of it, downed ones not counted, or are being summoned there by its mates. Summoned creatures last a day, so they carry over from one fight to the next. Each lands at least 4 tiles from the others. Eyeling horde makes 8 eyelings at once and counts against the same limit as Summon eyeling. Applies to every pawn, yours and other factions'.</AAI_MaxSummonedNear_Tip>
+  <AAI_Section_DynamicPriority>Dynamic priority</AAI_Section_DynamicPriority>
+  <AAI_DynamicPriority>Big targets raise an ability's priority</AAI_DynamicPriority>
+  <AAI_DynamicPriority_Tip>An area, cone, beam, deploy or group ability gains priority for every target past the least it needs, so an explosion on six raiders can win over a single-target attack ranked above it. Stronger enemies count for more than one target (up to 3, by combat power). Abilities without a target count keep their own priority. Applies to every pawn, yours and other factions'.</AAI_DynamicPriority_Tip>
+  <AAI_PriorityPerValue>Priority per extra target: {0}</AAI_PriorityPerValue>
+  <AAI_PriorityPerValue_Tip>How much priority each target past an ability's minimum adds. A rule can set its own (priorityPerValue).</AAI_PriorityPerValue_Tip>
+  <AAI_MaxPriorityBonus>Most priority gained: {0}</AAI_MaxPriorityBonus>
+  <AAI_MaxPriorityBonus_Tip>The most priority extra targets can add to one ability. A rule can set its own (maxPriorityBonus); 0 turns the bonus off.</AAI_MaxPriorityBonus_Tip>
+  <AAI_DynamicPriority_Desc>Off: each pawn casts the highest-priority ability that finds a target, as before. On: pawns with several area abilities search a little more in big fights.</AAI_DynamicPriority_Desc>
   <AAI_Section_Mechanitor>Mechanitors</AAI_Section_Mechanitor>
   <AAI_RemoteShieldEnemies>Remote shield on enemy mechs</AAI_RemoteShieldEnemies>
   <AAI_RemoteShieldEnemies_Tip>A mechanitor may put its remote shield on an enemy mech that is shooting. The shield also stops that mech shooting out for up to 30 seconds, but the mechanitor has to stand within the shield's range of it (about 8 tiles) for the whole time. Off: the shield only goes on your side's mechs when they are badly hurt or under heavy fire. Applies to every mechanitor, yours and other factions'.</AAI_RemoteShieldEnemies_Tip>

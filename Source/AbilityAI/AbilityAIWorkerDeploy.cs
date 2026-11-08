@@ -40,11 +40,13 @@ namespace AbilityAI
 
         public override bool ReportsValue => true;
 
-        // A cell lies within range of the caster and sees within reach of itself
+        // A cell lies on a ring no further than range (or the innermost ring's distance, when range is shorter) and sees
+        // within reach of itself
         public override float ValueBound(AbilityAIContext ctx, AIAbility ability)
         {
             float reach = Reach(ext.deployedThing ?? ability.Effects.spawns);
-            float range = AbilityAIUtility.IsSelfCast(ability) ? 0f : AbilityAIUtility.Range(ability, ext);
+            float range = AbilityAIUtility.IsSelfCast(ability) ? 0f
+                : Mathf.Max(Mathf.Abs(AbilityAIUtility.Range(ability, ext)), Mathf.Max(2f, ext.minRange));
             return AbilityAIUtility.WeightWithin(ctx, ext, ctx.pawn.Position, range + reach + 1f, false);
         }
 

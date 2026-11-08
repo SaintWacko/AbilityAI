@@ -1033,7 +1033,8 @@ namespace AbilityAI
         public override float ValueBound(AbilityAIContext ctx, AIAbility ability)
         {
             float radius = AbilityAIUtility.Radius(ability, ext);
-            float reach = AbilityAIUtility.IsSelfCast(ability) ? radius : AbilityAIUtility.Range(ability, ext) + radius + 1f;
+            // Abs: a touch verb's range is -1, which AddCentre's distance check squares into 1
+            float reach = AbilityAIUtility.IsSelfCast(ability) ? radius : Mathf.Abs(AbilityAIUtility.Range(ability, ext)) + radius + 1f;
             float reachSq = reach * reach;
             IntVec3 from = ctx.pawn.Position;
             int n = 0;

@@ -101,9 +101,14 @@ namespace AbilityAI
         // Only a group rule has a count past its minimum; a single target's worth is already in its own score
         public override bool ReportsValue => ext.minTargets > 1;
 
-        // A target within reach and its group within Near of it: all of them within reach + Near of the caster
-        public override float ValueBound(AbilityAIContext ctx, AIAbility ability) =>
-            ReportsValue ? AbilityAIUtility.WeightWithin(ctx, ext, ctx.pawn.Position, TargetingUtil.Reach(ability, ext) + Near + 1f, false) : -1f;
+        // A target within reach and its group within Near of it: all of them within reach + Near of the caster. The prey
+        // is a candidate even when it isn't in Enemies (Score), so its weight is added on top
+        public override float ValueBound(AbilityAIContext ctx, AIAbility ability)
+        {
+            if (!ReportsValue) return -1f;
+            float bound = AbilityAIUtility.WeightWithin(ctx, ext, ctx.pawn.Position, TargetingUtil.Reach(ability, ext) + Near + 1f, false);
+            return ext.whileHunting && ctx.Prey != null ? bound + ctx.Weight(ctx.Prey) : bound;
+        }
 
         private static void SortBest() => cands.Sort((a, b) => b.score.CompareTo(a.score));
 

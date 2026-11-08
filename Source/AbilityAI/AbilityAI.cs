@@ -3344,16 +3344,20 @@ namespace AbilityAI
             list.Label("AAI_MinGap".Translate(MinGapSeconds.ToString("0.#")));
             MinGapSeconds = Mathf.Round(list.Slider(MinGapSeconds, 0f, 30f) * 2f) / 2f;
             Hint(list, "AAI_MinGap_Desc");
-            Section(list, "AAI_Section_DynamicPriority");
-            list.CheckboxLabeled("AAI_DynamicPriority".Translate(), ref DynamicPriority, "AAI_DynamicPriority_Tip".Translate());
-            if (DynamicPriority)
+            // Dev mode only until the driver reads the values (scored-driver.md step 3): on, it only weighs targets
+            if (Prefs.DevMode)
             {
-                list.Label("AAI_PriorityPerValue".Translate(PriorityPerValue.ToString("0.0#")), -1f, "AAI_PriorityPerValue_Tip".Translate());
-                PriorityPerValue = Mathf.Round(list.Slider(PriorityPerValue, 0.1f, 2f) * 20f) / 20f;
-                list.Label("AAI_MaxPriorityBonus".Translate(MaxPriorityBonus.ToString("0.#")), -1f, "AAI_MaxPriorityBonus_Tip".Translate());
-                MaxPriorityBonus = Mathf.Round(list.Slider(MaxPriorityBonus, 0f, 5f) * 2f) / 2f;
+                Section(list, "AAI_Section_DynamicPriority");
+                list.CheckboxLabeled("AAI_DynamicPriority".Translate(), ref DynamicPriority, "AAI_DynamicPriority_Tip".Translate());
+                if (DynamicPriority)
+                {
+                    list.Label("AAI_PriorityPerValue".Translate(PriorityPerValue.ToString("0.0#")), -1f, "AAI_PriorityPerValue_Tip".Translate());
+                    PriorityPerValue = Mathf.Round(list.Slider(PriorityPerValue, 0.1f, 2f) * 20f) / 20f;
+                    list.Label("AAI_MaxPriorityBonus".Translate(MaxPriorityBonus.ToString("0.#")), -1f, "AAI_MaxPriorityBonus_Tip".Translate());
+                    MaxPriorityBonus = Mathf.Round(list.Slider(MaxPriorityBonus, 0f, 5f) * 2f) / 2f;
+                }
+                Hint(list, "AAI_DynamicPriority_Desc");
             }
-            Hint(list, "AAI_DynamicPriority_Desc");
             // Royalty's and VPE's Skip, The Force's Nightsister teleport: shown only when a loaded rule uses the worker
             if (AbilityAIWorker_Skip.UsedByRules)
             {

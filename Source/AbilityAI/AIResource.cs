@@ -70,6 +70,10 @@ namespace AbilityAI
                 yield return "costComp needs type and field";
             if (limitLabel.NullOrEmpty()) yield return "has no limitLabel";
             if (defaultFloor < 0f || defaultFloor > 1f) yield return "defaultFloor must be from 0 to 1";
+            if (extraCosts != null)
+                for (int i = 0; i < extraCosts.Count; i++)
+                    if (extraCosts[i] == null || extraCosts[i].ability.NullOrEmpty() || extraCosts[i].cost <= 0f)
+                        yield return "each extraCosts entry needs an ability and a cost above 0";
         }
 
         /// <summary>The pawn's current and maximum amount; false when it has none of this resource (no comp, gene or

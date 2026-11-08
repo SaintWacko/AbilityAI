@@ -2188,6 +2188,7 @@ namespace AbilityAI
                     }
                     else if (whyNot != null) WhyNot(null, null, "its heat vents wait for a psycast heat holds back");
                 }
+                exclusiveDef = null;
                 affectedCounted = false;
                 if (waitingForFight && AbilityAISettings.NpcIdleIntervalTicks > EvalIntervalTicks)
                 {

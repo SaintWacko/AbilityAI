@@ -735,7 +735,8 @@ namespace AbilityAI
             if (reserveCharges < 0) yield return "reserveCharges can't be negative";
             if ((priorityPerValue >= 0f || maxPriorityBonus >= 0f) && Worker != null && !Worker.ReportsValue)
                 yield return $"priorityPerValue and maxPriorityBonus are only read by a rule whose worker reports a value, not {workerClass.Name}"
-                    + (typeof(AbilityAIWorker_TargetHostile).IsAssignableFrom(workerClass) ? " with minTargets 1" : "");
+                    + (typeof(AbilityAIWorker_TargetHostile).IsAssignableFrom(workerClass) ? " with minTargets 1"
+                        : typeof(AbilityAIWorker_AoEHostileSelf).IsAssignableFrom(workerClass) ? " with minCorpses" : "");
             // A corpse-scored rule may need no enemy near the corpses (its combat mode still wants a fight)
             if (minTargets < (minCorpses > 0 ? 0 : 1)) yield return minCorpses > 0 ? "minTargets can't be negative" : "minTargets must be at least 1";
             if (approachDistance < 0f) yield return "approachDistance can't be negative";
@@ -874,7 +875,7 @@ namespace AbilityAI
         /// resets it before each worker. Only filled while WantsValue.</summary>
         public float TargetValue { get; set; } = -1f;
 
-        /// <summary>The driver is scoring this search (Dynamic priority on, its own casts): a worker that reports a value
+        /// <summary>The driver is scoring this search (Dynamic priority on, its own casts or a job owner's offers): a worker that reports a value
         /// works it out. Otherwise nothing reads it, so the worker skips the work.</summary>
         public bool WantsValue { get; internal set; }
 

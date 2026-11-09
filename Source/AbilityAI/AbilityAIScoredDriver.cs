@@ -28,6 +28,9 @@ namespace AbilityAI
         }
 
         private static readonly List<Option> options = new List<Option>();
+        // Dev log only: the chosen cast's score, for CommitCast's line; set just before the cast is made and cleared
+        // after, as noLinkWhy is
+        private static string scoreNote;
         // Per candidate of the list being scored: its worker has run (or it was turned away for good), so a later round
         // after a refused winner only looks at the ones a bound skipped
         private static readonly List<bool> searched = new List<bool>();
@@ -59,8 +62,10 @@ namespace AbilityAI
                     // The link step asks Valid again, which must see the winner's exclusivity as its search did
                     exclusiveDef = ext.Worker.Exclusive ? a.Def : null;
                     affectedCounted = ext.Worker.CountsAffectedAroundCaster;
+                    if (AbilityAISettings.DebugLog && Prefs.DevMode) scoreNote = ScoreNote(ext, o.score, o.value) + Overtook(list, o);
                     Job job = CastChosen(pawn, state, tick, player, role, a, ext, o.target, o.dest, o.castAtPrey,
                         o.barrierCount, o.barrierRadius, null);
+                    scoreNote = null;
                     if (job != null) return job;
                     // Refused at the link step or when its job was made: the next best option, and the candidates a
                     // bound skipped against this one get their search now that the bar is lower
@@ -71,7 +76,40 @@ namespace AbilityAI
                 ctx.WantsValue = false;
                 options.Clear();
                 searched.Clear();
+                scoreNote = null;
             }
+        }
+
+        // "priority 2 -> 3.5, worth 5.8, needs 2": the value is the worker's weighted count, so a line can be checked
+        // against the step and cap in the settings
+        private static string ScoreNote(AbilityAIExtension ext, float score, float value)
+        {
+            var worker = ext.Worker;
+            string s = score != ext.priority ? $"priority {ext.priority} -> {score:0.##}" : $"priority {ext.priority}";
+            if (score != ext.priority && score - ext.priority >= AbilityAIScore.Cap(ext) - 0.001f) s += " (cap)";
+            if (value >= 0f && worker.ReportsValue) s += $", worth {value:0.##}, needs {worker.ValueBase:0.##}";
+            return s;
+        }
+
+        // The highest-priority option the winner overtook, if any, so a test fight's log shows a big-group cast beating
+        // a single-target one. Options a bound skipped are not here, but those could never have won.
+        private static string Overtook(List<Candidate> list, Option winner)
+        {
+            int priority = list[winner.index].ext.priority;
+            int beaten = -1;
+            for (int i = 0; i < options.Count; i++)
+            {
+                if (list[options[i].index].ext.priority <= priority) continue;
+                if (beaten < 0 || options[i].index < options[beaten].index) beaten = i;
+            }
+            if (beaten < 0) return "";
+            Option o = options[beaten];
+            var ext = list[o.index].ext;
+            string score = o.score != ext.priority ? $"priority {ext.priority} -> {o.score:0.##}" : $"priority {ext.priority}";
+            AIAbility a = list[o.index].ability;
+            // Two rules of one ability (a single-target rule above an area one) are told apart by their workers
+            string rule = a.Def == list[winner.index].ability.Def ? $"{ext.Worker.GetType().Name}, " : "";
+            return $"; ahead of {a.Label} ({rule}{score})";
         }
 
         // Searches every candidate not yet searched that could still make the top keep options, in base priority order.

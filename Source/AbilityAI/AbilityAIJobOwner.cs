@@ -203,6 +203,7 @@ namespace AbilityAI
             {
                 // A refused Group link leaves its reason for the Word's dev log line, which may never come
                 noLinkWhy = null;
+                scoreNote = null;
             }
             if (job != null)
             {
@@ -230,6 +231,7 @@ namespace AbilityAI
                 {
                     Job cast = c.ability.MakeCastJob(c.target, c.dest);
                     if (cast == null) return null;
+                    if (c.scored && AbilityAISettings.DebugLog && Prefs.DevMode) scoreNote = ScoreNote(c.rule, c.score, c.value);
                     CommitCast(pawn, state, tick, player, c.ability, c.rule, c.target, c.dest, cast, c.castAtPrey,
                         c.barrierCount, c.barrierRadius, c.ventFor);
                     return cast;
@@ -264,10 +266,12 @@ namespace AbilityAI
             WatchWarmup(state, a, ext, target, cast);
             if (AbilityAISettings.DebugLog && Prefs.DevMode)
                 Log.Message($"[Ability AI] {pawn.LabelShort} casts {a.Label} ({ext.Worker.GetType().Name}) on {TargetLabel(target)}"
+                    + (scoreNote != null ? $" ({scoreNote})" : "")
                     + (ventFor != null ? $" to vent heat: {ventFor.Label} had a target but heat held it back" : "")
                     + (noLinkWhy != null ? $", no group link first: {noLinkWhy}" : "")
                     + (Offering || !evaluating ? ", started by its job owner" : ""));
             noLinkWhy = null;
+            scoreNote = null;
             AbilityAIHooks.NotifyCast(pawn, a, target, dest);
             AbilityAICombatAI.HoldForCast(pawn, a, target, cast);
             if (player) QueueAfterCast(pawn, state, castAtPrey, cast);

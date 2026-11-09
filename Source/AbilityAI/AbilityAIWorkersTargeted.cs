@@ -55,17 +55,22 @@ namespace AbilityAI
         private static bool IsFoe(Thing t, Pawn p) =>
             (t is Pawn || (t is Building_Turret turret && !turret.ThreatDisabled(p))) && t.HostileTo(p);
 
-        public struct Cand { public Pawn pawn; public float score; }
+        // value: the scored driver's value for this pawn, for workers that report one
+        public struct Cand { public Pawn pawn; public float score; public float value; }
 
         public static void SortBest(List<Cand> list) => list.Sort((a, b) => b.score.CompareTo(a.score));
 
         /// <summary>The first of the best few the ability accepts as a pawn target.</summary>
-        public static bool FirstValid(List<Cand> list, AIAbility ability, out LocalTargetInfo target)
+        public static bool FirstValid(List<Cand> list, AIAbility ability, out LocalTargetInfo target) => FirstValid(list, ability, out target, out _);
+
+        /// <summary>FirstValid, with the chosen candidate's value (-1 when none is chosen).</summary>
+        public static bool FirstValid(List<Cand> list, AIAbility ability, out LocalTargetInfo target, out float value)
         {
             target = LocalTargetInfo.Invalid;
+            value = -1f;
             SortBest(list);
             for (int i = 0; i < list.Count && i < MaxTries; i++)
-                if (AbilityAIDriver.Valid(ability, list[i].pawn)) { target = list[i].pawn; break; }
+                if (AbilityAIDriver.Valid(ability, list[i].pawn)) { target = list[i].pawn; value = list[i].value; break; }
             list.Clear();
             return target.IsValid;
         }
@@ -303,9 +308,20 @@ namespace AbilityAI
 
         private static readonly List<TargetingUtil.Cand> cands = new List<TargetingUtil.Cand>();
 
+        // value: UrgencyPoints x the chosen ally's urgency, for the triggers that measure one: fireDanger (AbilityAIFire
+        // danger / 3, burning = 1) and minPain (pain from minPain up to the ally's pain shock threshold). A buff for an
+        // ally who is merely fighting (Focus) is no more urgent for anything the AI can see, and an aura rule is
+        // already gated on its count: both keep their priority
+        public override bool ReportsValue => ext.auraKinds == AbilityAITargetKinds.None && (ext.fireDanger || ext.minPain > 0f);
+
+        public override float ValueBase => 0f;
+
+        public override float ValueBound(AbilityAIContext ctx, AIAbility ability) => ReportsValue ? AbilityAIScore.UrgencyPoints : -1f;
+
         public override bool TryFindTarget(AbilityAIContext ctx, AIAbility ability, out LocalTargetInfo target, out LocalTargetInfo dest)
         {
             dest = LocalTargetInfo.Invalid;
+            bool weigh = ctx.WantsValue && ReportsValue;
             cands.Clear();
             float range = TargetingUtil.Reach(ability, ext);
             float maxSq = range * range;
@@ -321,9 +337,18 @@ namespace AbilityAI
                 float d = (a.Position - ctx.pawn.Position).LengthHorizontalSquared;
                 if (d > maxSq || !Wants(ctx, ability, a, hediff, out float pain, out float fire)) continue;
                 float score = (1f + pain + fire) * (isSelf ? 1.5f : 1f) / (1f + Mathf.Sqrt(d) / Mathf.Max(range, 1f));
-                cands.Add(new TargetingUtil.Cand { pawn = a, score = score });
+                cands.Add(new TargetingUtil.Cand { pawn = a, score = score, value = weigh ? Urgency(a, pain, fire) * AbilityAIScore.UrgencyPoints : -1f });
             }
-            return TargetingUtil.FirstValid(cands, ability, out target);
+            if (!TargetingUtil.FirstValid(cands, ability, out target, out float value)) return false;
+            if (weigh) ctx.TargetValue = value;
+            return true;
+        }
+
+        private float Urgency(Pawn a, float pain, float fire)
+        {
+            if (ext.fireDanger) return Mathf.Clamp01(fire / AbilityAIFire.Burning);
+            float shock = a.GetStatValue(StatDefOf.PainShockThreshold);
+            return shock > ext.minPain ? Mathf.Clamp01((pain - ext.minPain) / (shock - ext.minPain)) : 1f;
         }
 
         private bool Wants(AbilityAIContext ctx, AIAbility ability, Pawn a, HediffDef hediff, out float pain, out float fire)
@@ -358,11 +383,22 @@ namespace AbilityAI
         protected internal override AbilityAICategory DefaultCategory => AbilityAICategory.Defensive;
 
         private const float DangerRange = 15f;
+        // In melee counts as two shooters past the trigger
+        private const float MeleePoints = 2f;
         private static readonly List<TargetingUtil.Cand> cands = new List<TargetingUtil.Cand>();
+
+        // value: the chosen ally's worst trouble: each threat past minThreats a point, in melee MeleePoints, health
+        // under healthThreshold near enemies UrgencyPoints x (threshold - health) / threshold. The caster's x1.5 is a
+        // target choice (it needs no walk and knows its own state), not more trouble, so it isn't in the value. No
+        // bound: health urgency alone can reach the cap, so a bound would never skip the search
+        public override bool ReportsValue => true;
+
+        public override float ValueBase => 0f;
 
         public override bool TryFindTarget(AbilityAIContext ctx, AIAbility ability, out LocalTargetInfo target, out LocalTargetInfo dest)
         {
             dest = LocalTargetInfo.Invalid;
+            bool weigh = ctx.WantsValue;
             cands.Clear();
             bool self = AbilityAIUtility.CanTargetSelf(ability);
             bool onlySelf = AbilityAIUtility.IsSelfCast(ability);
@@ -378,22 +414,41 @@ namespace AbilityAI
                 if ((a.Position - ctx.pawn.Position).LengthHorizontalSquared > maxSq || AbilityAIUtility.Has(a, hediff)
                     || !AbilityAIUtility.Fits(ext, a)) continue;
                 float health = a.health?.summaryHealth?.SummaryHealthPercent ?? 1f;
-                if (!InTrouble(ctx, a, health)) continue;
-                cands.Add(new TargetingUtil.Cand { pawn = a, score = (2f - health) * (isSelf ? 1.5f : 1f) });
+                float trouble = Trouble(ctx, a, health, weigh);
+                if (trouble < 0f) continue;
+                cands.Add(new TargetingUtil.Cand { pawn = a, score = (2f - health) * (isSelf ? 1.5f : 1f), value = trouble });
             }
-            return TargetingUtil.FirstValid(cands, ability, out target);
+            if (!TargetingUtil.FirstValid(cands, ability, out target, out float value)) return false;
+            if (weigh) ctx.TargetValue = value;
+            return true;
         }
 
-        private bool InTrouble(AbilityAIContext ctx, Pawn p, float health)
+        // -1 = not in trouble. Without weigh the first reason found answers (0); with it every reason is measured
+        // and the largest is the value
+        private float Trouble(AbilityAIContext ctx, Pawn p, float health, bool weigh)
         {
-            if (!ext.rangedOnly && AbilityAIUtility.InMelee(ctx, p)) return true;
+            float trouble = -1f;
+            if (!ext.rangedOnly && AbilityAIUtility.InMelee(ctx, p))
+            {
+                if (!weigh) return 0f;
+                trouble = MeleePoints;
+            }
             // minThreats 0 would count every ally in range as in trouble: treat it as "threats don't count"
-            if (ext.minThreats > 0 && ctx.AimedAtCount(p) + (ctx.RecentlyShot(p) ? 1 : 0) >= ext.minThreats) return true;
-            if (ext.rangedOnly || health >= ext.healthThreshold) return false;
+            if (ext.minThreats > 0)
+            {
+                int threats = ctx.AimedAtCount(p) + (ctx.RecentlyShot(p) ? 1 : 0);
+                if (threats >= ext.minThreats)
+                {
+                    if (!weigh) return 0f;
+                    trouble = Mathf.Max(trouble, threats - ext.minThreats);
+                }
+            }
+            if (ext.rangedOnly || health >= ext.healthThreshold) return trouble;
             var enemies = ctx.Enemies;
             for (int i = 0; i < enemies.Count; i++)
-                if (enemies[i].Position.InHorDistOf(p.Position, DangerRange)) return true;
-            return false;
+                if (enemies[i].Position.InHorDistOf(p.Position, DangerRange))
+                    return Mathf.Max(trouble, AbilityAIScore.UrgencyPoints * (ext.healthThreshold - health) / ext.healthThreshold);
+            return trouble;
         }
     }
 
@@ -410,9 +465,18 @@ namespace AbilityAI
         protected override AbilityAICombat DefaultCombat => AbilityAICombat.Any;
         private static readonly List<TargetingUtil.Cand> cands = new List<TargetingUtil.Cand>();
 
+        // value: UrgencyPoints x how close the chosen pawn is to bleeding out (AbilityAIUtility.BleedUrgency), so a
+        // rescue of someone with minutes left can pass an Interrupt
+        public override bool ReportsValue => true;
+
+        public override float ValueBase => 0f;
+
+        public override float ValueBound(AbilityAIContext ctx, AIAbility ability) => AbilityAIScore.UrgencyPoints;
+
         public override bool TryFindTarget(AbilityAIContext ctx, AIAbility ability, out LocalTargetInfo target, out LocalTargetInfo dest)
         {
             dest = LocalTargetInfo.Invalid;
+            bool weigh = ctx.WantsValue;
             cands.Clear();
             if (AbilityAIUtility.IsSelfCast(ability)) { target = LocalTargetInfo.Invalid; return false; }
             float range = TargetingUtil.Reach(ability, ext);
@@ -426,9 +490,11 @@ namespace AbilityAI
                 if (d > maxSq || AbilityAIUtility.Has(p, hediff) || !AbilityAIUtility.Fits(ext, p)) continue;
                 if (ext.painShockOnly && p.health?.InPainShock != true) continue;
                 if (ext.minBleedRate > 0f && (p.health?.hediffSet?.BleedRateTotal ?? 0f) < ext.minBleedRate) continue;
-                cands.Add(new TargetingUtil.Cand { pawn = p, score = -d });
+                cands.Add(new TargetingUtil.Cand { pawn = p, score = -d, value = weigh ? AbilityAIScore.UrgencyPoints * AbilityAIUtility.BleedUrgency(p) : -1f });
             }
-            return TargetingUtil.FirstValid(cands, ability, out target);
+            if (!TargetingUtil.FirstValid(cands, ability, out target, out float value)) return false;
+            if (weigh) ctx.TargetValue = value;
+            return true;
         }
     }
 

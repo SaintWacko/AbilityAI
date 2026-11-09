@@ -543,11 +543,17 @@ namespace AbilityAI
         }
 
         /// <summary>How badly the pawn needs the rule's health conditions treated, 0 = not at all (or the rule names
-        /// none). Injured: 1 - summary health, under healthThreshold with an injury still healing; Bleeding: the bleed
-        /// rate per day, capped at 1, from minBleedRate; Disease, MissingParts: 0.5. Cost: field reads, plus a pass over
-        /// the hediffs for Disease and Bleeding and a cached read for MissingParts.</summary>
-        public static float HealthWant(AbilityAIExtension ext, Pawn p)
+        /// none). Injured: 1 - summary health, under healthThreshold with an injury still healing; Bleeding: from
+        /// minBleedRate, BleedUrgency with a floor of 0.05 so a slow bleed still counts; Disease, MissingParts: 0.5.
+        /// Cost: field reads, plus a pass over the hediffs for Disease and Bleeding and a cached read for MissingParts.</summary>
+        public static float HealthWant(AbilityAIExtension ext, Pawn p) => HealthWant(ext, p, out _);
+
+        /// <summary>HealthWant, and how urgent the worst condition is now (0..1, for the scored driver's value): Injured
+        /// (threshold - health) / threshold, Bleeding BleedUrgency, Disease and MissingParts 0, since neither gets
+        /// worse in the seconds a cast decision looks ahead.</summary>
+        public static float HealthWant(AbilityAIExtension ext, Pawn p, out float urgency)
         {
+            urgency = 0f;
             var health = ext.health;
             if (health == AbilityAIHealth.None) return 0f;
             var set = p.health?.hediffSet;
@@ -556,16 +562,39 @@ namespace AbilityAI
             if ((health & AbilityAIHealth.Injured) != 0)
             {
                 float h = p.health.summaryHealth.SummaryHealthPercent;
-                if (h < ext.healthThreshold && set.HasNaturallyHealingInjury()) want = 1f - h;
+                if (h < ext.healthThreshold && set.HasNaturallyHealingInjury())
+                {
+                    want = 1f - h;
+                    urgency = (ext.healthThreshold - h) / ext.healthThreshold;
+                }
             }
             if ((health & AbilityAIHealth.Bleeding) != 0)
             {
                 float bleed = set.BleedRateTotal;
-                if (bleed > float.Epsilon && bleed >= ext.minBleedRate) want = Mathf.Max(want, Mathf.Min(bleed, 1f));
+                if (bleed > float.Epsilon && bleed >= ext.minBleedRate)
+                {
+                    float bleedUrgency = BleedUrgency(p);
+                    want = Mathf.Max(want, Mathf.Max(MinBleedWant, bleedUrgency));
+                    urgency = Mathf.Max(urgency, bleedUrgency);
+                }
             }
             if ((health & AbilityAIHealth.Disease) != 0 && set.HasImmunizableNotImmuneHediff()) want = Mathf.Max(want, 0.5f);
             if ((health & AbilityAIHealth.MissingParts) != 0 && set.GetMissingPartsCommonAncestors().Count > 0) want = Mathf.Max(want, 0.5f);
             return want;
+        }
+
+        private const float MinBleedWant = 0.05f;
+        // Vanilla's health card says "won't bleed out soon" from a day out; two hours is the last stretch
+        private const int BleedCalmTicks = GenDate.TicksPerDay, BleedDireTicks = 2 * GenDate.TicksPerHour;
+
+        /// <summary>How close the pawn is to bleeding to death, 0..1: 0 a day or more away (or not bleeding, or
+        /// deathless), 1 within two hours. Time to death counts the blood already lost, so a pawn who has bled for a
+        /// while ranks above a fresh wound bleeding as fast. Cost: a pass over the hediffs.</summary>
+        public static float BleedUrgency(Pawn p)
+        {
+            if (ModsConfig.BiotechActive && p.genes != null && p.genes.HasActiveGene(GeneDefOf.Deathless)) return 0f;
+            int ticks = HealthUtility.TicksUntilDeathDueToBloodLoss(p);
+            return Mathf.InverseLerp(BleedCalmTicks, BleedDireTicks, ticks);
         }
 
         /// <summary>Centres an anchored rule validates before giving up: more than a pawn-centred rule's five, since
@@ -1410,6 +1439,17 @@ namespace AbilityAI
     {
         protected internal override AbilityAICategory DefaultCategory => AbilityAICategory.Defensive;
 
+        // value: the threats counted (aimers plus a recent hit; shooters for shieldsAllies; the fire on the ring for
+        // wallsIn), each one past minThreats a point. No bound: counting them is the search, one pass over enemies
+        public override bool ReportsValue => true;
+
+        public override float ValueBase => ext.minThreats;
+
+        private static void SetValue(AbilityAIContext ctx, int threats)
+        {
+            if (ctx.WantsValue) ctx.TargetValue = threats;
+        }
+
         public override bool TryFindTarget(AbilityAIContext ctx, AIAbility ability, out LocalTargetInfo target, out LocalTargetInfo dest)
         {
             target = dest = LocalTargetInfo.Invalid;
@@ -1427,8 +1467,9 @@ namespace AbilityAI
                 // whenever it was in melee or a colonist stood within 3.5 (run 16)
                 if (ext.wallsIn && ring > 0f)
                 {
-                    if (!TryRing(ctx, ring)) return false;
+                    if (!TryRing(ctx, ring, out int ringThreats)) return false;
                     target = pawn;
+                    SetValue(ctx, ringThreats);
                     return true;
                 }
                 if (ext.shieldsAllies && ring > 0f)
@@ -1442,6 +1483,7 @@ namespace AbilityAI
                         return false;
                     }
                     target = pawn;
+                    SetValue(ctx, shooters);
                     return true;
                 }
             }
@@ -1463,6 +1505,7 @@ namespace AbilityAI
             if (AbilityAIUtility.IsSelfCast(ability))
             {
                 target = pawn;
+                SetValue(ctx, threats);
                 return true;
             }
 
@@ -1470,6 +1513,7 @@ namespace AbilityAI
             {
                 if (wall) return false;   // a wall on the caster's own cell would bury it
                 target = pawn.Position;
+                SetValue(ctx, threats);
                 return true;
             }
             Vector3 dir = (nearest.Position - pawn.Position).ToVector3().normalized;
@@ -1480,7 +1524,7 @@ namespace AbilityAI
                 Vector3 off = dir * ext.offsetTowardThreat + side * (s == 0 ? 0f : s == 1 ? 1f : -1f);
                 IntVec3 c = pawn.Position + new IntVec3(Mathf.RoundToInt(off.x), 0, Mathf.RoundToInt(off.z));
                 if (!c.InBounds(ctx.map) || (wall && PawnInPattern(ctx.map, c, effects.wallPattern))) continue;
-                if (AbilityAIDriver.Valid(ability, c)) { target = c; return true; }
+                if (AbilityAIDriver.Valid(ability, c)) { target = c; SetValue(ctx, threats); return true; }
             }
             return false;
         }
@@ -1491,12 +1535,13 @@ namespace AbilityAI
         // inside (caster included), or a downed ally or one under healthThreshold who is being shot at is inside.
         // Never with an enemy inside (it would be shut in with them) or an ally inside in melee (an enemy inside, or
         // one it is walking out to). Cost: a pass over the allies, the aim counts the evaluation builds anyway.
-        private bool TryRing(AbilityAIContext ctx, float ring)
+        private bool TryRing(AbilityAIContext ctx, float ring, out int threats)
         {
             Pawn pawn = ctx.pawn;
             float r2 = ring * ring;
+            threats = 0;
             if (TargetingUtil.AnyWithin(ctx.Enemies, pawn.Position, r2)) return false;
-            int threats = 0, shooters = 0;
+            int shooters = 0;
             bool shot = false, helpless = false;
             var allies = ctx.Allies;
             for (int i = 0; i < allies.Count; i++)
@@ -1558,24 +1603,38 @@ namespace AbilityAI
         protected internal override bool ForFleeing => true;
         private static readonly List<TargetingUtil.Cand> cands = new List<TargetingUtil.Cand>();
 
+        // value: UrgencyPoints x the chosen pawn's health urgency (AbilityAIUtility.HealthWant). Only injuries and
+        // bleeding grow urgent; a disease, missing part or need rule keeps its priority
+        public override bool ReportsValue => (ext.health & (AbilityAIHealth.Injured | AbilityAIHealth.Bleeding)) != 0;
+
+        public override float ValueBase => 0f;
+
+        public override float ValueBound(AbilityAIContext ctx, AIAbility ability) => ReportsValue ? AbilityAIScore.UrgencyPoints : -1f;
+
         public override bool TryFindTarget(AbilityAIContext ctx, AIAbility ability, out LocalTargetInfo target, out LocalTargetInfo dest)
         {
             target = dest = LocalTargetInfo.Invalid;
             // Without health rules the hediff is only skipped when the extension names one: the effects' own first
             // hediff may be a long side effect that would otherwise stop a need rule for good
             HediffDef hediff = SkipHediff(ability);
+            float value;
             if (AbilityAIUtility.IsSelfCast(ability))
             {
-                if (Want(ctx.pawn, hediff) <= 0f) return false;
+                if (Want(ctx.pawn, hediff, out float urgency) <= 0f) return false;
                 target = ctx.pawn;
-                return true;
+                value = urgency * AbilityAIScore.UrgencyPoints;
             }
-            cands.Clear();
-            float range = TargetingUtil.Reach(ability, ext);
-            bool self = AbilityAIUtility.CanTargetSelf(ability);
-            Add(ctx, ctx.SupportAllies, hediff, self, range);
-            if (ext.health != AbilityAIHealth.None) Add(ctx, ctx.DownedAllies, hediff, self, range);
-            return TargetingUtil.FirstValid(cands, ability, out target);
+            else
+            {
+                cands.Clear();
+                float range = TargetingUtil.Reach(ability, ext);
+                bool self = AbilityAIUtility.CanTargetSelf(ability);
+                Add(ctx, ctx.SupportAllies, hediff, self, range);
+                if (ext.health != AbilityAIHealth.None) Add(ctx, ctx.DownedAllies, hediff, self, range);
+                if (!TargetingUtil.FirstValid(cands, ability, out target, out value)) return false;
+            }
+            if (ctx.WantsValue && ReportsValue) ctx.TargetValue = value;
+            return true;
         }
 
         private void Add(AbilityAIContext ctx, List<Pawn> pawns, HediffDef hediff, bool self, float range)
@@ -1588,9 +1647,14 @@ namespace AbilityAI
                 if (isSelf && !self) continue;
                 float d = (p.Position - ctx.pawn.Position).LengthHorizontalSquared;
                 if (d > maxSq) continue;
-                float want = Want(p, hediff);
+                float want = Want(p, hediff, out float urgency);
                 if (want <= 0f) continue;
-                cands.Add(new TargetingUtil.Cand { pawn = p, score = want * (isSelf ? 1.5f : 1f) / (1f + Mathf.Sqrt(d) / Mathf.Max(range, 1f)) });
+                cands.Add(new TargetingUtil.Cand
+                {
+                    pawn = p,
+                    score = want * (isSelf ? 1.5f : 1f) / (1f + Mathf.Sqrt(d) / Mathf.Max(range, 1f)),
+                    value = urgency * AbilityAIScore.UrgencyPoints,
+                });
             }
         }
 
@@ -1601,12 +1665,13 @@ namespace AbilityAI
         {
             if (p == ctx.pawn) return false;
             if (!ctx.SupportAllies.Contains(p) && !(ext.health != AbilityAIHealth.None && ctx.DownedAllies.Contains(p))) return false;
-            return Want(p, SkipHediff(ability)) > 0f;
+            return Want(p, SkipHediff(ability), out _) > 0f;
         }
 
-        // How badly the pawn needs it, 0 = not at all
-        private float Want(Pawn p, HediffDef hediff)
+        // How badly the pawn needs it, 0 = not at all; urgency is the health part's (a need is never urgent)
+        private float Want(Pawn p, HediffDef hediff, out float urgency)
         {
+            urgency = 0f;
             if (!AbilityAIUtility.Fits(ext, p) || AbilityAIUtility.Has(p, hediff)) return 0f;
             float want = 0f;
             if (ext.need != null || ext.health == AbilityAIHealth.None)
@@ -1614,7 +1679,7 @@ namespace AbilityAI
                 Need need = p.needs?.TryGetNeed(ext.need ?? NeedDefOf.Rest);
                 if (need != null && need.CurLevelPercentage < ext.needThreshold) want = 1f - need.CurLevelPercentage;
             }
-            return Mathf.Max(want, AbilityAIUtility.HealthWant(ext, p));
+            return Mathf.Max(want, AbilityAIUtility.HealthWant(ext, p, out urgency));
         }
     }
 

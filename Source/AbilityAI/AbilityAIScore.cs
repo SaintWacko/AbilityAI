@@ -23,6 +23,11 @@ namespace AbilityAI
     public static class AbilityAIScore
     {
         public const float MinWeight = 1f, MaxWeight = 3f;
+
+        /// <summary>Value of a help rule's target at full urgency (an ally about to bleed out, burning, at pain shock):
+        /// at the default step of 0.5 it reaches the default cap of 2, half way gets +1. Help workers report
+        /// UrgencyPoints x urgency with ValueBase 0, so their values sit on the same scale as a count of targets.</summary>
+        public const float UrgencyPoints = 4f;
         private static readonly List<IAbilityAITargetWeight> providers = new List<IAbilityAITargetWeight>();
 
         internal static void Register(IAbilityAITargetWeight provider)

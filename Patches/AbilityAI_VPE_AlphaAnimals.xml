@@ -332,6 +332,7 @@
               <li Class="AbilityAI.AbilityAIExtension">
                 <workerClass>AbilityAI.AbilityAIWorker_TargetFriendly</workerClass>
                 <priority>3</priority>
+                <valueFromThreats>true</valueFromThreats>
                 <targetKinds>Animal</targetKinds>
               </li>
             </value>
@@ -487,6 +488,7 @@
               <li Class="AbilityAI.AbilityAIExtension">
                 <workerClass>AbilityAI.AbilityAIWorker_TargetFriendly</workerClass>
                 <priority>2</priority>
+                <valueFromThreats>true</valueFromThreats>
                 <targetKinds>Humanlike, Animal</targetKinds>
                 <avoidFireDanger>true</avoidFireDanger>
               </li>

@@ -299,9 +299,10 @@ namespace AbilityAI
     /// those in at least that much pain, otherwise only allies fighting now; with avoidFireDanger none in fire danger;
     /// with auraKinds, only allies whose aura
     /// would reach enough enemies (AbilityAIUtility.AuraWorthIt). Scored by (1 + pain + fire danger), the caster
-    /// x1.5, divided by distance over range. Cost: a checks, and for an aura, fireDanger or avoidFireDanger rule a
-    /// pass over the enemies per ally that gets that far; with Dynamic priority a minPain rule also reads each
-    /// candidate's pain shock threshold stat.
+    /// x1.5, divided by distance over range; with valueFromThreats also x (1 + threats on the ally). Cost: a checks,
+    /// and for an aura, fireDanger or avoidFireDanger rule a pass over the enemies per ally that gets that far; with
+    /// Dynamic priority a minPain rule also reads each candidate's pain shock threshold stat; valueFromThreats one
+    /// pass over the enemies' aims per evaluation (shared with Defensive and Cover), then a lookup per ally.
     /// </summary>
     public class AbilityAIWorker_TargetFriendly : AbilityAIWorker
     {
@@ -310,14 +311,23 @@ namespace AbilityAI
         private static readonly List<TargetingUtil.Cand> cands = new List<TargetingUtil.Cand>();
 
         // value: UrgencyPoints x the chosen ally's urgency, for the triggers that measure one: fireDanger (AbilityAIFire
-        // danger / 3, burning = 1) and minPain (pain from minPain up to the ally's pain shock threshold). A buff for an
-        // ally who is merely fighting (Focus) is no more urgent for anything the AI can see, and an aura rule is
-        // already gated on its count: both keep their priority
-        public override bool ReportsValue => ext.auraKinds == AbilityAITargetKinds.None && (ext.fireDanger || ext.minPain > 0f);
+        // danger / 3, burning = 1) and minPain (pain from minPain up to the ally's pain shock threshold). On the
+        // fighting trigger only with valueFromThreats, as the threats on the ally: whether a fight makes a buff more
+        // urgent depends on the buff (Word of protection yes, Focus no), which only the rule can say. An aura rule is
+        // already gated on its count and keeps its priority. ValueBase 0: an ally firing with nobody firing back is
+        // fighting but under no threat, and stays at the rule's priority
+        public override bool ReportsValue => ext.auraKinds == AbilityAITargetKinds.None && (ext.fireDanger || ext.minPain > 0f || ext.valueFromThreats);
+
+        // ConfigErrors refuse valueFromThreats beside the other triggers; if one slips through, the trigger wins
+        private bool ByThreats => ext.valueFromThreats && !ext.fireDanger && ext.minPain <= 0f && ext.auraKinds == AbilityAITargetKinds.None;
 
         public override float ValueBase => 0f;
 
-        public override float ValueBound(AbilityAIContext ctx, AIAbility ability) => ReportsValue ? AbilityAIScore.UrgencyPoints : -1f;
+        // Threats: no ally has more aims on it than there are enemies, plus one for a recent shot and melee's points
+        public override float ValueBound(AbilityAIContext ctx, AIAbility ability) =>
+            !ReportsValue ? -1f
+            : ByThreats ? ctx.Enemies.Count + 1f + AbilityAIWorker_Defensive.MeleePoints
+            : AbilityAIScore.UrgencyPoints;
 
         public override bool TryFindTarget(AbilityAIContext ctx, AIAbility ability, out LocalTargetInfo target, out LocalTargetInfo dest)
         {
@@ -329,6 +339,7 @@ namespace AbilityAI
             bool self = AbilityAIUtility.CanTargetSelf(ability);
             bool onlySelf = AbilityAIUtility.IsSelfCast(ability);
             HediffDef hediff = AbilityAIUtility.Hediff(ability, ext);
+            bool byThreats = ByThreats;
             var allies = ctx.SupportAllies;
             for (int i = 0; i < allies.Count; i++)
             {
@@ -338,12 +349,28 @@ namespace AbilityAI
                 float d = (a.Position - ctx.pawn.Position).LengthHorizontalSquared;
                 if (d > maxSq || !Wants(ctx, ability, a, hediff, out float pain, out float fire)) continue;
                 float score = (1f + pain + fire) * (isSelf ? 1.5f : 1f) / (1f + Mathf.Sqrt(d) / Mathf.Max(range, 1f));
-                cands.Add(new TargetingUtil.Cand { pawn = a, score = score, value = weigh ? Urgency(a, pain, fire) * AbilityAIScore.UrgencyPoints : -1f });
+                float value = -1f;
+                if (byThreats)
+                {
+                    // The target choice too, with the setting off as well: measured only on the ally the pain and
+                    // distance score picks, the nearest ally with nothing on it would win over one under four guns a
+                    // few tiles further, and the cast would score low besides
+                    float threats = Threats(ctx, a);
+                    score *= 1f + threats;
+                    if (weigh) value = threats;
+                }
+                else if (weigh) value = Urgency(a, pain, fire) * AbilityAIScore.UrgencyPoints;
+                cands.Add(new TargetingUtil.Cand { pawn = a, score = score, value = value });
             }
             if (!TargetingUtil.FirstValid(cands, ability, out target, out float value)) return false;
             if (weigh) ctx.TargetValue = value;
             return true;
         }
+
+        // Counted as Defensive counts them: each ranged enemy aiming at the ally, a shot in the last 10 seconds, melee
+        private static float Threats(AbilityAIContext ctx, Pawn a) =>
+            ctx.AimedAtCount(a) + (ctx.RecentlyShot(a) ? 1f : 0f)
+            + (AbilityAIUtility.InMelee(ctx, a) ? AbilityAIWorker_Defensive.MeleePoints : 0f);
 
         private float Urgency(Pawn a, float pain, float fire)
         {
@@ -387,7 +414,7 @@ namespace AbilityAI
 
         private const float DangerRange = 15f;
         // In melee counts as two shooters past the trigger
-        private const float MeleePoints = 2f;
+        internal const float MeleePoints = 2f;
         private static readonly List<TargetingUtil.Cand> cands = new List<TargetingUtil.Cand>();
 
         // value: the chosen ally's worst trouble: each threat past minThreats a point, in melee MeleePoints, health

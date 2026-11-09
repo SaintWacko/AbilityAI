@@ -623,6 +623,11 @@ namespace AbilityAI
         /// <summary>Target friendly: never an ally in fire danger (AbilityAIFire), for a buff that makes its bearer burn
         /// worse (Alpha Animals' Fungal skin).</summary>
         public bool avoidFireDanger;
+        /// <summary>Target friendly on the fighting trigger: the more threats on an ally (each ranged enemy aiming at
+        /// it, being shot recently, in melee for 2), the likelier it is the one chosen, and with Dynamic priority each
+        /// threat lifts the cast's priority. For a buff against damage taken (Word of protection), not one that helps the
+        /// ally fight (Focus). Not with fireDanger, minPain or auraKinds, which pick and score allies their own way.</summary>
+        public bool valueFromThreats;
         /// <summary>Hostile workers: only pawns with at least one part of this def left, for an ability that works on that
         /// part alone (Alpha Animals' Destroy eyes, Leg skip); a pawn missing all of them is skipped, so the ability isn't
         /// spent on an enemy it already blinded. Mechs and other bodies without the part are skipped too.</summary>
@@ -737,7 +742,7 @@ namespace AbilityAI
                 yield return $"priorityPerValue and maxPriorityBonus are only read by a rule whose worker reports a value, not {workerClass.Name}"
                     + (typeof(AbilityAIWorker_TargetHostile).IsAssignableFrom(workerClass) ? " with minTargets 1"
                         : typeof(AbilityAIWorker_AoEHostileSelf).IsAssignableFrom(workerClass) ? " with minCorpses"
-                        : typeof(AbilityAIWorker_TargetFriendly).IsAssignableFrom(workerClass) ? " without fireDanger or minPain, or with auraKinds"
+                        : typeof(AbilityAIWorker_TargetFriendly).IsAssignableFrom(workerClass) ? " without fireDanger, minPain or valueFromThreats, or with auraKinds"
                         : typeof(AbilityAIWorker_Recovery).IsAssignableFrom(workerClass) ? " without Injured or Bleeding in health" : "");
             // A corpse-scored rule may need no enemy near the corpses (its combat mode still wants a fight)
             if (minTargets < (minCorpses > 0 ? 0 : 1)) yield return minCorpses > 0 ? "minTargets can't be negative" : "minTargets must be at least 1";
@@ -815,6 +820,10 @@ namespace AbilityAI
                 yield return $"casterLeaves is only read by Target hostile, not {workerClass.Name}";
             if (casterLeaves && !avoidAllies) yield return "casterLeaves does nothing without avoidAllies";
             if (avoidFireDanger && fireDanger) yield return "fireDanger and avoidFireDanger together leave no ally to target";
+            if (valueFromThreats && workerClass != null && !typeof(AbilityAIWorker_TargetFriendly).IsAssignableFrom(workerClass))
+                yield return $"valueFromThreats is only read by Target friendly, not {workerClass.Name}";
+            else if (valueFromThreats && (fireDanger || minPain > 0f || auraKinds != AbilityAITargetKinds.None))
+                yield return "valueFromThreats only works on the fighting trigger: not with fireDanger, minPain or auraKinds";
             if (targetPart != null && Worker != null && !Worker.TargetsEnemies)
                 yield return $"targetPart is only read by hostile workers, not {workerClass.Name}";
             if (heatVent && Worker != null && !Worker.DriverCasts)

@@ -3093,7 +3093,7 @@ namespace AbilityAI
         public static bool RemoteShieldEnemies;
         /// <summary>Dynamic priority (AbilityAIScore), every caster: a rule whose target is worth more than its minimum
         /// gains priority, PriorityPerValue per point past it, at most MaxPriorityBonus.</summary>
-        public static bool DynamicPriority;
+        public static bool DynamicPriority = true;
         public const float DefaultPriorityPerValue = 0.5f;
         public static float PriorityPerValue = DefaultPriorityPerValue;
         public const float DefaultMaxPriorityBonus = 2f;
@@ -3144,7 +3144,7 @@ namespace AbilityAI
                     MaxDeployedNear = DefaultMaxDeployedNear;
                     MaxSummonedNear = DefaultMaxSummonedNear;
                     RemoteShieldEnemies = false;
-                    DynamicPriority = false;
+                    DynamicPriority = true;
                     PriorityPerValue = DefaultPriorityPerValue;
                     MaxPriorityBonus = DefaultMaxPriorityBonus;
                     DebugLog = false;
@@ -3262,7 +3262,7 @@ namespace AbilityAI
             GroupLinkMinTargets = Mathf.Clamp(GroupLinkMinTargets, 2, 10);
             Scribe_Values.Look(ref GroupLinkKeep, "abilityAI_groupLinkKeep", false);
             Scribe_Values.Look(ref RemoteShieldEnemies, "abilityAI_remoteShieldEnemies", false);
-            Scribe_Values.Look(ref DynamicPriority, "abilityAI_dynamicPriority", false);
+            Scribe_Values.Look(ref DynamicPriority, "abilityAI_dynamicPriority", true);
             Scribe_Values.Look(ref PriorityPerValue, "abilityAI_priorityPerValue", DefaultPriorityPerValue);
             PriorityPerValue = Mathf.Clamp(PriorityPerValue, 0.1f, 2f);
             Scribe_Values.Look(ref MaxPriorityBonus, "abilityAI_maxPriorityBonus", DefaultMaxPriorityBonus);

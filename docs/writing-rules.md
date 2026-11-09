@@ -167,7 +167,7 @@ Fields that several workers share:
 
 ### Dynamic priority
 
-A player setting (General tab, off by default). With it on, each rule that finds a target is scored at its `priority` plus a bonus for what that target is worth, and the best score is cast instead of the first rule by priority. An Explosion on six raiders can then win over a single-target attack one priority above it.
+A player setting (General tab, on by default). With it on, each rule that finds a target is scored at its `priority` plus a bonus for what that target is worth, and the best score is cast instead of the first rule by priority. An Explosion on six raiders can then win over a single-target attack one priority above it.
 
 - The bonus is `(value - minTargets) x step`, at most `cap`. Step and cap come from the settings (0.5 and 2 by default), or from the rule's `priorityPerValue` and `maxPriorityBonus`.
 - The value is what the worker counts for the target it chose. AoE hostile, AoE hostile around the caster, Cone and Beam hostile and Deploy: the enemies hit or seen, each weighted by its combat power / 100 between 1 and 3 (a centipede counts for 3, a tribal for 1). Target hostile, only with `minTargets` above 1: the target's group, weighted the same. AoE friendly: the allies that would gain the effect, 1 each. Firefighting: its fire weight. With `minCorpses`, AoE hostile counts the corpses, from `minCorpses`.

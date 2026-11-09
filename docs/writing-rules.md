@@ -172,7 +172,7 @@ A player setting (General tab, off by default). With it on, each rule that finds
 - The bonus is `(value - minTargets) x step`, at most `cap`. Step and cap come from the settings (0.5 and 2 by default), or from the rule's `priorityPerValue` and `maxPriorityBonus`.
 - The value is what the worker counts for the target it chose. AoE hostile, AoE hostile around the caster, Cone and Beam hostile and Deploy: the enemies hit or seen, each weighted by its combat power / 100 between 1 and 3 (a centipede counts for 3, a tribal for 1). Target hostile, only with `minTargets` above 1: the target's group, weighted the same. AoE friendly: the allies that would gain the effect, 1 each. Firefighting: its fire weight. With `minCorpses`, AoE hostile counts the corpses, from `minCorpses`.
 - Every other worker, and every rule of a worker written before this, reports no value and is scored at its `priority`, as with the setting off.
-- No ceiling between rules: a big Berserk pulse at 8 may overtake an Interrupt at 9. Give a rule that must never be passed a priority gap wider than the cap, or set `maxPriorityBonus` 0 on the rules that could pass it.
+- No ceiling between rules: a big Berserk pulse at 8 may overtake an Interrupt at 9. To keep a rule from ever being passed, set `maxPriorityBonus` 0 on the rules that could pass it; a priority gap only works while it is wider than the player's cap, which the setting allows up to 5.
 - Cost: a rule that cannot beat the best found so far, even at its cap, is not searched. Pawns with several area rules close in priority search a little more in big fights.
 
 ## Workers

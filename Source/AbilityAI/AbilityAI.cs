@@ -875,8 +875,8 @@ namespace AbilityAI
         /// resets it before each worker. Only filled while WantsValue.</summary>
         public float TargetValue { get; set; } = -1f;
 
-        /// <summary>The driver is scoring this search (Dynamic priority on, its own casts or a job owner's offers): a worker that reports a value
-        /// works it out. Otherwise nothing reads it, so the worker skips the work.</summary>
+        /// <summary>The driver is scoring this search (Dynamic priority on, its own casts or a job owner's offers): a worker
+        /// that reports a value works it out. Otherwise nothing reads it, so the worker skips the work.</summary>
         public bool WantsValue { get; internal set; }
 
         private readonly Dictionary<Thing, float> weights = new Dictionary<Thing, float>();
@@ -958,7 +958,7 @@ namespace AbilityAI
             tick = t;
             approachAbility = walkingFor;
             approachExpected = expected;
-            // Set by the scored loop around its own searches only: approach walks, vents and offers don't read values
+            // Set by the scored loop around its own searches only (casts and offers): approach walks and vents don't read values
             WantsValue = false;
             TargetValue = -1f;
             combatKnown = enemiesBuilt = alliesBuilt = aimsBuilt = friendliesBuilt = brokenBuilt = supportBuilt = enemyTargetKnown = preyKnown = meleeJobTargetKnown = false;

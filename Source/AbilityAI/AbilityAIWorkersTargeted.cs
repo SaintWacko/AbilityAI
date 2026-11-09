@@ -349,7 +349,7 @@ namespace AbilityAI
                 float d = (a.Position - ctx.pawn.Position).LengthHorizontalSquared;
                 if (d > maxSq || !Wants(ctx, ability, a, hediff, out float pain, out float fire)) continue;
                 float score = (1f + pain + fire) * (isSelf ? 1.5f : 1f) / (1f + Mathf.Sqrt(d) / Mathf.Max(range, 1f));
-                float value = -1f;
+                float allyValue = -1f;
                 if (byThreats)
                 {
                     // The target choice too, with the setting off as well: measured only on the ally the pain and
@@ -357,10 +357,10 @@ namespace AbilityAI
                     // few tiles further, and the cast would score low besides
                     float threats = Threats(ctx, a);
                     score *= 1f + threats;
-                    if (weigh) value = threats;
+                    if (weigh) allyValue = threats;
                 }
-                else if (weigh) value = Urgency(a, pain, fire) * AbilityAIScore.UrgencyPoints;
-                cands.Add(new TargetingUtil.Cand { pawn = a, score = score, value = value });
+                else if (weigh) allyValue = Urgency(a, pain, fire) * AbilityAIScore.UrgencyPoints;
+                cands.Add(new TargetingUtil.Cand { pawn = a, score = score, value = allyValue });
             }
             if (!TargetingUtil.FirstValid(cands, ability, out target, out float value)) return false;
             if (weigh) ctx.TargetValue = value;

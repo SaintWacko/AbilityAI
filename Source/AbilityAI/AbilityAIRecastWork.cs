@@ -84,6 +84,7 @@ namespace AbilityAI
         {
             if (!AbilityAISettings.Enabled || !AbilityAISettings.PlayerAutocast || !AbilityAISettings.UndraftedAutocast) return false;
             if (pawn.Drafted || pawn.Faction == null || !pawn.Faction.IsPlayer || pawn.InMentalState) return false;
+            if (AbilityAIPerspectiveShift.Controlled(pawn)) return false;
             var spots = RecastSpots.Of(pawn.Map);
             if (spots == null || spots.dueCount <= 0) return false;
             return AbilityAIAutocast.HasAny(pawn) && AIAbilitySources.HasAny(pawn);

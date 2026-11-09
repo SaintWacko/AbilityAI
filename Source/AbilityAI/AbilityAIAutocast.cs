@@ -460,6 +460,8 @@ namespace AbilityAI
         {
             if (!AbilityAISettings.Enabled || !AbilityAISettings.PlayerAutocast) return false;
             if (p == null || def == null || p.Faction == null || !p.Faction.IsPlayer || p.IsPrisoner) return false;
+            // Under Perspective Shift's direct control: no menu, and VEF's own toggle comes back (VefAutocast.Owns)
+            if (AbilityAIPerspectiveShift.Controlled(p)) return false;
             // A pawn that can't be drafted (most animals) only ever autocasts undrafted, where it uses every worker
             // while fighting back (AbilityAIDriver.FightsUndrafted). Without undrafted autocast it never would.
             if (p.drafter == null && !AbilityAISettings.UndraftedAutocast) return false;
@@ -567,6 +569,7 @@ namespace AbilityAI
         {
             Ability ability = command.Ability;
             if (ability?.pawn == null || !AbilityAISettings.Enabled || !AbilityAISettings.PlayerAutocast) return;
+            if (AbilityAIPerspectiveShift.Controlled(ability.pawn)) return;
             var mode = AbilityAIAutocast.HasAny(ability.pawn)
                 ? AbilityAIAutocast.ModeFor(ability.pawn, ability.def) : AbilityAIAutocastMode.Off;
             if (mode == AbilityAIAutocastMode.Off)

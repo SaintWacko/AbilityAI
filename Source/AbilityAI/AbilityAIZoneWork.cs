@@ -114,6 +114,7 @@ namespace AbilityAI
         {
             if (!AbilityAISettings.Enabled || !AbilityAISettings.PlayerAutocast || !AbilityAISettings.UndraftedAutocast) return false;
             if (!AbilityAIZones.Any || pawn.Drafted || pawn.Faction == null || !pawn.Faction.IsPlayer || pawn.InMentalState) return false;
+            if (AbilityAIPerspectiveShift.Controlled(pawn)) return false;
             if (!AbilityAIAutocast.HasAny(pawn)) return false;
             var zones = PsycastZones.Of(pawn.Map);
             return zones != null && zones.AnyDue(Find.TickManager.TicksGame) && AIAbilitySources.HasAny(pawn);

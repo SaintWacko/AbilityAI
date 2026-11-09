@@ -87,6 +87,7 @@ namespace AbilityAI.Vef
         {
             Pawn p = ability?.pawn;
             if (p == null || !AbilityAISettings.Enabled || !AbilityAISettings.PlayerAutocast || !VefAIAbility.Supported(ability.def)) return;
+            if (AbilityAIPerspectiveShift.Controlled(p)) return;
             if (VefAIAbility.Of(ability).PlayerAutocastElsewhere) return;
             var mode = AbilityAIAutocast.HasAny(p) ? AbilityAIAutocast.ModeFor(p, ability.def) : AbilityAIAutocastMode.Off;
             if (mode == AbilityAIAutocastMode.Off)

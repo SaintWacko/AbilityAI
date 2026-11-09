@@ -42,7 +42,7 @@ namespace AbilityAI
         internal static void Badge(ApparelAIAbility a, Rect button, bool shrunk)
         {
             Pawn p = a.Pawn;
-            if (p == null || !AbilityAISettings.Enabled || !AbilityAISettings.PlayerAutocast) return;
+            if (p == null || !AbilityAISettings.Enabled || !AbilityAISettings.PlayerAutocast || AbilityAIPerspectiveShift.Controlled(p)) return;
             var mode = AbilityAIAutocast.HasAny(p) ? AbilityAIAutocast.ModeFor(p, a.Def) : AbilityAIAutocastMode.Off;
             if (mode == AbilityAIAutocastMode.Off)
             {

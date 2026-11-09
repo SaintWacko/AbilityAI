@@ -1603,7 +1603,7 @@ namespace AbilityAI
         /// the menu for abilities with a worker that runs undrafted.</summary>
         public static Control ControlOf(Pawn pawn)
         {
-            if (pawn.IsPrisoner) return Control.None;
+            if (pawn.IsPrisoner || AbilityAIPerspectiveShift.Controlled(pawn)) return Control.None;
             if (pawn.Faction != null && pawn.Faction.IsPlayer)
             {
                 // A break takes the pawn out of the player's hands, and with it the player's choices: see BreakCasting.
@@ -1836,6 +1836,8 @@ namespace AbilityAI
         public static bool OthersStandDown(Pawn pawn, Ability ability)
         {
             if (!AbilityAISettings.Enabled || pawn == null || ability?.def == null) return false;
+            // The pawn Perspective Shift has under direct control gets vanilla's own triggers back, as without this mod
+            if (AbilityAIPerspectiveShift.Controlled(pawn)) return false;
             // A host's veto hands the ability back to vanilla or the host's own fallback (HasWorker first: it is the
             // cheap test)
             if (AbilityAISettings.PlayerAutocast && pawn.Faction != null && pawn.Faction.IsPlayer && !pawn.IsPrisoner
@@ -2510,6 +2512,12 @@ namespace AbilityAI
             if (evaluating || !states.TryGetValue(pawn, out PawnState state) || state.barrierHediff == null) return;
             int tick = Find.TickManager.TicksGame;
             if (tick < state.barrierNextCheck) return;
+            // Taken under direct control (Perspective Shift): the barrier is the player's now, to keep or drop
+            if (AbilityAIPerspectiveShift.Controlled(pawn))
+            {
+                ClearBarrier(state);
+                return;
+            }
             // As the driver decided when it raised it: a colonist in a break run by the NPC rules isn't under the player's
             BarrierUpkeep(pawn, state, tick, ControlOf(pawn) == Control.Player);
         }
@@ -3028,6 +3036,9 @@ namespace AbilityAI
         public static bool ReturnToCover;
         /// <summary>A drafted pawn on a melee attack order may cast its gap-close movement abilities at that target.</summary>
         public static bool ChargeGapClose = true;
+        /// <summary>The pawn Perspective Shift has under direct control gets no autocast, menu or limits gizmo
+        /// (AbilityAIPerspectiveShift). Its modes are kept.</summary>
+        public static bool PerspectiveShiftOff = true;
         /// <summary>Better Autocasting for VPE decides the colonists' psycasts both mods have rules for (default: Ability
         /// AI does).</summary>
         public static bool BetterAutocastOwns;
@@ -3205,7 +3216,7 @@ namespace AbilityAI
                     NpcIdleIntervalTicks = DefaultNpcIdleIntervalTicks;
                     break;
                 case Tab.YourPawns:
-                    PlayerAutocast = UndraftedAutocast = ShowMarker = ChargeGapClose = RecastTrackNewCasts = GatherWaitPlayer = true;
+                    PlayerAutocast = UndraftedAutocast = ShowMarker = ChargeGapClose = RecastTrackNewCasts = GatherWaitPlayer = PerspectiveShiftOff = true;
                     ReturnToCover = false;
                     RecastAt = DefaultRecastAt;
                     ZoneEnchantUpTo = DefaultZoneEnchantUpTo;
@@ -3254,6 +3265,7 @@ namespace AbilityAI
             Scribe_Values.Look(ref ShowMarker, "abilityAI_showMarker", true);
             Scribe_Values.Look(ref ReturnToCover, "abilityAI_returnToCover", false);
             Scribe_Values.Look(ref ChargeGapClose, "abilityAI_chargeGapClose", true);
+            Scribe_Values.Look(ref PerspectiveShiftOff, "abilityAI_perspectiveShiftOff", true);
             Scribe_Values.Look(ref BetterAutocastOwns, "abilityAI_betterAutocastOwns", false);
             Scribe_Values.Look(ref RecastTrackNewCasts, "abilityAI_recastTrackNewCasts", true);
             Scribe_Values.Look(ref RecastAt, "abilityAI_recastAt", DefaultRecastAt);
@@ -3507,6 +3519,8 @@ namespace AbilityAI
             list.CheckboxLabeled("AAI_ChargeGapClose".Translate(), ref ChargeGapClose, "AAI_ChargeGapClose_Tip".Translate());
             if (AbilityAIGather.Any)
                 list.CheckboxLabeled("AAI_GatherWait".Translate(), ref GatherWaitPlayer, "AAI_GatherWaitPlayer_Tip".Translate());
+            if (AbilityAIPerspectiveShift.Loaded)
+                list.CheckboxLabeled("AAI_PerspectiveShiftOff".Translate(), ref PerspectiveShiftOff, "AAI_PerspectiveShiftOff_Tip".Translate());
             Section(list, "AAI_Section_Undrafted");
             list.CheckboxLabeled("AAI_UndraftedAutocast".Translate(), ref UndraftedAutocast, "AAI_UndraftedAutocast_Tip".Translate());
             if (UndraftedAutocast)

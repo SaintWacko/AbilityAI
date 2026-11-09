@@ -82,7 +82,7 @@ namespace AbilityAI
         {
             if (!AbilityAISettings.Enabled || !AbilityAISettings.PlayerAutocast) return false;
             if (pawn.Faction == null || !pawn.Faction.IsPlayer || pawn.IsPrisoner) return false;
-            if (Find.Selector.SingleSelectedThing != pawn) return false;
+            if (Find.Selector.SingleSelectedThing != pawn || AbilityAIPerspectiveShift.Controlled(pawn)) return false;
             int frame = Time.frameCount;
             if (pawn != cachedPawn || AbilityAIAutocast.Version != cachedVersion || frame >= cachedUntilFrame)
             {

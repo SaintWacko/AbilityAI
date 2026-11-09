@@ -26,7 +26,8 @@ namespace AbilityAI
 
         public override bool TargetsEnemies => true;
 
-        private struct Spot { public IntVec3 cell; public int count; public float distSq; }
+        // value: the weighted count (ctx.Weight) of the enemies seen, only while ctx.WantsValue
+        private struct Spot { public IntVec3 cell; public int count; public float distSq; public float value; }
         private static readonly List<Spot> spots = new List<Spot>();
         private const int Rings = 4, PerRing = 9, MaxTries = 5;
         private const float FallbackReach = 20f, Spacing = 4f;
@@ -36,6 +37,18 @@ namespace AbilityAI
         internal static bool UsedByGear;
         /// <summary>Some ability's rule uses this worker (AbilityAINpcGates.Note): shows the summons' limit.</summary>
         internal static bool UsedByAbilities;
+
+        public override bool ReportsValue => true;
+
+        // A cell lies on a ring no further than range (or the innermost ring's distance, when range is shorter) and sees
+        // within reach of itself
+        public override float ValueBound(AbilityAIContext ctx, AIAbility ability)
+        {
+            float reach = Reach(ext.deployedThing ?? ability.Effects.spawns);
+            float range = AbilityAIUtility.IsSelfCast(ability) ? 0f
+                : Mathf.Max(Mathf.Abs(AbilityAIUtility.Range(ability, ext)), Mathf.Max(2f, ext.minRange));
+            return AbilityAIUtility.WeightWithin(ctx, ext, ctx.pawn.Position, range + reach + 1f, false);
+        }
 
         public override bool TryFindTarget(AbilityAIContext ctx, AIAbility ability, out LocalTargetInfo target, out LocalTargetInfo dest)
         {
@@ -70,10 +83,15 @@ namespace AbilityAI
             {
                 taken.Clear();
                 int seenHere = 0;
+                float valueHere = 0f;
                 float reachSq = reach * reach;
                 for (int i = 0; i < enemies.Count; i++)
                     if ((enemies[i].Position - pawn.Position).LengthHorizontalSquared <= reachSq
-                        && GenSight.LineOfSight(pawn.Position, enemies[i].Position, map, true)) seenHere++;
+                        && GenSight.LineOfSight(pawn.Position, enemies[i].Position, map, true))
+                    {
+                        seenHere++;
+                        if (ctx.WantsValue) valueHere += ctx.Weight(enemies[i]);
+                    }
                 if (seenHere < ext.minTargets)
                 {
                     if (AbilityAISettings.DebugLog) ctx.NoTargetWhy = $"{seenHere} enemies in sight within {reach:0.#} (needs {ext.minTargets})";
@@ -81,6 +99,7 @@ namespace AbilityAI
                 }
                 if (!AbilityAIDriver.Valid(ability, pawn)) return false;
                 target = pawn;
+                if (ctx.WantsValue) ctx.TargetValue = valueHere;
                 return true;
             }
             float spacing2 = Spacing * Spacing;
@@ -97,6 +116,7 @@ namespace AbilityAI
             float reach2 = reach * reach, gap2 = ext.minGapDistance * ext.minGapDistance;
 
             spots.Clear();
+            bool wants = ctx.WantsValue;
             float minR = Mathf.Max(2f, ext.minRange);
             for (int r = 1; r <= Rings; r++)
             {
@@ -109,20 +129,30 @@ namespace AbilityAI
                     if (!c.InBounds(map) || c.Fogged(map) || !c.Standable(map) || NearTaken(c, spacing2)) continue;
                     float own = (c - pawn.Position).LengthHorizontalSquared;
                     int seen = 0;
+                    float value = 0f;
                     bool tooClose = false;
                     for (int i = 0; i < enemies.Count && !tooClose; i++)
                     {
                         float d = (enemies[i].Position - c).LengthHorizontalSquared;
                         if (d < gap2 || d <= own) tooClose = true;
-                        else if (d <= reach2 && GenSight.LineOfSight(c, enemies[i].Position, map, true)) seen++;
+                        else if (d <= reach2 && GenSight.LineOfSight(c, enemies[i].Position, map, true))
+                        {
+                            seen++;
+                            if (wants) value += ctx.Weight(enemies[i]);
+                        }
                     }
                     if (tooClose || seen < ext.minTargets) continue;
-                    spots.Add(new Spot { cell = c, count = seen, distSq = own });
+                    spots.Add(new Spot { cell = c, count = seen, distSq = own, value = value });
                 }
             }
             spots.Sort((a, b) => a.count != b.count ? b.count.CompareTo(a.count) : a.distSq.CompareTo(b.distSq));
             for (int i = 0; i < spots.Count && i < MaxTries; i++)
-                if (AbilityAIDriver.Valid(ability, spots[i].cell)) { target = spots[i].cell; break; }
+                if (AbilityAIDriver.Valid(ability, spots[i].cell))
+                {
+                    target = spots[i].cell;
+                    if (wants) ctx.TargetValue = spots[i].value;
+                    break;
+                }
             if (!target.IsValid && spots.Count == 0 && AbilityAISettings.DebugLog)
                 ctx.NoTargetWhy = $"no cell on its side of the fight sees {ext.minTargets} enemies";
             spots.Clear();

@@ -15,6 +15,8 @@ namespace AbilityAI
     /// </summary>
     public static class AbilityAIFire
     {
+        /// <summary>Danger's top value, a pawn burning now.</summary>
+        public const float Burning = 3f;
         private const float NearFire = 2.5f;
         private const float ThreatMargin = 3f;
         private const int ReachTicks = 250;
@@ -29,7 +31,7 @@ namespace AbilityAI
 
         public static float Danger(AbilityAIContext ctx, Pawn p)
         {
-            if (p.IsBurning()) return 3f;
+            if (p.IsBurning()) return Burning;
             if (FireNear(ctx.map, p.Position)) return 2f;
             var enemies = ctx.Enemies;
             for (int i = 0; i < enemies.Count; i++)

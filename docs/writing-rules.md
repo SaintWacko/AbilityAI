@@ -10,7 +10,7 @@ The rules Ability AI ships for Royalty, Biotech, Anomaly, Odyssey, Vanilla Psyca
 
 A rule is an `AbilityAI.AbilityAIExtension` in an ability def's `modExtensions`. It names a worker class, which is the part that looks at the map and decides whether there is something worth casting at. An ability with no rule is never touched by Ability AI.
 
-About twice a second, for each pawn it covers that has a ready ability with a rule, Ability AI tries the rules of all of that pawn's ready abilities together, highest `priority` first, and casts the first one that finds a target. An ability can have several rules, one per situation: Royalty's Stun has an Interrupt rule (priority 9, for an enemy aiming a grenade or psycast) and a Target hostile rule (priority 3, for the worst threat otherwise).
+About twice a second, for each pawn it covers that has a ready ability with a rule, Ability AI tries the rules of all of that pawn's ready abilities together, highest `priority` first, and casts the first one that finds a target (with the player's Dynamic priority setting on, a rule that hits more can overtake one ranked above it: see [Dynamic priority](#dynamic-priority)). An ability can have several rules, one per situation: Royalty's Stun has an Interrupt rule (priority 9, for an enemy aiming a grenade or psycast) and a Target hostile rule (priority 3, for the worst threat otherwise).
 
 Every check the game makes for a player's cast still applies: cooldown, charges, psyfocus and heat, each effect comp's `Valid` and `AICanTargetNow`, the verb's range and line of sight.
 
@@ -131,6 +131,8 @@ These work on any rule.
 | `workerClass` | | Required. The worker, `AbilityAI.AbilityAIWorker_<Name>` (see Workers below). |
 | `priority` | 0 | Higher is tried first, across all of the pawn's ready abilities. The shipped rules use 1 to 9: interrupts and rescues high, damage in the middle, buffs low. |
 | `combat` | the worker's | `InCombat`, `OutOfCombat` or `Any`. In combat means the pawn has an enemy target, attacked or was hurt in the last 10 seconds, or is drafted with an enemy on the map. A rule that isn't `InCombat` also runs for the player's undrafted pawns. |
+| `priorityPerValue` | the setting | With Dynamic priority on, the priority this rule gains per point of value past its `minTargets` (`minThreats` for Cover, 0 for help workers). Only for a worker that reports a value: see [Dynamic priority](#dynamic-priority). |
+| `maxPriorityBonus` | the setting | With Dynamic priority on, the most value can add to this rule's priority. 0 keeps the rule at its priority whatever it hits. |
 | `category` | the worker's | `Interrupt`, `Rescue`, `Recovery`, `Offensive`, `Defensive`, `Buff`, `Movement` or `Utility`. Only read by a mod that decides its pawns' jobs itself and asks Ability AI for suggestions (a job owner, see csharp-api.md); Ability AI's own casting ignores it. Defaults: the hostile area, cone, beam and target workers and Deploy are Offensive; Cover, Defensive and Barrier Defensive; SelfBuff, AoE friendly and Target friendly Buff; Recovery and Bloodfeed Recovery; Rescue Rescue; Interrupt Interrupt; Movement Movement; Skip by its mode (Repel Offensive, Rescue Rescue, Escape Movement); the rest Utility. |
 | `enabled` | true | false turns the rule off. Meant for an `npc` or `friendlyNpc` block. |
 | `exclusive` | the worker's | Leave a target alone while a faction-mate is casting this ability at it or walking into range to. On by default for every worker that doesn't target enemies, and for Interrupt and Skip; set it true on a hostile rule whose effect doesn't stack (a stun keeps the longer of two). |
@@ -162,6 +164,18 @@ Fields that several workers share:
 | `allyKinds` | every pawn | Which of the caster's side `avoidAllies` keeps clear of: only those the effect would harm. An EMP: `Mechanoid, Turret, Shielded`. |
 | `avoidBuildings` | false | Not with a building of the caster's side, or of a faction not hostile to it, in the area. For fire and blasts, so visitors don't burn the player's base. |
 | `approachDistance` | 0 | How far past the ability's range a ranged caster walks to cast it in combat, when nothing is in range now. Read by AoE hostile, AoE hostile around the caster, Cone and Beam hostile, Target hostile, and self-cast AoE friendly. It is also what offers Full Autocast to the player. |
+
+### Dynamic priority
+
+A player setting (General tab, on by default). With it on, each rule that finds a target is scored at its `priority` plus a bonus for what that target is worth, and the best score is cast instead of the first rule by priority. An Explosion on six raiders can then win over a single-target attack one priority above it.
+
+- The bonus is `(value - minTargets) x step` (`minThreats` in place of `minTargets` for Cover, 0 for the help workers below), at most `cap`. Step and cap come from the settings (0.5 and 2 by default), or from the rule's `priorityPerValue` and `maxPriorityBonus`.
+- The value is what the worker counts for the target it chose. AoE hostile, AoE hostile around the caster, Cone and Beam hostile and Deploy: the enemies hit or seen, each weighted by its combat power / 100 between 1 and 3 (a centipede counts for 3, a tribal for 1). Target hostile, only with `minTargets` above 1: the target's group, weighted the same. AoE friendly: the allies that would gain the effect, 1 each. Firefighting: its fire weight. With `minCorpses`, AoE hostile counts the corpses, from `minCorpses`.
+- Help workers report urgency instead, as points from 0 (4 at full urgency, so at the default step an ally in the worst trouble reaches the default cap and one half way gets +1). Recovery, only with Injured or Bleeding in `health`: Injured is how far below `healthThreshold` the pawn is, Bleeding how close it is to bleeding out (0 a day or more away, full within two hours; 0 for a pawn that can't die, deathless or under a hediff that prevents death). Target friendly, only with `fireDanger` (burning full, a fire beside the ally 2/3, an enemy that can start fires in reach 1/3) or `minPain` (pain from `minPain` up to the ally's pain shock threshold; with both, the fire), and not with `auraKinds`. Target friendly with `valueFromThreats` (allies only fighting) counts threats on the ally instead, from 0: with `All` each ranged enemy aiming at it, a hit in the last 10 seconds, in melee 2; with `Melee` 2 for each enemy attacking it in melee. Rescue: how close the downed pawn is to bleeding out. Defensive: the ally's worst trouble, each threat (aimer, or a recent hit) past `minThreats` a point, in melee 2, health under `healthThreshold` near enemies as for Injured. Cover counts like the area workers: the threats it counted (aimers and a recent hit, shooters for `shieldsAllies`, the fire on the ring for `wallsIn`), from `minThreats`. The value is for the ally the worker already chose; the caster's own preference in target choice is not added to it.
+- Every other worker, and every rule of a worker written before this, reports no value and is scored at its `priority`, as with the setting off. That includes Target friendly for allies who are only fighting without `valueFromThreats` (Focus), and Recovery for needs, diseases and missing parts.
+- No ceiling between rules: a big Berserk pulse at 8 may overtake an Interrupt at 9. To keep a rule from ever being passed, set `maxPriorityBonus` 0 on the rules that could pass it; a priority gap only works while it is wider than the player's cap, which the setting allows up to 5.
+- With the dev log on, a scored cast's line shows its score: `casts Explosion (AbilityAIWorker_AoEHostile) on Tribal (priority 2 -> 3.5, worth 5.8, needs 2; ahead of Stun (priority 3))`. A help worker's line has no "needs": its points count from 0. "(cap)" after the score means the bonus hit the cap; "ahead of" names the highest-priority rule that also found a target and lost.
+- Cost: a rule that cannot beat the best found so far, even at its cap, is not searched. Pawns with several area rules close in priority search a little more in big fights.
 
 ## Workers
 
@@ -414,6 +428,7 @@ A buff on one ally or the caster (Focus). Allies in range without the ability's 
 | `minPain` | 0 | Only allies in at least this much pain (0 to 1), fighting or not. |
 | `fireDanger` | false | Only allies in fire danger: burning, a fire within 2.5 tiles, or within reach of an enemy that can set fires (fire weapons, or an ability with `startsFires`). |
 | `avoidFireDanger` | false | Never an ally in fire danger (as for `fireDanger`), for a buff that makes its bearer burn worse (Alpha Animals' Fungal skin). |
+| `valueFromThreats` | None | For allies who are only fighting: the usual choice (the caster, then nearer allies) is multiplied by 1 + the threats on each ally, so an ally under attack is picked over a nearer one who isn't, and with Dynamic priority each threat lifts the rule's priority. `All`: each ranged enemy aiming at it, a hit in the last 10 seconds, in melee 2, for a buff against damage taken (Word of protection, Fungal skin). `Melee`: 2 for each enemy attacking it in melee from beside it, for a buff that only answers melee (Fire shield and Ice shield, which punish melee attackers). Leave it out for a buff that helps the ally fight (Focus). Not with `fireDanger`, `minPain` or `auraKinds`. |
 | `auraKinds`, `auraMin`, `radius`, `avoidAllies`, `allyKinds` | | As for Self buff, around the ally. |
 
 ```xml
@@ -473,7 +488,7 @@ Help a downed ally (Painblock, Stabilize). Downed allies in range without the ab
 
 #### Recovery
 
-Get the caster or an ally back to strength: a need running low, a health condition, or both. A self-cast ability looks at the caster only; others at the caster and allies in reach, downed ones included for health rules. Worst off first. Out of combat only.
+Get the caster or an ally back to strength: a need running low, a health condition, or both. A self-cast ability looks at the caster only; others at the caster and allies in reach, downed ones included for health rules. Worst off first; a bleeding pawn ranks by how soon it would bleed out, so one who has already lost a lot of blood comes before a fresh wound bleeding as fast. At the default `healthThreshold`, a bleed that would take a day or more to kill usually ranks below a pawn under the threshold on a rule with both. Out of combat only.
 
 | Field | Default | What it does |
 |---|---|---|

@@ -70,6 +70,11 @@ namespace AbilityAI
             if (owner != null && !owners.Contains(owner)) owners.Add(owner);
         }
 
+        /// <summary>A mod's own idea of how much a target is worth (see IAbilityAITargetWeight), used for the scored
+        /// driver's values in place of combat power. The first registered answers; one that throws is dropped for the
+        /// session.</summary>
+        public static void RegisterTargetWeight(IAbilityAITargetWeight provider) => AbilityAIScore.Register(provider);
+
         internal static bool Owned(Pawn pawn)
         {
             for (int i = 0; i < owners.Count; i++)
@@ -250,6 +255,19 @@ namespace AbilityAI
         Colony,
     }
 
+    /// <summary>Target friendly: which threats on a fighting ally count toward choosing it and its value
+    /// (AbilityAIExtension.valueFromThreats).</summary>
+    public enum AbilityAIThreatValue : byte
+    {
+        /// <summary>Threats don't count: the nearest fighting ally, the caster first, at the rule's priority.</summary>
+        None,
+        /// <summary>Each ranged enemy aiming at the ally, a shot in the last 10 seconds, in melee 2.</summary>
+        All,
+        /// <summary>2 for each enemy attacking the ally in melee from beside it, for a buff that only answers melee
+        /// (VPE's Fire shield and Ice shield punish melee attackers; guns barely change what they are worth).</summary>
+        Melee
+    }
+
     /// <summary>What the caster must be fighting with for a rule to apply (Blade Focus: melee).</summary>
     public enum AbilityAIRequires
     {
@@ -381,6 +399,12 @@ namespace AbilityAI
         public Type workerClass;
         /// <summary>Higher is tried first when a pawn has several ready abilities.</summary>
         public int priority;
+        /// <summary>Dynamic priority: priority gained per point of value past the worker's ValueBase, for a worker that
+        /// reports a value (AbilityAIScore). Negative = the setting.</summary>
+        public float priorityPerValue = -1f;
+        /// <summary>Dynamic priority: the most a value can add to priority. Negative = the setting; 0 turns the bonus off
+        /// for this rule.</summary>
+        public float maxPriorityBonus = -1f;
         public AbilityAICombat combat = AbilityAICombat.Default;
         /// <summary>What the rule does in a fight, for a job owner's arbiter (AbilityAICandidate.category). Default =
         /// the worker's own.</summary>
@@ -612,6 +636,12 @@ namespace AbilityAI
         /// <summary>Target friendly: never an ally in fire danger (AbilityAIFire), for a buff that makes its bearer burn
         /// worse (Alpha Animals' Fungal skin).</summary>
         public bool avoidFireDanger;
+        /// <summary>Target friendly on the fighting trigger: the more threats on an ally, the likelier it is the one
+        /// chosen, and with Dynamic priority each threat lifts the cast's priority. All: each ranged enemy aiming at it,
+        /// being shot recently, in melee for 2. Melee: 2 per enemy attacking it in melee. For a buff against what those
+        /// threats do (Word of protection: All; Fire shield: Melee), not one that helps the ally fight (Focus). Not with
+        /// fireDanger, minPain or auraKinds, which pick and score allies their own way.</summary>
+        public AbilityAIThreatValue valueFromThreats;
         /// <summary>Hostile workers: only pawns with at least one part of this def left, for an ability that works on that
         /// part alone (Alpha Animals' Destroy eyes, Leg skip); a pawn missing all of them is skipped, so the ability isn't
         /// spent on an enemy it already blinded. Mechs and other bodies without the part are skipped too.</summary>
@@ -722,6 +752,12 @@ namespace AbilityAI
             else if (!typeof(AbilityAIWorker).IsAssignableFrom(workerClass)) yield return $"workerClass {workerClass} is not an AbilityAIWorker";
             else if (workerClass.IsAbstract) yield return $"workerClass {workerClass} is abstract";
             if (reserveCharges < 0) yield return "reserveCharges can't be negative";
+            if ((priorityPerValue >= 0f || maxPriorityBonus >= 0f) && Worker != null && !Worker.ReportsValue)
+                yield return $"priorityPerValue and maxPriorityBonus are only read by a rule whose worker reports a value, not {workerClass.Name}"
+                    + (typeof(AbilityAIWorker_TargetHostile).IsAssignableFrom(workerClass) ? " with minTargets 1"
+                        : typeof(AbilityAIWorker_AoEHostileSelf).IsAssignableFrom(workerClass) ? " with minCorpses"
+                        : typeof(AbilityAIWorker_TargetFriendly).IsAssignableFrom(workerClass) ? " without fireDanger, minPain or valueFromThreats, or with auraKinds"
+                        : typeof(AbilityAIWorker_Recovery).IsAssignableFrom(workerClass) ? " without Injured or Bleeding in health" : "");
             // A corpse-scored rule may need no enemy near the corpses (its combat mode still wants a fight)
             if (minTargets < (minCorpses > 0 ? 0 : 1)) yield return minCorpses > 0 ? "minTargets can't be negative" : "minTargets must be at least 1";
             if (approachDistance < 0f) yield return "approachDistance can't be negative";
@@ -798,6 +834,10 @@ namespace AbilityAI
                 yield return $"casterLeaves is only read by Target hostile, not {workerClass.Name}";
             if (casterLeaves && !avoidAllies) yield return "casterLeaves does nothing without avoidAllies";
             if (avoidFireDanger && fireDanger) yield return "fireDanger and avoidFireDanger together leave no ally to target";
+            if (valueFromThreats != AbilityAIThreatValue.None && workerClass != null && !typeof(AbilityAIWorker_TargetFriendly).IsAssignableFrom(workerClass))
+                yield return $"valueFromThreats is only read by Target friendly, not {workerClass.Name}";
+            else if (valueFromThreats != AbilityAIThreatValue.None && (fireDanger || minPain > 0f || auraKinds != AbilityAITargetKinds.None))
+                yield return "valueFromThreats only works on the fighting trigger: not with fireDanger, minPain or auraKinds";
             if (targetPart != null && Worker != null && !Worker.TargetsEnemies)
                 yield return $"targetPart is only read by hostile workers, not {workerClass.Name}";
             if (heatVent && Worker != null && !Worker.DriverCasts)
@@ -855,6 +895,30 @@ namespace AbilityAI
         /// 30 ticks, so a worker waiting a few seconds for a better moment would miss it.</summary>
         public bool SlowCheck { get; internal set; }
 
+        /// <summary>Set by a worker that reports a value (AbilityAIWorker.ReportsValue) for the target it returned: what
+        /// the cast there is worth (weighted enemies caught, allies helped, fire covered). -1 = no value. The driver
+        /// resets it before each worker. Only filled while WantsValue.</summary>
+        public float TargetValue { get; set; } = -1f;
+
+        /// <summary>The driver is scoring this search (Dynamic priority on, its own casts or a job owner's offers): a worker
+        /// that reports a value works it out. Otherwise nothing reads it, so the worker skips the work.</summary>
+        public bool WantsValue { get; internal set; }
+
+        private readonly Dictionary<Thing, float> weights = new Dictionary<Thing, float>();
+
+        /// <summary>What a target is worth to the caster, 1 to 3: a registered IAbilityAITargetWeight's answer, else
+        /// the pawn's kind's combat power / 100 (1 for a turret). Kept for the evaluation, so a target counted by
+        /// several rules is weighed once.</summary>
+        public float Weight(Thing t)
+        {
+            if (!weights.TryGetValue(t, out float w))
+            {
+                w = AbilityAIScore.WeightOf(pawn, t);
+                weights[t] = w;
+            }
+            return w;
+        }
+
         private bool combatKnown, inCombat;
         private bool enemiesBuilt, alliesBuilt, aimsBuilt, friendliesBuilt, brokenBuilt, supportBuilt;
         private readonly List<Pawn> brokenAllies = new List<Pawn>();
@@ -864,6 +928,8 @@ namespace AbilityAI
         private readonly List<Pawn> allies = new List<Pawn>();
         private readonly List<Pawn> downedAllies = new List<Pawn>();
         private readonly Dictionary<Pawn, int> aimedAt = new Dictionary<Pawn, int>();
+        private readonly Dictionary<Pawn, int> meleeOn = new Dictionary<Pawn, int>();
+        private bool meleeOnBuilt;
         private readonly List<Thing> enemyTurrets = new List<Thing>();
         private readonly List<Thing> friendlyTurrets = new List<Thing>();
         private bool friendlyTurretsBuilt;
@@ -919,18 +985,23 @@ namespace AbilityAI
             tick = t;
             approachAbility = walkingFor;
             approachExpected = expected;
+            // Set by the scored loop around its own searches only (casts and offers): approach walks and vents don't read values
+            WantsValue = false;
+            TargetValue = -1f;
             combatKnown = enemiesBuilt = alliesBuilt = aimsBuilt = friendliesBuilt = brokenBuilt = supportBuilt = enemyTargetKnown = preyKnown = meleeJobTargetKnown = false;
-            friendlyTurretsBuilt = false;
+            friendlyTurretsBuilt = meleeOnBuilt = false;
         }
 
         internal void End()
         {
+            weights.Clear();
             enemies.Clear();
             enemyTurrets.Clear();
             friendlyTurrets.Clear();
             allies.Clear();
             downedAllies.Clear();
             aimedAt.Clear();
+            meleeOn.Clear();
             friendlies.Clear();
             brokenAllies.Clear();
             supportAllies.Clear();
@@ -1234,6 +1305,27 @@ namespace AbilityAI
                 }
             }
             return aimedAt.TryGetValue(p, out int c) ? c : 0;
+        }
+
+        /// <summary>How many enemies are attacking this pawn in melee from beside it now. Built once per evaluation
+        /// from Enemies (k checks), then a lookup. One still walking up doesn't count yet.</summary>
+        public int MeleeAttackersOn(Pawn p)
+        {
+            if (!meleeOnBuilt)
+            {
+                meleeOnBuilt = true;
+                var list = Enemies;
+                for (int i = 0; i < list.Count; i++)
+                {
+                    Pawn e = list[i];
+                    var job = e.CurJob;
+                    if (job == null || job.def != JobDefOf.AttackMelee || !(job.targetA.Thing is Pawn victim)
+                        || !e.Position.InHorDistOf(victim.Position, 1.5f)) continue;
+                    meleeOn.TryGetValue(victim, out int n);
+                    meleeOn[victim] = n + 1;
+                }
+            }
+            return meleeOn.TryGetValue(p, out int c) ? c : 0;
         }
 
         /// <summary>Shot at in the last 10 seconds.</summary>
@@ -2146,6 +2238,7 @@ namespace AbilityAI
                     }
                     else if (whyNot != null) WhyNot(null, null, "its heat vents wait for a psycast heat holds back");
                 }
+                exclusiveDef = null;
                 affectedCounted = false;
                 if (waitingForFight && AbilityAISettings.NpcIdleIntervalTicks > EvalIntervalTicks)
                 {
@@ -2179,10 +2272,13 @@ namespace AbilityAI
         }
 
         // Tries each candidate's worker in order and returns the first cast made. ventFor: the psycast heat held back,
-        // when these are heat vents (named in the dev log line).
+        // when these are heat vents (named in the dev log line). With Dynamic priority on, casts and offers are scored
+        // instead (TryCandidatesScored); vents stay first-fit, as they only answer a psycast heat held back.
         private static Job TryCandidates(List<Candidate> list, Pawn pawn, PawnState state, int tick, bool player, AbilityAIRole role,
             ref bool waitingForFight, AIAbility ventFor)
         {
+            if (AbilityAISettings.DynamicPriority && ventFor == null)
+                return TryCandidatesScored(list, pawn, state, tick, player, role, ref waitingForFight);
             for (int i = 0; i < list.Count; i++)
             {
                 AIAbility a = list[i].ability;
@@ -2198,6 +2294,7 @@ namespace AbilityAI
                 exclusiveDef = worker.Exclusive ? a.Def : null;
                 affectedCounted = worker.CountsAffectedAroundCaster;
                 ctx.CastAtPrey = false;
+                ctx.TargetValue = -1f;
                 ctx.NoTargetWhy = null;
                 if (!worker.TryFindTarget(ctx, a, out LocalTargetInfo target, out LocalTargetInfo dest))
                 {
@@ -2215,8 +2312,15 @@ namespace AbilityAI
                     if (whyNot != null) WhyNot(a, ext, $"over this pawn's autocast limits for {TargetLabel(target)}");
                     continue;
                 }
+                if (!Offering)
+                {
+                    Job cast = CastChosen(pawn, state, tick, player, role, a, ext, target, dest, ctx.CastAtPrey,
+                        AbilityAIWorker_Barrier.LastCount, AbilityAIWorker_Barrier.LastRadius, ventFor);
+                    if (cast != null) return cast;
+                    continue;
+                }
                 // A Word of psycast (AbilityAIGroupLink): through a link only if everyone linked may take it; without one,
-                // perhaps the pawn's Group link first
+                // perhaps the pawn's Group link first, offered ahead of the Word alone
                 if (AbilityAIGroupLink.Registered && AbilityAIGroupLink.IsWord(a.Def))
                 {
                     if (AbilityAIGroupLink.LinkOf(pawn) != null)
@@ -2229,59 +2333,27 @@ namespace AbilityAI
                     }
                     else if (FindLinkFirst(pawn, state, tick, player, role, a, ext, target, out AIAbility linker, out int linkCount))
                     {
-                        if (Offering)
+                        // The Word alone is offered next, as the driver falls back to it when the link's job is refused
+                        Offer(state, new AbilityAICandidate
                         {
-                            // The Word alone is offered next, as the driver falls back to it when the link's job is refused
-                            Offer(state, new AbilityAICandidate
-                            {
-                                kind = AbilityAICandidateKind.LinkFirst, ability = a, rule = ext, target = target, dest = dest,
-                                priority = ext.priority, linker = linker, expected = linkCount, castAtPrey = ctx.CastAtPrey,
-                            });
-                        }
-                        else
-                        {
-                            Job link = StartLinkFirst(pawn, state, tick, player, linker, a, ext, linkCount, ctx.CastAtPrey);
-                            if (link != null)
-                            {
-                                exclusiveDef = null;
-                                affectedCounted = false;
-                                return link;
-                            }
-                        }
+                            kind = AbilityAICandidateKind.LinkFirst, ability = a, rule = ext, target = target, dest = dest,
+                            priority = ext.priority, linker = linker, expected = linkCount, castAtPrey = ctx.CastAtPrey,
+                        });
                     }
                 }
-                if (Offering)
+                // No job yet: MakeCastJob may run another system's PreCast (VEF's), so it waits for Start
+                bool barrier = worker is AbilityAIWorker_Barrier;
+                Offer(state, new AbilityAICandidate
                 {
-                    // No job yet: MakeCastJob may run another system's PreCast (VEF's), so it waits for Start
-                    bool barrier = worker is AbilityAIWorker_Barrier;
-                    Offer(state, new AbilityAICandidate
-                    {
-                        kind = AbilityAICandidateKind.Cast, ability = a, rule = ext, target = target, dest = dest,
-                        priority = ext.priority, castAtPrey = ctx.CastAtPrey, ventFor = ventFor,
-                        barrierCount = barrier ? AbilityAIWorker_Barrier.LastCount : 0,
-                        barrierRadius = barrier ? AbilityAIWorker_Barrier.LastRadius : 0f,
-                    });
-                    noLinkWhy = null;
-                    exclusiveDef = null;
-                    affectedCounted = false;
-                    if (OfferFull) return null;
-                    continue;
-                }
-                // Made before anything is recorded: another system's ability may still refuse at this point
-                // (VEF runs its extensions' own Valid and PreCast here)
-                Job cast = a.MakeCastJob(target, dest);
-                if (cast == null)
-                {
-                    noLinkWhy = null;
-                    if (whyNot != null) WhyNot(a, ext, $"refused when its cast job was made, at {TargetLabel(target)}");
-                    continue;
-                }
-
+                    kind = AbilityAICandidateKind.Cast, ability = a, rule = ext, target = target, dest = dest,
+                    priority = ext.priority, castAtPrey = ctx.CastAtPrey, ventFor = ventFor,
+                    barrierCount = barrier ? AbilityAIWorker_Barrier.LastCount : 0,
+                    barrierRadius = barrier ? AbilityAIWorker_Barrier.LastRadius : 0f,
+                });
+                noLinkWhy = null;
                 exclusiveDef = null;
                 affectedCounted = false;
-                CommitCast(pawn, state, tick, player, a, ext, target, dest, cast, ctx.CastAtPrey,
-                    AbilityAIWorker_Barrier.LastCount, AbilityAIWorker_Barrier.LastRadius, ventFor);
-                return cast;
+                if (OfferFull) return null;
             }
             return null;
         }
@@ -3068,6 +3140,13 @@ namespace AbilityAI
         /// <summary>Remote shield may go on an enemy mech (AbilityAISwitch.RemoteShieldEnemies), every caster. Off by
         /// default: the mechanitor stands within the shield's short range of that mech for the whole channel.</summary>
         public static bool RemoteShieldEnemies;
+        /// <summary>Dynamic priority (AbilityAIScore), every caster: a rule whose target is worth more than its minimum
+        /// gains priority, PriorityPerValue per point past it, at most MaxPriorityBonus.</summary>
+        public static bool DynamicPriority = true;
+        public const float DefaultPriorityPerValue = 0.5f;
+        public static float PriorityPerValue = DefaultPriorityPerValue;
+        public const float DefaultMaxPriorityBonus = 2f;
+        public static float MaxPriorityBonus = DefaultMaxPriorityBonus;
 
         public static bool SkipAllowed(AbilityAISkipMode mode)
         {
@@ -3114,6 +3193,9 @@ namespace AbilityAI
                     MaxDeployedNear = DefaultMaxDeployedNear;
                     MaxSummonedNear = DefaultMaxSummonedNear;
                     RemoteShieldEnemies = false;
+                    DynamicPriority = true;
+                    PriorityPerValue = DefaultPriorityPerValue;
+                    MaxPriorityBonus = DefaultMaxPriorityBonus;
                     DebugLog = false;
                     break;
                 case Tab.OtherFactions:
@@ -3229,6 +3311,11 @@ namespace AbilityAI
             GroupLinkMinTargets = Mathf.Clamp(GroupLinkMinTargets, 2, 10);
             Scribe_Values.Look(ref GroupLinkKeep, "abilityAI_groupLinkKeep", false);
             Scribe_Values.Look(ref RemoteShieldEnemies, "abilityAI_remoteShieldEnemies", false);
+            Scribe_Values.Look(ref DynamicPriority, "abilityAI_dynamicPriority", true);
+            Scribe_Values.Look(ref PriorityPerValue, "abilityAI_priorityPerValue", DefaultPriorityPerValue);
+            PriorityPerValue = Mathf.Clamp(PriorityPerValue, 0.1f, 2f);
+            Scribe_Values.Look(ref MaxPriorityBonus, "abilityAI_maxPriorityBonus", DefaultMaxPriorityBonus);
+            MaxPriorityBonus = Mathf.Clamp(MaxPriorityBonus, 0f, 5f);
             Scribe_Values.Look(ref MaxDeployedNear, "abilityAI_maxDeployedNear", DefaultMaxDeployedNear);
             MaxDeployedNear = Mathf.Clamp(MaxDeployedNear, 1, 6);
             Scribe_Values.Look(ref MaxSummonedNear, "abilityAI_maxSummonedNear", DefaultMaxSummonedNear);
@@ -3288,6 +3375,16 @@ namespace AbilityAI
             list.Label("AAI_MinGap".Translate(MinGapSeconds.ToString("0.#")));
             MinGapSeconds = Mathf.Round(list.Slider(MinGapSeconds, 0f, 30f) * 2f) / 2f;
             Hint(list, "AAI_MinGap_Desc");
+            Section(list, "AAI_Section_DynamicPriority");
+            list.CheckboxLabeled("AAI_DynamicPriority".Translate(), ref DynamicPriority, "AAI_DynamicPriority_Tip".Translate());
+            if (DynamicPriority)
+            {
+                list.Label("AAI_PriorityPerValue".Translate(PriorityPerValue.ToString("0.0#")), -1f, "AAI_PriorityPerValue_Tip".Translate());
+                PriorityPerValue = Mathf.Round(list.Slider(PriorityPerValue, 0.1f, 2f) * 20f) / 20f;
+                list.Label("AAI_MaxPriorityBonus".Translate(MaxPriorityBonus.ToString("0.#")), -1f, "AAI_MaxPriorityBonus_Tip".Translate());
+                MaxPriorityBonus = Mathf.Round(list.Slider(MaxPriorityBonus, 0f, 5f) * 2f) / 2f;
+            }
+            Hint(list, "AAI_DynamicPriority_Desc");
             // Royalty's and VPE's Skip, The Force's Nightsister teleport: shown only when a loaded rule uses the worker
             if (AbilityAIWorker_Skip.UsedByRules)
             {

@@ -323,7 +323,8 @@
 
         <!-- Strengthen insect: 30 seconds of +20% armour, +50% manipulation and sight, +40% moving and a quarter of
              the pain, on a Black Hive insect within 9.9 that is fighting. The ability refuses anything else, so only
-             animals are offered to it. -->
+             animals are offered to it. The insect with the most threats on it first, and more threats lift the
+             priority. -->
         <li Class="PatchOperationConditional">
           <xpath>Defs/VEF.Abilities.AbilityDef[defName="AAVPE_StrengthenInsect"]</xpath>
           <match Class="PatchOperationAddModExtension">
@@ -332,6 +333,7 @@
               <li Class="AbilityAI.AbilityAIExtension">
                 <workerClass>AbilityAI.AbilityAIWorker_TargetFriendly</workerClass>
                 <priority>3</priority>
+                <valueFromThreats>All</valueFromThreats>
                 <targetKinds>Animal</targetKinds>
               </li>
             </value>
@@ -478,7 +480,8 @@
 
         <!-- Fungal skin: +50% armour for four hours (times the target's psychic sensitivity) on someone within 20 who is
              fighting, but a bearer that catches fire takes 15 extra burn every 50 ticks. So never on anyone in fire
-             danger: burning, beside a fire, or in reach of an enemy that can set fires. -->
+             danger: burning, beside a fire, or in reach of an enemy that can set fires. The one with the most threats
+             on it first, and more threats lift the priority. -->
         <li Class="PatchOperationConditional">
           <xpath>Defs/VEF.Abilities.AbilityDef[defName="AAVPE_FungalSkin"]</xpath>
           <match Class="PatchOperationAddModExtension">
@@ -487,6 +490,7 @@
               <li Class="AbilityAI.AbilityAIExtension">
                 <workerClass>AbilityAI.AbilityAIWorker_TargetFriendly</workerClass>
                 <priority>2</priority>
+                <valueFromThreats>All</valueFromThreats>
                 <targetKinds>Humanlike, Animal</targetKinds>
                 <avoidFireDanger>true</avoidFireDanger>
               </li>

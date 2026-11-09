@@ -218,7 +218,8 @@
         </li>
 
         <!-- Word of protection: halves the damage an ally fighting now takes, for about 6 hours; within 7 tiles
-             (the caster walks to within 6.9). -->
+             (the caster walks to within 6.9). The ally with the most threats on it first (shooters aiming at it, a
+             recent shot, melee), and more threats lift the priority. -->
         <li Class="PatchOperationConditional">
           <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_WordofProtection"]</xpath>
           <match Class="PatchOperationAddModExtension">
@@ -227,6 +228,7 @@
               <li Class="AbilityAI.AbilityAIExtension">
                 <workerClass>AbilityAI.AbilityAIWorker_TargetFriendly</workerClass>
                 <priority>3</priority>
+                <valueFromThreats>All</valueFromThreats>
                 <maxRange>7</maxRange>
                 <linkSafe>NonHostile</linkSafe>
               </li>
@@ -480,7 +482,8 @@
         </li>
 
         <!-- Fire shield: 20 s of fire immunity for an ally fighting now (or the caster), and melee attackers catch
-             fire -->
+             fire. Allies with enemies attacking them in melee first, each attacker counting, and more attackers lift
+             the priority; guns aimed at the ally don't count, as the shield does nothing about bullets. -->
         <li Class="PatchOperationConditional">
           <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_FireShield"]</xpath>
           <match Class="PatchOperationAddModExtension">
@@ -489,6 +492,7 @@
               <li Class="AbilityAI.AbilityAIExtension">
                 <workerClass>AbilityAI.AbilityAIWorker_TargetFriendly</workerClass>
                 <priority>3</priority>
+                <valueFromThreats>Melee</valueFromThreats>
               </li>
             </value>
           </match>
@@ -642,7 +646,8 @@
         </li>
 
         <!-- Ice shield: 30 s of cold immunity for an ally fighting now (or the caster); melee attackers get
-             hypothermia -->
+             hypothermia. Allies with enemies attacking them in melee first, each attacker counting, and more
+             attackers lift the priority; guns aimed at the ally don't count. -->
         <li Class="PatchOperationConditional">
           <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_IceShield"]</xpath>
           <match Class="PatchOperationAddModExtension">
@@ -651,6 +656,7 @@
               <li Class="AbilityAI.AbilityAIExtension">
                 <workerClass>AbilityAI.AbilityAIWorker_TargetFriendly</workerClass>
                 <priority>3</priority>
+                <valueFromThreats>Melee</valueFromThreats>
               </li>
             </value>
           </match>

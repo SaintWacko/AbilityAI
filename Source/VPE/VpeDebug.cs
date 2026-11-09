@@ -6,6 +6,7 @@ using RimWorld;
 using VanillaPsycastsExpanded;
 using VEF.Abilities;
 using Verse;
+using Verse.AI.Group;
 using VefAbilityDef = VEF.Abilities.AbilityDef;
 
 namespace AbilityAI.Vpe
@@ -95,6 +96,62 @@ namespace AbilityAI.Vpe
                     }
                     Messages.Message($"Perf: {pawns.Count} drafted Black Hive summoners, {defs.Count} psycasts each, {modes} set to autocast",
                         pawns.FirstOrDefault(), MessageTypeDefOf.TaskCompletion, false);
+                }));
+            }
+            return nodes;
+        }
+
+        private static readonly int[] PsycasterSizes = { 3, 5, 7 };
+        // Fixed so an off/on pair of fights deals the same psycasts to the same places in the squad; pawn kinds and
+        // gear still differ between spawns
+        private const int DealSeed = 4711;
+
+        // Psycasters on both sides for measuring the driver in a run-27 sized fight: every psycast with a rule the
+        // driver casts (zone and marker rules are work, not combat), dealt round the squad, so each side holds all of
+        // them between its pawns and most pawns hold several value rules near each other in priority
+        [DebugAction("Ability AI", "Perf: VPE psycaster raid", allowedGameStates = AllowedGameStates.PlayingOnMap, requiresRoyalty = true)]
+        private static List<DebugActionNode> PsycasterRaid() => PsycasterNodes(player: false);
+
+        [DebugAction("Ability AI", "Perf: VPE psycaster colonists", allowedGameStates = AllowedGameStates.PlayingOnMap, requiresRoyalty = true)]
+        private static List<DebugActionNode> PsycasterColonists() => PsycasterNodes(player: true);
+
+        private static List<DebugActionNode> PsycasterNodes(bool player)
+        {
+            var nodes = new List<DebugActionNode>();
+            foreach (int size in PsycasterSizes)
+            {
+                int count = size;
+                nodes.Add(new DebugActionNode(player ? $"{count} colonists" : $"{count} raiders", DebugActionType.ToolMap, () =>
+                {
+                    Faction enemy = AbilityAIPerfDebug.EnemyFaction();
+                    if (enemy == null) return;
+                    Map map = Find.CurrentMap;
+                    var pawns = AbilityAIPerfDebug.SpawnFighters(map, UI.MouseCell(), player ? Faction.OfPlayer : enemy, enemy, count)
+                        .Where(p => p.RaceProps.Humanlike && p.GetComp<CompAbilities>() != null).ToList();
+                    if (pawns.Count == 0) return;
+                    var work = new HashSet<Def>(AbilityAIZones.RuleDefs.Concat(AbilityAISpots.RuleDefs));
+                    var defs = DefDatabase<VefAbilityDef>.AllDefsListForReading
+                        .Where(d => d.HasModExtension<AbilityAIExtension>() && d.GetModExtension<AbilityExtension_Psycast>() != null
+                            && !work.Contains(d))
+                        .OrderBy(d => d.defName).ToList();
+                    Rand.PushState(DealSeed);
+                    try { defs = defs.InRandomOrder().ToList(); }
+                    finally { Rand.PopState(); }
+                    var hands = pawns.Select(_ => new List<VefAbilityDef>()).ToList();
+                    for (int i = 0; i < defs.Count; i++) hands[i % pawns.Count].Add(defs[i]);
+                    int modes = 0;
+                    for (int i = 0; i < pawns.Count; i++)
+                    {
+                        Give(pawns[i], hands[i], quiet: true);
+                        if (player) modes += AbilityAIPerfDebug.AutocastAll(pawns[i]);
+                    }
+                    if (!player)
+                        LordMaker.MakeNewLord(enemy, new LordJob_AssaultColony(enemy, canKidnap: false, canTimeoutOrFlee: false,
+                            canSteal: false), map, pawns);
+                    Messages.Message(player
+                            ? $"Perf: {pawns.Count} drafted psycasters, {defs.Count} psycasts dealt, {modes} set to autocast"
+                            : $"Perf: {pawns.Count} {enemy.Name} psycasters, {defs.Count} psycasts dealt",
+                        pawns[0], MessageTypeDefOf.TaskCompletion, false);
                 }));
             }
             return nodes;

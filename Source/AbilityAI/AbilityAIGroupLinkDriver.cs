@@ -257,7 +257,8 @@ namespace AbilityAI
             PlanLink(pawn, word.Def, ext, linker.Def, job);
             state.nextCastTick = tick + Mathf.RoundToInt(AbilityAISettings.MinGapSeconds * GenTicks.TicksPerRealSecond);
             if (AbilityAISettings.DebugLog && Prefs.DevMode)
-                Log.Message($"[Ability AI] {pawn.LabelShort} casts {linker.Label} first, to reach {count} targets of {word.Label}");
+                Log.Message($"[Ability AI] {pawn.LabelShort} casts {linker.Label} first, to reach {count} targets of {word.Label}"
+                    + (scoreNote != null ? $" ({word.Label}: {scoreNote})" : ""));
             AbilityAIHooks.NotifyCast(pawn, linker, pawn, pawn);
             AbilityAICombatAI.HoldForCast(pawn, linker, pawn, job);
             if (player) QueueAfterCast(pawn, state, castAtPrey);

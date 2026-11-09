@@ -130,6 +130,7 @@ const ENUMS = {
     "ConsumableCorpses", "LowMood", "Inspirable", "ColonistsWithout", "Visitors", "LeechHosts"],
   spotKind: ["Crops", "Trees"],
   linkSafe: ["Targets", "Enemies", "NonHostile"],
+  threatValue: ["None", "All", "Melee"],
   bool3: ["true", "false"],
 };
 const ALL_PAWNS = ["Humanlike", "Animal", "Mechanoid", "Other"];
@@ -163,7 +164,7 @@ const W = {
     summary: "Cast on the caster while an enemy is within maxRange (default 30) and the caster doesn't already have the ability's hediff.",
     suggest: ["priority"] },
   TargetFriendly: { cls: "TargetFriendly", label: "Target friendly",
-    summary: "A buff on one ally or the caster. By default only allies fighting now; minPain or fireDanger change who counts. Skips allies that already have the hediff.",
+    summary: "A buff on one ally or the caster. By default only allies fighting now; minPain or fireDanger change who counts, valueFromThreats puts the ones under fire first. Skips allies that already have the hediff.",
     suggest: ["priority"] },
   Defensive: { cls: "Defensive", label: "Defensive",
     summary: "Protect the caster or an ally in trouble (Invisibility): badly hurt with an enemy within 15 tiles, hurt in melee, or aimed at by minThreats shooters.",
@@ -217,6 +218,11 @@ const TARGETS_PAWNS = HOSTILE.concat(["AoEFriendly", "SelfBuff", "TargetFriendly
 const RANGED = DRIVER.filter(k => !["Cover", "Barrier", "ShedHeat"].includes(k));
 const WORDS = ["TargetHostile", "TargetFriendly", "Recovery", "Calm", "Zone"];
 const APPROACH = ["AoEHostile", "AoEHostileSelf", "ConeHostile", "BeamHostile", "TargetHostile", "AoEFriendly"];
+// Workers that report a value for Dynamic priority (Target hostile only with minTargets over 1, AoE hostile self only
+// without minCorpses, Target friendly only with fireDanger, minPain or valueFromThreats and no auraKinds, Recovery only with Injured or
+// Bleeding: ruleChecks says so)
+const VALUE = ["AoEHostile", "AoEHostileSelf", "ConeHostile", "BeamHostile", "TargetHostile", "AoEFriendly", "Firefighting", "Deploy",
+  "Cover", "Defensive", "Rescue", "TargetFriendly", "Recovery"];
 
 // t: int, float, bool, bool3 (unset/true/false), enum:<list>, flags:<list>, def, defs
 // d: the default as the game reads it (null = none, shown as unset)
@@ -228,6 +234,10 @@ const FIELDS = [
     doc: "When the rule applies. Unset uses the worker's default (shown on the rule). A rule that isn't InCombat can also run for the player's undrafted pawns." },
   { n: "category", t: "enum:category", d: null, w: DRIVER, g: "Any rule",
     doc: "What the rule does in a fight, for a mod that decides its pawns' jobs itself and scores Ability AI's suggestions (a job owner). Unset uses the worker's default. Ability AI's own casting ignores it." },
+  { n: "priorityPerValue", t: "float", d: null, w: VALUE,
+    doc: "With the player's Dynamic priority setting on: priority this rule gains per point of value past its minTargets (minCorpses for a corpse rule, minThreats for Cover; weighted enemies hit, allies helped, fire weight, threats; help workers report urgency points from 0, 4 at full urgency). Unset uses the setting (0.5)." },
+  { n: "maxPriorityBonus", t: "float", d: null, w: VALUE,
+    doc: "With Dynamic priority on: the most value can add to this rule's priority. Unset uses the setting (2); 0 keeps the rule at its priority whatever it hits." },
   { n: "reserveCharges", t: "int", d: "0", w: DRIVER, g: "Any rule",
     doc: "Charges the AI never spends, for abilities with charges." },
   { n: "minGapSeconds", t: "float", d: "0", w: DRIVER, g: "Any rule",
@@ -374,6 +384,8 @@ const FIELDS = [
     doc: "With avoidAllies: the caster itself doesn't count, for an ability that leaps the caster onto the target before the area lands (Alpha Animals' Spin cut). Without it a melee caster refuses every enemy beside it." },
   { n: "avoidFireDanger", t: "bool", d: "false", w: ["TargetFriendly"],
     doc: "Never an ally in fire danger (as for fireDanger), for a buff that makes its bearer burn worse (Alpha Animals' Fungal skin)." },
+  { n: "valueFromThreats", t: "enum:threatValue", d: "None", w: ["TargetFriendly"],
+    doc: "For allies who are only fighting: the usual choice (the caster, then nearer allies) is multiplied by 1 + the threats on each ally, so an ally under attack is picked over a nearer one who isn't, and with Dynamic priority each threat lifts the priority. All: each ranged enemy aiming at it, a hit in the last 10 seconds, in melee 2 (Word of protection). Melee: 2 for each enemy attacking it in melee, for a buff that only answers melee (Fire shield). Leave it out for a buff that helps the ally fight (Focus). Not with fireDanger, minPain or auraKinds." },
   { n: "heatVent", t: "bool", d: "false", w: DRIVER, g: "Any rule",
     doc: "A heat vent: tried only when, with nothing else cast, another psycast had a target and neural heat alone held it back." },
   { n: "focusPerHeat", t: "float", d: "0", w: ["ShedHeat"],
@@ -778,6 +790,7 @@ function num(fields, n) {
 const has = (fields, n) => n in fields && !(fields[n] === "" || (Array.isArray(fields[n]) && !fields[n].length));
 const flags = (fields, n) => has(fields, n) ? fields[n] : (FIELD[n].d ? FIELD[n].d.split(", ") : []);
 const bool = (fields, n) => n in fields ? !!fields[n] : FIELD[n].d === "true";
+const threatValued = fields => has(fields, "valueFromThreats") && fields.valueFromThreats !== "None";
 
 function ruleChecks(rule, fields) {
   const out = [];
@@ -796,7 +809,20 @@ function ruleChecks(rule, fields) {
   }
   for (const n of ["reserveCharges", "approachDistance", "minBleedRate", "verbIndex", "minCorpses", "pathClearance", "focusPerHeat", "maxLight", "cellMaxLight"])
     if (has(fields, n) && num(fields, n) < 0) out.push(`${n} can't be negative`);
+  for (const n of ["priorityPerValue", "maxPriorityBonus"])
+    if (has(fields, n) && num(fields, n) < 0) out.push(`${n} below 0 means the setting: leave it out instead`);
   const minCorpses = num(fields, "minCorpses") || 0;
+  const valueField = has(fields, "priorityPerValue") || has(fields, "maxPriorityBonus");
+  if (valueField && w === "TargetHostile" && !(num(fields, "minTargets") > 1))
+    out.push("priorityPerValue and maxPriorityBonus need minTargets above 1 on Target hostile: a single target reports no value");
+  if (valueField && w === "AoEHostileSelf" && minCorpses > 0)
+    out.push("priorityPerValue and maxPriorityBonus aren't read with minCorpses on AoE hostile self: a corpse rule keeps its priority");
+  if (valueField && w === "TargetFriendly" && (flags(fields, "auraKinds").length || !(bool(fields, "fireDanger") || num(fields, "minPain") > 0 || threatValued(fields))))
+    out.push("priorityPerValue and maxPriorityBonus need fireDanger, minPain or valueFromThreats, and no auraKinds, on Target friendly: a buff for an ally who is only fighting keeps its priority unless it has valueFromThreats");
+  if (threatValued(fields) && (bool(fields, "fireDanger") || num(fields, "minPain") > 0 || flags(fields, "auraKinds").length))
+    out.push("valueFromThreats only works on the fighting trigger: not with fireDanger, minPain or auraKinds");
+  if (valueField && w === "Recovery" && !flags(fields, "health").some(f => f === "Injured" || f === "Bleeding"))
+    out.push("priorityPerValue and maxPriorityBonus need Injured or Bleeding in health on Recovery: needs, diseases and missing parts keep their priority");
   if (has(fields, "minTargets") && num(fields, "minTargets") < (minCorpses > 0 ? 0 : 1))
     out.push(minCorpses > 0 ? "minTargets can't be negative" : "minTargets must be at least 1");
   const anchored = defList(fields.anchorThings).length > 0 || flags(fields, "anchorCorpses").length > 0;

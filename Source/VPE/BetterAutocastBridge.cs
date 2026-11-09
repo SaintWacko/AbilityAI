@@ -109,7 +109,7 @@ namespace AbilityAI.Vpe
                     {
                         if (AbilityAIAutocast.ModeFor(p, a.def) != AbilityAIAutocastMode.Off) a.autoCast = true;
                     }
-                    else if (AbilityAIAutocast.Offers(VefAIAbility.Of(a)))
+                    else if (AbilityAIAutocast.Offers(VefAIAbility.Of(a), true))
                     {
                         if (!a.autoCast) AbilityAIAutocast.SetMode(p, a.def, AbilityAIAutocastMode.Off);
                         else

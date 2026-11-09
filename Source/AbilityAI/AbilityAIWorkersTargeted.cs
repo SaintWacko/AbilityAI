@@ -302,7 +302,8 @@ namespace AbilityAI
     /// x1.5, divided by distance over range; with valueFromThreats also x (1 + threats on the ally). Cost: a checks,
     /// and for an aura, fireDanger or avoidFireDanger rule a pass over the enemies per ally that gets that far; with
     /// Dynamic priority a minPain rule also reads each candidate's pain shock threshold stat; valueFromThreats one
-    /// pass over the enemies' aims per evaluation (shared with Defensive and Cover), then a lookup per ally.
+    /// pass over the enemies per evaluation (their aims, shared with Defensive and Cover, or their melee jobs), then
+    /// a lookup per ally.
     /// </summary>
     public class AbilityAIWorker_TargetFriendly : AbilityAIWorker
     {
@@ -316,18 +317,22 @@ namespace AbilityAI
         // urgent depends on the buff (Word of protection yes, Focus no), which only the rule can say. An aura rule is
         // already gated on its count and keeps its priority. ValueBase 0: an ally firing with nobody firing back is
         // fighting but under no threat, and stays at the rule's priority
-        public override bool ReportsValue => ext.auraKinds == AbilityAITargetKinds.None && (ext.fireDanger || ext.minPain > 0f || ext.valueFromThreats);
+        public override bool ReportsValue => ext.auraKinds == AbilityAITargetKinds.None
+            && (ext.fireDanger || ext.minPain > 0f || ext.valueFromThreats != AbilityAIThreatValue.None);
 
         // ConfigErrors refuse valueFromThreats beside the other triggers; if one slips through, the trigger wins
-        private bool ByThreats => ext.valueFromThreats && !ext.fireDanger && ext.minPain <= 0f && ext.auraKinds == AbilityAITargetKinds.None;
+        private bool ByThreats => ext.valueFromThreats != AbilityAIThreatValue.None && !ext.fireDanger && ext.minPain <= 0f
+            && ext.auraKinds == AbilityAITargetKinds.None;
 
         public override float ValueBase => 0f;
 
-        // Threats: no ally has more aims on it than there are enemies, plus one for a recent shot and melee's points
+        // All: no ally has more aims on it than there are enemies, plus one for a recent shot and melee's points.
+        // Melee: no more attackers than enemies, nor than the 8 cells beside the ally
         public override float ValueBound(AbilityAIContext ctx, AIAbility ability) =>
             !ReportsValue ? -1f
-            : ByThreats ? ctx.Enemies.Count + 1f + AbilityAIWorker_Defensive.MeleePoints
-            : AbilityAIScore.UrgencyPoints;
+            : !ByThreats ? AbilityAIScore.UrgencyPoints
+            : ext.valueFromThreats == AbilityAIThreatValue.Melee ? Mathf.Min(ctx.Enemies.Count, 8) * AbilityAIWorker_Defensive.MeleePoints
+            : ctx.Enemies.Count + 1f + AbilityAIWorker_Defensive.MeleePoints;
 
         public override bool TryFindTarget(AbilityAIContext ctx, AIAbility ability, out LocalTargetInfo target, out LocalTargetInfo dest)
         {
@@ -355,7 +360,7 @@ namespace AbilityAI
                     // The target choice too, with the setting off as well: measured only on the ally the pain and
                     // distance score picks, the nearest ally with nothing on it would win over one under four guns a
                     // few tiles further, and the cast would score low besides
-                    float threats = Threats(ctx, a);
+                    float threats = Threats(ctx, a, ext.valueFromThreats);
                     score *= 1f + threats;
                     if (weigh) allyValue = threats;
                 }
@@ -367,10 +372,16 @@ namespace AbilityAI
             return true;
         }
 
-        // Counted as Defensive counts them: each ranged enemy aiming at the ally, a shot in the last 10 seconds, melee
-        private static float Threats(AbilityAIContext ctx, Pawn a) =>
-            ctx.AimedAtCount(a) + (ctx.RecentlyShot(a) ? 1f : 0f)
-            + (AbilityAIUtility.InMelee(ctx, a) ? AbilityAIWorker_Defensive.MeleePoints : 0f);
+        // All counts as Defensive does: each ranged enemy aiming at the ally, a shot in the last 10 seconds, melee once.
+        // Melee counts each attacker, for a buff whose worth grows with every one (Fire shield sets each on fire). An
+        // ally hurt in melee by a pawn still beside it counts at least once even when that pawn's job isn't AttackMelee
+        private static float Threats(AbilityAIContext ctx, Pawn a, AbilityAIThreatValue mode)
+        {
+            bool inMelee = AbilityAIUtility.InMelee(ctx, a);
+            if (mode == AbilityAIThreatValue.Melee)
+                return Mathf.Max(ctx.MeleeAttackersOn(a), inMelee ? 1 : 0) * AbilityAIWorker_Defensive.MeleePoints;
+            return ctx.AimedAtCount(a) + (ctx.RecentlyShot(a) ? 1f : 0f) + (inMelee ? AbilityAIWorker_Defensive.MeleePoints : 0f);
+        }
 
         private float Urgency(Pawn a, float pain, float fire)
         {

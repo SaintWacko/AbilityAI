@@ -228,7 +228,7 @@
               <li Class="AbilityAI.AbilityAIExtension">
                 <workerClass>AbilityAI.AbilityAIWorker_TargetFriendly</workerClass>
                 <priority>3</priority>
-                <valueFromThreats>true</valueFromThreats>
+                <valueFromThreats>All</valueFromThreats>
                 <maxRange>7</maxRange>
                 <linkSafe>NonHostile</linkSafe>
               </li>
@@ -482,7 +482,8 @@
         </li>
 
         <!-- Fire shield: 20 s of fire immunity for an ally fighting now (or the caster), and melee attackers catch
-             fire. The ally with the most threats on it first, and more threats lift the priority. -->
+             fire. Allies with enemies attacking them in melee first, each attacker counting, and more attackers lift
+             the priority; guns aimed at the ally don't count, as the shield does nothing about bullets. -->
         <li Class="PatchOperationConditional">
           <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_FireShield"]</xpath>
           <match Class="PatchOperationAddModExtension">
@@ -491,7 +492,7 @@
               <li Class="AbilityAI.AbilityAIExtension">
                 <workerClass>AbilityAI.AbilityAIWorker_TargetFriendly</workerClass>
                 <priority>3</priority>
-                <valueFromThreats>true</valueFromThreats>
+                <valueFromThreats>Melee</valueFromThreats>
               </li>
             </value>
           </match>
@@ -645,7 +646,8 @@
         </li>
 
         <!-- Ice shield: 30 s of cold immunity for an ally fighting now (or the caster); melee attackers get
-             hypothermia. The ally with the most threats on it first, and more threats lift the priority. -->
+             hypothermia. Allies with enemies attacking them in melee first, each attacker counting, and more
+             attackers lift the priority; guns aimed at the ally don't count. -->
         <li Class="PatchOperationConditional">
           <xpath>Defs/VEF.Abilities.AbilityDef[defName="VPE_IceShield"]</xpath>
           <match Class="PatchOperationAddModExtension">
@@ -654,7 +656,7 @@
               <li Class="AbilityAI.AbilityAIExtension">
                 <workerClass>AbilityAI.AbilityAIWorker_TargetFriendly</workerClass>
                 <priority>3</priority>
-                <valueFromThreats>true</valueFromThreats>
+                <valueFromThreats>Melee</valueFromThreats>
               </li>
             </value>
           </match>

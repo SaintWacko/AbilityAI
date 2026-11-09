@@ -255,6 +255,19 @@ namespace AbilityAI
         Colony,
     }
 
+    /// <summary>Target friendly: which threats on a fighting ally count toward choosing it and its value
+    /// (AbilityAIExtension.valueFromThreats).</summary>
+    public enum AbilityAIThreatValue : byte
+    {
+        /// <summary>Threats don't count: the nearest fighting ally, the caster first, at the rule's priority.</summary>
+        None,
+        /// <summary>Each ranged enemy aiming at the ally, a shot in the last 10 seconds, in melee 2.</summary>
+        All,
+        /// <summary>2 for each enemy attacking the ally in melee from beside it, for a buff that only answers melee
+        /// (VPE's Fire shield and Ice shield punish melee attackers; guns barely change what they are worth).</summary>
+        Melee
+    }
+
     /// <summary>What the caster must be fighting with for a rule to apply (Blade Focus: melee).</summary>
     public enum AbilityAIRequires
     {
@@ -623,11 +636,12 @@ namespace AbilityAI
         /// <summary>Target friendly: never an ally in fire danger (AbilityAIFire), for a buff that makes its bearer burn
         /// worse (Alpha Animals' Fungal skin).</summary>
         public bool avoidFireDanger;
-        /// <summary>Target friendly on the fighting trigger: the more threats on an ally (each ranged enemy aiming at
-        /// it, being shot recently, in melee for 2), the likelier it is the one chosen, and with Dynamic priority each
-        /// threat lifts the cast's priority. For a buff against damage taken (Word of protection), not one that helps the
-        /// ally fight (Focus). Not with fireDanger, minPain or auraKinds, which pick and score allies their own way.</summary>
-        public bool valueFromThreats;
+        /// <summary>Target friendly on the fighting trigger: the more threats on an ally, the likelier it is the one
+        /// chosen, and with Dynamic priority each threat lifts the cast's priority. All: each ranged enemy aiming at it,
+        /// being shot recently, in melee for 2. Melee: 2 per enemy attacking it in melee. For a buff against what those
+        /// threats do (Word of protection: All; Fire shield: Melee), not one that helps the ally fight (Focus). Not with
+        /// fireDanger, minPain or auraKinds, which pick and score allies their own way.</summary>
+        public AbilityAIThreatValue valueFromThreats;
         /// <summary>Hostile workers: only pawns with at least one part of this def left, for an ability that works on that
         /// part alone (Alpha Animals' Destroy eyes, Leg skip); a pawn missing all of them is skipped, so the ability isn't
         /// spent on an enemy it already blinded. Mechs and other bodies without the part are skipped too.</summary>
@@ -820,9 +834,9 @@ namespace AbilityAI
                 yield return $"casterLeaves is only read by Target hostile, not {workerClass.Name}";
             if (casterLeaves && !avoidAllies) yield return "casterLeaves does nothing without avoidAllies";
             if (avoidFireDanger && fireDanger) yield return "fireDanger and avoidFireDanger together leave no ally to target";
-            if (valueFromThreats && workerClass != null && !typeof(AbilityAIWorker_TargetFriendly).IsAssignableFrom(workerClass))
+            if (valueFromThreats != AbilityAIThreatValue.None && workerClass != null && !typeof(AbilityAIWorker_TargetFriendly).IsAssignableFrom(workerClass))
                 yield return $"valueFromThreats is only read by Target friendly, not {workerClass.Name}";
-            else if (valueFromThreats && (fireDanger || minPain > 0f || auraKinds != AbilityAITargetKinds.None))
+            else if (valueFromThreats != AbilityAIThreatValue.None && (fireDanger || minPain > 0f || auraKinds != AbilityAITargetKinds.None))
                 yield return "valueFromThreats only works on the fighting trigger: not with fireDanger, minPain or auraKinds";
             if (targetPart != null && Worker != null && !Worker.TargetsEnemies)
                 yield return $"targetPart is only read by hostile workers, not {workerClass.Name}";
@@ -914,6 +928,8 @@ namespace AbilityAI
         private readonly List<Pawn> allies = new List<Pawn>();
         private readonly List<Pawn> downedAllies = new List<Pawn>();
         private readonly Dictionary<Pawn, int> aimedAt = new Dictionary<Pawn, int>();
+        private readonly Dictionary<Pawn, int> meleeOn = new Dictionary<Pawn, int>();
+        private bool meleeOnBuilt;
         private readonly List<Thing> enemyTurrets = new List<Thing>();
         private readonly List<Thing> friendlyTurrets = new List<Thing>();
         private bool friendlyTurretsBuilt;
@@ -973,7 +989,7 @@ namespace AbilityAI
             WantsValue = false;
             TargetValue = -1f;
             combatKnown = enemiesBuilt = alliesBuilt = aimsBuilt = friendliesBuilt = brokenBuilt = supportBuilt = enemyTargetKnown = preyKnown = meleeJobTargetKnown = false;
-            friendlyTurretsBuilt = false;
+            friendlyTurretsBuilt = meleeOnBuilt = false;
         }
 
         internal void End()
@@ -985,6 +1001,7 @@ namespace AbilityAI
             allies.Clear();
             downedAllies.Clear();
             aimedAt.Clear();
+            meleeOn.Clear();
             friendlies.Clear();
             brokenAllies.Clear();
             supportAllies.Clear();
@@ -1288,6 +1305,27 @@ namespace AbilityAI
                 }
             }
             return aimedAt.TryGetValue(p, out int c) ? c : 0;
+        }
+
+        /// <summary>How many enemies are attacking this pawn in melee from beside it now. Built once per evaluation
+        /// from Enemies (k checks), then a lookup. One still walking up doesn't count yet.</summary>
+        public int MeleeAttackersOn(Pawn p)
+        {
+            if (!meleeOnBuilt)
+            {
+                meleeOnBuilt = true;
+                var list = Enemies;
+                for (int i = 0; i < list.Count; i++)
+                {
+                    Pawn e = list[i];
+                    var job = e.CurJob;
+                    if (job == null || job.def != JobDefOf.AttackMelee || !(job.targetA.Thing is Pawn victim)
+                        || !e.Position.InHorDistOf(victim.Position, 1.5f)) continue;
+                    meleeOn.TryGetValue(victim, out int n);
+                    meleeOn[victim] = n + 1;
+                }
+            }
+            return meleeOn.TryGetValue(p, out int c) ? c : 0;
         }
 
         /// <summary>Shot at in the last 10 seconds.</summary>

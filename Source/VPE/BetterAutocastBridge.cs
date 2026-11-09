@@ -91,7 +91,8 @@ namespace AbilityAI.Vpe
 
         // To BA: every handled ability with one of our modes gets VEF's flag (the mode stays, unused, for a switch
         // back). To us: a set flag becomes a mode as Convert does, and a cleared one turns the mode off, since the
-        // player switched it off while BA had it. Offers rather than Owns: a colonist in a break is carried too.
+        // player switched it off while BA had it. Offers rather than Owns: a colonist in a break is carried too. evenControlled as in Owns, so the pawn under
+        // Perspective Shift's direct control is carried as well.
         private static void Carry(bool toBetterAutocast)
         {
             var pawns = PawnsFinder.AllMapsCaravansAndTravellingTransporters_Alive_OfPlayerFaction;

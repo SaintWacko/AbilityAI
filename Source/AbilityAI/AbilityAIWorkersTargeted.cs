@@ -300,7 +300,8 @@ namespace AbilityAI
     /// with auraKinds, only allies whose aura
     /// would reach enough enemies (AbilityAIUtility.AuraWorthIt). Scored by (1 + pain + fire danger), the caster
     /// x1.5, divided by distance over range. Cost: a checks, and for an aura, fireDanger or avoidFireDanger rule a
-    /// pass over the enemies per ally that gets that far.
+    /// pass over the enemies per ally that gets that far; with Dynamic priority a minPain rule also reads each
+    /// candidate's pain shock threshold stat.
     /// </summary>
     public class AbilityAIWorker_TargetFriendly : AbilityAIWorker
     {
@@ -346,6 +347,7 @@ namespace AbilityAI
 
         private float Urgency(Pawn a, float pain, float fire)
         {
+            // A fireDanger rule only targets allies in fire danger, so the fire is why it casts, whatever the pain
             if (ext.fireDanger) return Mathf.Clamp01(fire / AbilityAIFire.Burning);
             float shock = a.GetStatValue(StatDefOf.PainShockThreshold);
             return shock > ext.minPain ? Mathf.Clamp01((pain - ext.minPain) / (shock - ext.minPain)) : 1f;
@@ -376,7 +378,8 @@ namespace AbilityAI
     /// ranged enemies aiming at them (being shot recently counts as one); with rangedOnly only the last of those.
     /// Skips anyone with the ability's hediff.
     /// The caster first (x1.5), then whoever is worst hurt. Cost: a × k distance checks at worst (only for allies
-    /// under the health threshold), plus one pass over the enemies' targets.
+    /// under the health threshold; with Dynamic priority for each of those even when melee or threats already
+    /// count, to measure the worst reason), plus one pass over the enemies' targets.
     /// </summary>
     public class AbilityAIWorker_Defensive : AbilityAIWorker
     {
@@ -456,7 +459,7 @@ namespace AbilityAI
     /// Rescue: help a downed ally (Painblock gets a pawn downed by pain alone back on its feet). Downed allies in
     /// range without the ability's hediff, painShockOnly limiting it to pain shock and minBleedRate to those
     /// bleeding that fast (cached on the hediff set); nearest first. Any time, in combat or not. Cost: one pass over
-    /// downed allies.
+    /// downed allies, and with Dynamic priority a pass over each one's hediffs for the time left to bleed out.
     /// </summary>
     public class AbilityAIWorker_Rescue : AbilityAIWorker
     {

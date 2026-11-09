@@ -587,12 +587,15 @@ namespace AbilityAI
         // Vanilla's health card says "won't bleed out soon" from a day out; two hours is the last stretch
         private const int BleedCalmTicks = GenDate.TicksPerDay, BleedDireTicks = 2 * GenDate.TicksPerHour;
 
-        /// <summary>How close the pawn is to bleeding to death, 0..1: 0 a day or more away (or not bleeding, or
-        /// deathless), 1 within two hours. Time to death counts the blood already lost, so a pawn who has bled for a
-        /// while ranks above a fresh wound bleeding as fast. Cost: a pass over the hediffs.</summary>
+        /// <summary>How close the pawn is to bleeding to death, 0..1: 0 a day or more away (or not bleeding, or unable
+        /// to die: deathless, or a hediff that prevents death), 1 within two hours. Time to death counts the blood
+        /// already lost, so a pawn who has bled for a while ranks above a fresh wound bleeding as fast. Cost: a pass
+        /// over the hediffs.</summary>
         public static float BleedUrgency(Pawn p)
         {
+            // The same two exemptions vanilla's death check makes
             if (ModsConfig.BiotechActive && p.genes != null && p.genes.HasActiveGene(GeneDefOf.Deathless)) return 0f;
+            if (p.health.hediffSet.HasPreventsDeath) return 0f;
             int ticks = HealthUtility.TicksUntilDeathDueToBloodLoss(p);
             return Mathf.InverseLerp(BleedCalmTicks, BleedDireTicks, ticks);
         }

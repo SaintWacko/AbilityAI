@@ -327,11 +327,12 @@ namespace AbilityAI
         public override float ValueBase => 0f;
 
         // All: no ally has more aims on it than there are enemies, plus one for a recent shot and melee's points.
-        // Melee: no more attackers than enemies, nor than the 8 cells beside the ally
+        // Melee: no more attackers than enemies (pawns can share a cell, so not 8), and at least the one InMelee counts,
+        // whose attacker may be missing from Enemies (unseen, invisible)
         public override float ValueBound(AbilityAIContext ctx, AIAbility ability) =>
             !ReportsValue ? -1f
             : !ByThreats ? AbilityAIScore.UrgencyPoints
-            : ext.valueFromThreats == AbilityAIThreatValue.Melee ? Mathf.Min(ctx.Enemies.Count, 8) * AbilityAIWorker_Defensive.MeleePoints
+            : ext.valueFromThreats == AbilityAIThreatValue.Melee ? Mathf.Max(1, ctx.Enemies.Count) * AbilityAIWorker_Defensive.MeleePoints
             : ctx.Enemies.Count + 1f + AbilityAIWorker_Defensive.MeleePoints;
 
         public override bool TryFindTarget(AbilityAIContext ctx, AIAbility ability, out LocalTargetInfo target, out LocalTargetInfo dest)

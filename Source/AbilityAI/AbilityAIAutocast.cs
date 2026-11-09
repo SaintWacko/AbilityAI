@@ -452,16 +452,19 @@ namespace AbilityAI
 
         /// <summary>Offers for an ability of any system. For VEF's this also says whether Ability AI owns the
         /// ability, which hides VEF's own autocast toggle.</summary>
-        internal static bool Offers(AIAbility ability) =>
-            ability != null && ability.Drivable && !ability.PlayerAutocastElsewhere && Offers(ability.Pawn, ability.Def)
+        internal static bool Offers(AIAbility ability) => Offers(ability, false);
+
+        /// <summary>evenControlled: the pawn Perspective Shift has under direct control counts as offered, so VEF's
+        /// own toggle stays hidden on it (VefAutocast.Owns) while it gets no menu from us.</summary>
+        internal static bool Offers(AIAbility ability, bool evenControlled) =>
+            ability != null && ability.Drivable && !ability.PlayerAutocastElsewhere && Offers(ability.Pawn, ability.Def, evenControlled)
             && AbilityAIHooks.NotVetoed(ability.Pawn, ability);
 
-        private static bool Offers(Pawn p, Def def)
+        private static bool Offers(Pawn p, Def def, bool evenControlled = false)
         {
             if (!AbilityAISettings.Enabled || !AbilityAISettings.PlayerAutocast) return false;
             if (p == null || def == null || p.Faction == null || !p.Faction.IsPlayer || p.IsPrisoner) return false;
-            // Under Perspective Shift's direct control: no menu, and VEF's own toggle comes back (VefAutocast.Owns)
-            if (AbilityAIPerspectiveShift.Controlled(p)) return false;
+            if (!evenControlled && AbilityAIPerspectiveShift.Controlled(p)) return false;
             // A pawn that can't be drafted (most animals) only ever autocasts undrafted, where it uses every worker
             // while fighting back (AbilityAIDriver.FightsUndrafted). Without undrafted autocast it never would.
             if (p.drafter == null && !AbilityAISettings.UndraftedAutocast) return false;

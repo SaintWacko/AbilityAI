@@ -459,9 +459,7 @@ namespace AbilityAI
                 }
                 return;
             }
-            // A cast by the pawn Perspective Shift has under direct control starts nothing for the colony to keep up
-            if (caster == null || !AbilityAISettings.RecastTrackNewCasts || castWith.PlayerAutocastElsewhere
-                || AbilityAIPerspectiveShift.Controlled(caster)) return;
+            if (caster == null || !AbilityAISettings.RecastTrackNewCasts || castWith.PlayerAutocastElsewhere) return;
             spots.Add(new RecastSpot(thing, castWith.Def, tick));
             CompRecastSpot.Mark(thing, true);
         }

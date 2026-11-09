@@ -30,7 +30,9 @@ namespace AbilityAI.Vef
             // A break takes the pawn out of the player's hands; VEF's casting during one is left as it was (or to
             // our NPC rules under BreakCasting, through the AutoCast stand-down)
             if (p.InMentalState || !VefAIAbility.Supported(ability.def)) return false;
-            return AbilityAIAutocast.Offers(VefAIAbility.Of(ability));
+            // Still ours under Perspective Shift's direct control: VEF's toggle stays hidden, so nothing autocasts for
+            // the pawn the player is playing by hand
+            return AbilityAIAutocast.Offers(VefAIAbility.Of(ability), true);
         }
 
         /// <summary>VEF's own flag on an ability we own becomes our in-place mode (unless a mode is already set), and
@@ -76,7 +78,7 @@ namespace AbilityAI.Vef
             {
                 if (!(o is Pawn p) || p == clicked.pawn) continue;
                 var other = VefAIAbility.FindOn(p, def);
-                if (other != null && other.ShowGizmoOnPawn() && Owns(other)) pawns.Add(p);
+                if (other != null && other.ShowGizmoOnPawn() && Owns(other) && !AbilityAIPerspectiveShift.Controlled(p)) pawns.Add(p);
             }
             AbilityAIAutocast.OpenMenu(clicked.pawn, def, VefAIAbility.Of(clicked).IsTouch, pawns, command.LabelCap);
         }
@@ -141,7 +143,7 @@ namespace AbilityAI.Vef
             Event ev = Event.current;
             if (ev.type != EventType.MouseDown || ev.button != 1 || !Mouse.IsOver(butRect)) return;
             VefAbility ability = __instance.ability;
-            if (ability == null || !VefAutocast.Owns(ability)) return;
+            if (ability == null || !VefAutocast.Owns(ability) || AbilityAIPerspectiveShift.Controlled(ability.pawn)) return;
             ev.Use();
             VefAutocast.OpenMenu(__instance, ability);
         }

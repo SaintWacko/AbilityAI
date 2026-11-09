@@ -6,8 +6,9 @@ using Verse.AI;
 // the best-scored candidate (AbilityAIScore: priority plus a bonus from the value its worker reports for the target it
 // found) instead of the first by priority that finds a target. A candidate is searched only while it could still win:
 // its priority plus the bonus its worker's ValueBound allows must beat the best option found so far, so a rule
-// without a value below the best is skipped unsearched, as the first-fit loop never reached it either. Off, and for
-// heat vents and job owners' offers, TryCandidates runs the first-fit loop unchanged.
+// without a value below the best is skipped unsearched, as the first-fit loop never reached it either. Job owners'
+// offers (step 4) keep the top offerMax instead of the best, so the bar is the offerMax-th best option. Off, and for
+// heat vents, TryCandidates runs the first-fit loop unchanged.
 namespace AbilityAI
 {
     public static partial class AbilityAIDriver
@@ -40,9 +41,15 @@ namespace AbilityAI
             ctx.WantsValue = true;
             try
             {
+                if (Offering)
+                {
+                    SearchScored(list, pawn, player, offerMax, ref waitingForFight);
+                    OfferScored(list, pawn, state, tick, player, role);
+                    return null;
+                }
                 while (true)
                 {
-                    SearchScored(list, player, ref waitingForFight);
+                    SearchScored(list, pawn, player, 1, ref waitingForFight);
                     int best = BestOption();
                     if (best < 0) return null;
                     Option o = options[best];
@@ -67,10 +74,12 @@ namespace AbilityAI
             }
         }
 
-        // Searches every candidate not yet searched that could still beat the best option, in base priority order
-        private static void SearchScored(List<Candidate> list, bool player, ref bool waitingForFight)
+        // Searches every candidate not yet searched that could still make the top keep options, in base priority order.
+        // While offering, a Word a pawn linked to the caster mustn't take is refused here rather than after the search
+        // (where the driver's own cast refuses it), so the options are all things that can be offered.
+        private static void SearchScored(List<Candidate> list, Pawn pawn, bool player, int keep, ref bool waitingForFight)
         {
-            int best = BestOption();
+            int bar = Bar(keep);
             for (int i = 0; i < list.Count; i++)
             {
                 if (searched[i]) continue;
@@ -85,12 +94,12 @@ namespace AbilityAI
                     continue;
                 }
                 waitingForFight = false;
-                if (best >= 0)
+                if (bar >= 0)
                 {
                     // The cap first, which costs nothing; the bound only for a rule the cap leaves in the running
                     float cap = worker.ReportsValue ? AbilityAIScore.Cap(ext) : 0f;
-                    if (Beaten(ext.priority + (cap > 0f ? cap : 0f), i, best)) continue;
-                    if (cap > 0f && Beaten(ext.priority + AbilityAIScore.Bonus(worker, worker.ValueBound(ctx, a)), i, best)) continue;
+                    if (Beaten(ext.priority + (cap > 0f ? cap : 0f), i, bar)) continue;
+                    if (cap > 0f && Beaten(ext.priority + AbilityAIScore.Bonus(worker, worker.ValueBound(ctx, a)), i, bar)) continue;
                 }
                 searched[i] = true;
                 exclusiveDef = worker.Exclusive ? a.Def : null;
@@ -110,6 +119,9 @@ namespace AbilityAI
                         refusal = whyNot != null ? $"the ability refused {TargetLabel(target)}" : "";
                     else if (player && !PsycastWithinLimits(a, target))
                         refusal = whyNot != null ? $"over this pawn's autocast limits for {TargetLabel(target)}" : "";
+                    else if (Offering && AbilityAIGroupLink.Registered && AbilityAIGroupLink.IsWord(a.Def)
+                        && !AbilityAIGroupLink.LinkedMayTake(ctx, pawn, a, ext, out Pawn refused))
+                        refusal = whyNot != null ? $"{refused.LabelShort} is linked to it and mustn't be reached" : "";
                 }
                 exclusiveDef = null;
                 affectedCounted = false;
@@ -127,9 +139,66 @@ namespace AbilityAI
                     barrierRadius = barrier ? AbilityAIWorker_Barrier.LastRadius : 0f,
                     value = value, score = AbilityAIScore.Score(worker, value),
                 });
-                if (best < 0 || Better(options.Count - 1, best)) best = options.Count - 1;
+                bar = Bar(keep);
             }
             ctx.CastAtPrey = false;
+        }
+
+        // The option a candidate must beat to make the top keep: the keep-th best, or -1 while there are fewer options
+        // than that and anything found is kept. Options are one per candidate searched, a handful, so the quadratic
+        // count for keep > 1 is cheaper than keeping them sorted.
+        private static int Bar(int keep)
+        {
+            if (options.Count < keep) return -1;
+            if (keep == 1) return BestOption();
+            for (int i = 0; i < options.Count; i++)
+            {
+                int ahead = 0;
+                for (int j = 0; j < options.Count; j++)
+                    if (j != i && Better(j, i)) ahead++;
+                if (ahead == keep - 1) return i;
+            }
+            return -1;
+        }
+
+        private static readonly System.Comparison<Option> BestFirst = (x, y) =>
+            x.score != y.score ? y.score.CompareTo(x.score) : x.index.CompareTo(y.index);
+
+        // The options as a job owner's candidates, best first, as the first-fit offer does: a Word that would take the
+        // pawn's Group link first is offered as LinkFirst with the Word alone after it, even past offerMax. Both carry
+        // the Word's score and value.
+        private static void OfferScored(List<Candidate> list, Pawn pawn, PawnState state, int tick, bool player, AbilityAIRole role)
+        {
+            options.Sort(BestFirst);
+            for (int k = 0; k < options.Count && !OfferFull; k++)
+            {
+                Option o = options[k];
+                AIAbility a = list[o.index].ability;
+                var ext = list[o.index].ext;
+                // FindLinkFirst asks Valid again, which must see the rule's exclusivity as its search did
+                exclusiveDef = ext.Worker.Exclusive ? a.Def : null;
+                affectedCounted = ext.Worker.CountsAffectedAroundCaster;
+                if (AbilityAIGroupLink.Registered && AbilityAIGroupLink.IsWord(a.Def) && AbilityAIGroupLink.LinkOf(pawn) == null
+                    && FindLinkFirst(pawn, state, tick, player, role, a, ext, o.target, out AIAbility linker, out int linkCount))
+                {
+                    Offer(state, new AbilityAICandidate
+                    {
+                        kind = AbilityAICandidateKind.LinkFirst, ability = a, rule = ext, target = o.target, dest = o.dest,
+                        priority = ext.priority, linker = linker, expected = linkCount, castAtPrey = o.castAtPrey,
+                        score = o.score, value = o.value, scored = true,
+                    });
+                }
+                Offer(state, new AbilityAICandidate
+                {
+                    kind = AbilityAICandidateKind.Cast, ability = a, rule = ext, target = o.target, dest = o.dest,
+                    priority = ext.priority, castAtPrey = o.castAtPrey,
+                    barrierCount = o.barrierCount, barrierRadius = o.barrierRadius,
+                    score = o.score, value = o.value, scored = true,
+                });
+                noLinkWhy = null;
+                exclusiveDef = null;
+                affectedCounted = false;
+            }
         }
 
         // Ties go to the higher base priority, then the list's order; the list is in base priority order, so the

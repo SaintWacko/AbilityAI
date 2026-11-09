@@ -79,6 +79,13 @@ namespace AbilityAI
         public LocalTargetInfo dest;
         /// <summary>The rule's priority (higher first). Return: int.MinValue.</summary>
         public int priority;
+        /// <summary>The effective priority the candidate was ranked by: priority plus the Dynamic priority bonus for
+        /// value. Equal to priority for a rule whose worker reports no value, for every candidate while Dynamic
+        /// priority is off, and for LinkWord, Approach and heat vents. Return: float.MinValue.</summary>
+        public float score;
+        /// <summary>What the worker reported for this target (weighted enemies in the blast, allies helped, fire
+        /// weight), before the rule's minTargets is taken off; -1 when it reports none. A LinkFirst carries its Word's.</summary>
+        public float value;
         public AbilityAICategory category;
 
         internal int offer;
@@ -90,6 +97,8 @@ namespace AbilityAI
         internal int expected;
         internal AIAbility ventFor;
         internal string at;
+        // score and value were set by the scored search; otherwise Offer fills them from priority
+        internal bool scored;
     }
 
     public static partial class AbilityAIDriver
@@ -109,6 +118,11 @@ namespace AbilityAI
             c.tick = Find.TickManager.TicksGame;
             if (c.category == AbilityAICategory.Default)
                 c.category = c.rule?.Worker != null ? c.rule.Worker.Category : AbilityAICategory.Movement;
+            if (!c.scored)
+            {
+                c.score = c.kind == AbilityAICandidateKind.Return ? float.MinValue : c.priority;
+                c.value = -1f;
+            }
             offerInto.Add(c);
         }
 
@@ -126,7 +140,9 @@ namespace AbilityAI
         /// <summary>For a job owner (IAbilityAIJobOwner): clears into, then fills it with up to max things the driver
         /// would do for this pawn now, best first, under the same rules, settings, autocast modes and intervals as its
         /// own casts (a pawn checked less than 30 ticks ago, or within the gap after a cast, gets nothing). Casts are
-        /// sorted by rule priority; a walk into range or back is offered only when no cast is. Starts nothing, makes no
+        /// sorted by score: with Dynamic priority on, the top max by priority plus the bonus for the value each found
+        /// (a rule that cannot reach the top max is not searched); off, the first max by rule priority that find a
+        /// target, with score equal to priority. A walk into range or back is offered only when no cast is. Starts nothing, makes no
         /// job and holds nothing: pass the one picked to Start in the same tick. Ask at most once per pawn per check:
         /// an ask that offers something makes the batch before it stale, and passing over a whole batch still costs the
         /// pawn its next 30 ticks, as a check that cast nothing does.</summary>

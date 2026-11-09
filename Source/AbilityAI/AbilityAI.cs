@@ -2222,12 +2222,12 @@ namespace AbilityAI
         }
 
         // Tries each candidate's worker in order and returns the first cast made. ventFor: the psycast heat held back,
-        // when these are heat vents (named in the dev log line). With Dynamic priority on, the driver's own casts are
-        // scored instead (TryCandidatesScored); vents stay first-fit, as they only answer a psycast heat held back.
+        // when these are heat vents (named in the dev log line). With Dynamic priority on, casts and offers are scored
+        // instead (TryCandidatesScored); vents stay first-fit, as they only answer a psycast heat held back.
         private static Job TryCandidates(List<Candidate> list, Pawn pawn, PawnState state, int tick, bool player, AbilityAIRole role,
             ref bool waitingForFight, AIAbility ventFor)
         {
-            if (AbilityAISettings.DynamicPriority && ventFor == null && !Offering)
+            if (AbilityAISettings.DynamicPriority && ventFor == null)
                 return TryCandidatesScored(list, pawn, state, tick, player, role, ref waitingForFight);
             for (int i = 0; i < list.Count; i++)
             {

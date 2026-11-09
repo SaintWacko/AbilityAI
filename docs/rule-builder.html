@@ -218,8 +218,10 @@ const RANGED = DRIVER.filter(k => !["Cover", "Barrier", "ShedHeat"].includes(k))
 const WORDS = ["TargetHostile", "TargetFriendly", "Recovery", "Calm", "Zone"];
 const APPROACH = ["AoEHostile", "AoEHostileSelf", "ConeHostile", "BeamHostile", "TargetHostile", "AoEFriendly"];
 // Workers that report a value for Dynamic priority (Target hostile only with minTargets over 1, AoE hostile self only
-// without minCorpses: ruleChecks says so)
-const VALUE = ["AoEHostile", "AoEHostileSelf", "ConeHostile", "BeamHostile", "TargetHostile", "AoEFriendly", "Firefighting", "Deploy"];
+// without minCorpses, Target friendly only with fireDanger or minPain and no auraKinds, Recovery only with Injured or
+// Bleeding: ruleChecks says so)
+const VALUE = ["AoEHostile", "AoEHostileSelf", "ConeHostile", "BeamHostile", "TargetHostile", "AoEFriendly", "Firefighting", "Deploy",
+  "Cover", "Defensive", "Rescue", "TargetFriendly", "Recovery"];
 
 // t: int, float, bool, bool3 (unset/true/false), enum:<list>, flags:<list>, def, defs
 // d: the default as the game reads it (null = none, shown as unset)
@@ -232,7 +234,7 @@ const FIELDS = [
   { n: "category", t: "enum:category", d: null, w: DRIVER, g: "Any rule",
     doc: "What the rule does in a fight, for a mod that decides its pawns' jobs itself and scores Ability AI's suggestions (a job owner). Unset uses the worker's default. Ability AI's own casting ignores it." },
   { n: "priorityPerValue", t: "float", d: null, w: VALUE,
-    doc: "With the player's Dynamic priority setting on: priority this rule gains per point of value past its minTargets (minCorpses for a corpse rule; weighted enemies hit, allies helped, fire weight). Unset uses the setting (0.5)." },
+    doc: "With the player's Dynamic priority setting on: priority this rule gains per point of value past its minTargets (minCorpses for a corpse rule, minThreats for Cover; weighted enemies hit, allies helped, fire weight, threats; help workers report urgency points from 0, 4 at full urgency). Unset uses the setting (0.5)." },
   { n: "maxPriorityBonus", t: "float", d: null, w: VALUE,
     doc: "With Dynamic priority on: the most value can add to this rule's priority. Unset uses the setting (2); 0 keeps the rule at its priority whatever it hits." },
   { n: "reserveCharges", t: "int", d: "0", w: DRIVER, g: "Any rule",
@@ -811,6 +813,10 @@ function ruleChecks(rule, fields) {
     out.push("priorityPerValue and maxPriorityBonus need minTargets above 1 on Target hostile: a single target reports no value");
   if (valueField && w === "AoEHostileSelf" && minCorpses > 0)
     out.push("priorityPerValue and maxPriorityBonus aren't read with minCorpses on AoE hostile self: a corpse rule keeps its priority");
+  if (valueField && w === "TargetFriendly" && (flags(fields, "auraKinds").length || !(bool(fields, "fireDanger") || num(fields, "minPain") > 0)))
+    out.push("priorityPerValue and maxPriorityBonus need fireDanger or minPain, and no auraKinds, on Target friendly: a buff for an ally who is only fighting keeps its priority");
+  if (valueField && w === "Recovery" && !flags(fields, "health").some(f => f === "Injured" || f === "Bleeding"))
+    out.push("priorityPerValue and maxPriorityBonus need Injured or Bleeding in health on Recovery: needs, diseases and missing parts keep their priority");
   if (has(fields, "minTargets") && num(fields, "minTargets") < (minCorpses > 0 ? 0 : 1))
     out.push(minCorpses > 0 ? "minTargets can't be negative" : "minTargets must be at least 1");
   const anchored = defList(fields.anchorThings).length > 0 || flags(fields, "anchorCorpses").length > 0;

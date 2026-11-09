@@ -87,7 +87,9 @@ namespace AbilityAI
             var worker = ext.Worker;
             string s = score != ext.priority ? $"priority {ext.priority} -> {score:0.##}" : $"priority {ext.priority}";
             if (score != ext.priority && score - ext.priority >= AbilityAIScore.Cap(ext) - 0.001f) s += " (cap)";
-            if (value >= 0f && worker.ReportsValue) s += $", worth {value:0.##}, needs {worker.ValueBase:0.##}";
+            // A help worker's value is urgency points from 0 (ValueBase 0), so "needs 0" would say nothing
+            if (value >= 0f && worker.ReportsValue)
+                s += worker.ValueBase > 0f ? $", worth {value:0.##}, needs {worker.ValueBase:0.##}" : $", worth {value:0.##}";
             return s;
         }
 

@@ -736,7 +736,9 @@ namespace AbilityAI
             if ((priorityPerValue >= 0f || maxPriorityBonus >= 0f) && Worker != null && !Worker.ReportsValue)
                 yield return $"priorityPerValue and maxPriorityBonus are only read by a rule whose worker reports a value, not {workerClass.Name}"
                     + (typeof(AbilityAIWorker_TargetHostile).IsAssignableFrom(workerClass) ? " with minTargets 1"
-                        : typeof(AbilityAIWorker_AoEHostileSelf).IsAssignableFrom(workerClass) ? " with minCorpses" : "");
+                        : typeof(AbilityAIWorker_AoEHostileSelf).IsAssignableFrom(workerClass) ? " with minCorpses"
+                        : typeof(AbilityAIWorker_TargetFriendly).IsAssignableFrom(workerClass) ? " without fireDanger or minPain, or with auraKinds"
+                        : typeof(AbilityAIWorker_Recovery).IsAssignableFrom(workerClass) ? " without Injured or Bleeding in health" : "");
             // A corpse-scored rule may need no enemy near the corpses (its combat mode still wants a fight)
             if (minTargets < (minCorpses > 0 ? 0 : 1)) yield return minCorpses > 0 ? "minTargets can't be negative" : "minTargets must be at least 1";
             if (approachDistance < 0f) yield return "approachDistance can't be negative";
